@@ -384,10 +384,20 @@ public class MainForm : Form
         foreach (var p in _cfg.Profiles)
         {
             var item = _trayMenu.Items.Add($"▶  {p.Name}");
-            item.Click += (_, _) =>
+            item.Click += async (_, _) =>
             {
-                var (ok, msg) = NetCommands.Apply(_adapterCombo.Text, p);
-                SetStatus(ok ? $"✓  {p.Name} applied" : $"✗  Error: {msg}");
+                if (System.Threading.Interlocked.Exchange(ref _applyInFlight, 1) == 1) return;
+                string adapter = _adapterCombo.Text;
+                try
+                {
+                    var (ok, msg) = await Task.Run(() => NetCommands.Apply(adapter, p));
+                    SetTrayState(ok ? TrayState.MatchedProfile : TrayState.Error);
+                    SetStatus(ok ? $"✓  {p.Name} applied" : $"✗  Error: {msg}");
+                }
+                finally
+                {
+                    System.Threading.Interlocked.Exchange(ref _applyInFlight, 0);
+                }
             };
         }
 
@@ -455,7 +465,9 @@ public class MainForm : Form
         }
         else
         {
-            bool matched = !string.IsNullOrEmpty(ssid) &&
+            // When monitoring is disabled, always show Idle regardless of SSID match
+            bool matched = _cfg.MonitorEnabled &&
+                           !string.IsNullOrEmpty(ssid) &&
                            _cfg.Profiles.Any(p =>
                                p.LinkedSsids.Any(s => s.Equals(ssid, StringComparison.OrdinalIgnoreCase)));
             SetTrayState(matched ? TrayState.MatchedProfile : TrayState.Idle);
@@ -559,13 +571,14 @@ public class MainForm : Form
         string name = _nameBox.Text.Trim();
         if (string.IsNullOrEmpty(name)) { SetStatus("Enter a profile name."); return; }
 
-        var existing = _cfg.Profiles.FirstOrDefault(p => p.Name == name);
-        if (existing == null)
-        {
-            existing = new NetworkProfile { Name = name };
+        // Use the selected profile as identity; fall back to name-match for new profiles
+        var existing = SelectedProfile()
+                       ?? _cfg.Profiles.FirstOrDefault(p => p.Name == name)
+                       ?? new NetworkProfile();
+        if (!_cfg.Profiles.Contains(existing))
             _cfg.Profiles.Add(existing);
-        }
 
+        existing.Name = name;
         existing.UseDhcp = _rbDhcp.Checked;
         existing.Ip = _ipBox.Text.Trim();
         existing.Subnet = _subnetBox.Text.Trim();
