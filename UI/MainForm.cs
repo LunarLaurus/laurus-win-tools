@@ -299,7 +299,7 @@ public class MainForm : Form
             ForeColor = Theme.Text, BackColor = Theme.Bg, Font = Theme.Body, AutoSize = true,
         };
         _chkMonitor.SetBounds(16, 512, 200, 22);
-        _chkMonitor.CheckedChanged += (_, _) => { _cfg.MonitorEnabled = _chkMonitor.Checked; ConfigStore.Save(_cfg); };
+        _chkMonitor.CheckedChanged += (_, _) => { _cfg.MonitorEnabled = _chkMonitor.Checked; ConfigStore.Save(_cfg); SyncTrayState(); };
         _tip.SetToolTip(_chkMonitor, "When enabled, the app polls your Wi-Fi SSID every few seconds\nand auto-applies a matching profile if one is linked.");
         Controls.Add(_chkMonitor);
 
@@ -435,6 +435,20 @@ public class MainForm : Form
         _switchingTimer.Start();
     }
 
+    // Evaluate and apply the correct tray state for the current SSID + monitor settings
+    // without triggering a netsh apply. Call whenever either value changes.
+    private void SyncTrayState()
+    {
+        if (!_cfg.MonitorEnabled || string.IsNullOrEmpty(_lastSsid))
+        {
+            SetTrayState(TrayState.Idle);
+            return;
+        }
+        bool matched = _cfg.Profiles.Any(p =>
+            p.LinkedSsids.Any(s => s.Equals(_lastSsid, StringComparison.OrdinalIgnoreCase)));
+        SetTrayState(matched ? TrayState.MatchedProfile : TrayState.Idle);
+    }
+
     // ── SSID Monitor ───────────────────────────────────────────────────────
 
     private void InitMonitor()
@@ -458,6 +472,7 @@ public class MainForm : Form
         if (ssid == _lastSsid) return;
 
         _lastSsid = ssid;
+        _tray.Text = BuildTrayTooltip();
 
         if (!string.IsNullOrEmpty(ssid) && _cfg.MonitorEnabled)
         {
@@ -465,12 +480,7 @@ public class MainForm : Form
         }
         else
         {
-            // When monitoring is disabled, always show Idle regardless of SSID match
-            bool matched = _cfg.MonitorEnabled &&
-                           !string.IsNullOrEmpty(ssid) &&
-                           _cfg.Profiles.Any(p =>
-                               p.LinkedSsids.Any(s => s.Equals(ssid, StringComparison.OrdinalIgnoreCase)));
-            SetTrayState(matched ? TrayState.MatchedProfile : TrayState.Idle);
+            SyncTrayState();
         }
     }
 
@@ -479,7 +489,11 @@ public class MainForm : Form
         var match = _cfg.Profiles.FirstOrDefault(p =>
             p.LinkedSsids.Any(s => s.Equals(ssid, StringComparison.OrdinalIgnoreCase)));
 
-        if (match == null) return;
+        if (match == null)
+        {
+            SetTrayState(TrayState.Idle);
+            return;
+        }
 
         if (System.Threading.Interlocked.Exchange(ref _applyInFlight, 1) == 1) return;
 

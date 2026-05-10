@@ -46,9 +46,11 @@ public static class StartupManager
             RedirectStandardError = true,
         };
         using var p = Process.Start(psi)!;
-        string output = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
+        // Read both streams concurrently to avoid deadlock if either buffer fills
+        var stdoutTask = p.StandardOutput.ReadToEndAsync();
+        var stderrTask = p.StandardError.ReadToEndAsync();
         p.WaitForExit(10_000);
-        return (p.ExitCode, output);
+        return (p.ExitCode, stdoutTask.Result + stderrTask.Result);
     }
 
     private static string BuildTaskXml(string exePath)

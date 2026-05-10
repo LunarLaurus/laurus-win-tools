@@ -16,10 +16,10 @@ public static class NetCommands
             RedirectStandardError = true,
         };
         using var p = Process.Start(psi)!;
-        string stdout = p.StandardOutput.ReadToEnd();
-        string stderr = p.StandardError.ReadToEnd();
+        var stdoutTask = p.StandardOutput.ReadToEndAsync();
+        var stderrTask = p.StandardError.ReadToEndAsync();
         p.WaitForExit(10_000);
-        return (p.ExitCode, stdout + stderr);
+        return (p.ExitCode, stdoutTask.Result + stderrTask.Result);
     }
 
     public static string GetCurrentSsid()

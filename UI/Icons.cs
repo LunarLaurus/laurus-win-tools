@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 
 namespace NetProfileSwitcher.UI;
 
@@ -30,11 +31,11 @@ public static class Icons
         g.FillRectangle(barBrush, 21, 9,  6, 19);
 
         using var hilite = new SolidBrush(Color.FromArgb(60, 255, 255, 255));
-        g.FillRectangle(hilite, 5, 22, 6, 2);
+        g.FillRectangle(hilite, 5,  22, 6, 2);
         g.FillRectangle(hilite, 13, 16, 6, 2);
-        g.FillRectangle(hilite, 21, 9, 6, 2);
+        g.FillRectangle(hilite, 21, 9,  6, 2);
 
-        return Icon.FromHandle(bmp.GetHicon());
+        return IconFromBitmap(bmp);
     }
 
     private static Icon BuildTrayIcon(TrayState state)
@@ -63,8 +64,21 @@ public static class Icons
         else if (state == TrayState.Error)
             DrawErrorOverlay(g);
 
-        return Icon.FromHandle(bmp.GetHicon());
+        return IconFromBitmap(bmp);
     }
+
+    // GetHicon allocates a GDI HICON that Icon.FromHandle does not own.
+    // Clone copies the icon bits into managed memory so we can immediately
+    // release the GDI handle without affecting the returned Icon.
+    private static Icon IconFromBitmap(Bitmap bmp)
+    {
+        var hicon = bmp.GetHicon();
+        try   { return (Icon)Icon.FromHandle(hicon).Clone(); }
+        finally { DestroyIcon(hicon); }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr handle);
 
     private static void DrawLightningOverlay(Graphics g)
     {

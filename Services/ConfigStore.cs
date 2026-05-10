@@ -28,10 +28,15 @@ public static class ConfigStore
         return DefaultConfig();
     }
 
-    public static void Save(AppConfig cfg)
+    public static bool Save(AppConfig cfg)
     {
-        Directory.CreateDirectory(Dir);
-        File.WriteAllText(FilePath, JsonSerializer.Serialize(cfg, Opts));
+        try
+        {
+            Directory.CreateDirectory(Dir);
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(cfg, Opts));
+            return true;
+        }
+        catch { return false; }
     }
 
     private static AppConfig DefaultConfig() => new()
