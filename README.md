@@ -52,6 +52,22 @@ If you want to sign release builds, set:
 
 Then `build.ps1` will invoke `tools\sign-release.ps1` automatically.
 
+## Testing
+
+Run the repo-local verification harness:
+
+```powershell
+D:\tooling\dotnet\dotnet.exe run --project tests\ProgramHider.TestHost\ProgramHider.TestHost.csproj -c Release
+```
+
+Run the isolated live smoke test:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\smoke-test-sample-window.ps1
+```
+
+The smoke test uses a repo-local sample window rather than a system app, so it does not need to manipulate your real working windows.
+
 ## Layout
 
 - `app/ProgramHider`: current WinForms application
@@ -59,5 +75,6 @@ Then `build.ps1` will invoke `tools\sign-release.ps1` automatically.
 - `docs/design-v0.1.0.md`: roadmap/design record for the `v0.1.0` pass
 - `docs/work-log.md`: feature implementation log for this pass
 - `docs/CHANGELOG.md`: project changelog
+- `docs/testing.md`: test and smoke-test commands
 - `fix-tooling-path.ps1`: machine PATH baseline helper
 - `verify-tooling-path.ps1`: command-resolution verifier

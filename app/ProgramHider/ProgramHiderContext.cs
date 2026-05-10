@@ -19,6 +19,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private readonly NativeMethods.WinEventProc _minimizeEventCallback;
     private readonly nint _minimizeEventHook;
     private readonly Dictionary<nint, HiddenWindow> _hiddenWindows = new();
+    private readonly IWindowPlatform _windowPlatform;
+    private readonly WindowHideService _windowHideService;
     private readonly Icon _appIcon;
     private readonly AppLogger _logger;
     private readonly StartupOptions _startupOptions;
@@ -35,6 +37,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _startupOptions = startupOptions;
         _logger = new AppLogger();
         _settingsStore = new SettingsStore();
+        _windowPlatform = new Win32WindowPlatform();
+        _windowHideService = new WindowHideService(_windowPlatform);
         _settings = _settingsStore.Load();
         _settings.Normalize();
         _safeModeEnabled = startupOptions.SafeMode;
@@ -196,10 +200,10 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private IReadOnlyList<WindowSnapshot> EnumerateCandidateWindows()
     {
-        return NativeMethods.EnumerateTopLevelWindows()
+        return _windowPlatform.EnumerateTopLevelWindows()
             .Where(window => window.Handle != _messageWindow.Handle)
             .Where(window => !_hiddenWindows.ContainsKey(window.Handle))
-            .Where(window => IsManageableWindow(window))
+            .Where(window => WindowCatalog.IsManageableWindow(window))
             .OrderBy(window => window.Title, StringComparer.OrdinalIgnoreCase)
             .Select(window => new WindowSnapshot(
                 window.Handle,
@@ -232,52 +236,34 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private void HideActiveWindow()
     {
-        HideWindow(NativeMethods.GetForegroundWindow());
+        HideWindow(_windowPlatform.GetForegroundWindow());
     }
 
     private bool HideWindow(nint handle, WindowRuleMatchResult? existingMatch = null, bool wasAutomatic = false)
     {
-        if (handle == 0 || handle == _messageWindow.Handle || _hiddenWindows.ContainsKey(handle))
+        var snapshot = _windowPlatform.TryCreateWindowSnapshot(handle);
+        if (snapshot is null)
         {
             return false;
         }
 
-        var snapshot = NativeMethods.TryCreateWindowSnapshot(handle);
-        if (snapshot is null || !IsManageableWindow(snapshot.Value))
-        {
-            return false;
-        }
-
-        var savedPlacement = NativeMethods.TryGetWindowPlacement(handle);
-        var monitorDeviceName = NativeMethods.TryGetMonitorDeviceNameForWindow(handle);
         var ruleMatch = existingMatch ?? WindowRuleMatchResult.Evaluate(_settings.WindowRules, snapshot.Value);
-        if (!NativeMethods.ShowWindow(handle, NativeMethods.SW_HIDE))
+        if (!_windowHideService.TryHideWindow(handle, _messageWindow.Handle, _hiddenWindows, ruleMatch, out var hiddenWindow) ||
+            hiddenWindow is null)
         {
             return false;
         }
-
-        _hiddenWindows[handle] = new HiddenWindow(
-            handle,
-            snapshot.Value.Title,
-            snapshot.Value.ProcessName,
-            snapshot.Value.ClassName,
-            snapshot.Value.IsMaximized,
-            DateTimeOffset.UtcNow,
-            savedPlacement,
-            monitorDeviceName,
-            ruleMatch.RequirePinOnRestore,
-            ruleMatch.SuppressNotifications);
 
         _logger.Write(
             "window.hidden",
             new
             {
-                title = snapshot.Value.Title,
-                process = snapshot.Value.ProcessName,
-                className = snapshot.Value.ClassName,
+                title = hiddenWindow.Title,
+                process = hiddenWindow.ProcessName,
+                className = hiddenWindow.ClassName,
                 automatic = wasAutomatic,
-                requirePin = ruleMatch.RequirePinOnRestore,
-                quiet = ruleMatch.SuppressNotifications,
+                requirePin = hiddenWindow.RequirePinOnRestore,
+                quiet = hiddenWindow.SuppressNotifications,
                 matchedRules = ruleMatch.MatchingRules.Select(rule => rule.RuleName).ToArray()
             });
         return true;
@@ -300,12 +286,13 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private void RestoreWindowCore(nint handle)
     {
-        if (!_hiddenWindows.Remove(handle, out var hiddenWindow))
+        if (!_hiddenWindows.TryGetValue(handle, out var hiddenWindow))
         {
             return;
         }
 
-        if (!NativeMethods.IsWindow(handle))
+        if (!_windowHideService.TryRestoreWindow(handle, _hiddenWindows, _settings.RestoreWithoutFocus, out var restoredWindow) ||
+            restoredWindow is null)
         {
             _logger.Write(
                 "window.restore_skipped",
@@ -318,20 +305,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
-        if (hiddenWindow.SavedPlacement is NativeMethods.WindowPlacement placement)
-        {
-            NativeMethods.TrySetWindowPlacement(handle, placement);
-        }
-
-        NativeMethods.ShowWindow(
-            handle,
-            hiddenWindow.WasMaximized ? NativeMethods.SW_SHOWMAXIMIZED : NativeMethods.SW_RESTORE);
-        if (!_settings.RestoreWithoutFocus)
-        {
-            NativeMethods.SetForegroundWindow(handle);
-        }
-
-        var restoredMonitor = NativeMethods.TryGetMonitorDeviceNameForWindow(handle);
+        hiddenWindow = restoredWindow;
+        var restoredMonitor = _windowPlatform.TryGetMonitorDeviceNameForWindow(handle);
         var monitorMismatch =
             !string.IsNullOrWhiteSpace(hiddenWindow.MonitorDeviceName) &&
             !string.IsNullOrWhiteSpace(restoredMonitor) &&
@@ -734,8 +709,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
-        var snapshot = NativeMethods.TryCreateWindowSnapshot(handle);
-        if (snapshot is null || !IsManageableWindow(snapshot.Value))
+        var snapshot = _windowPlatform.TryCreateWindowSnapshot(handle);
+        if (snapshot is null || !WindowCatalog.IsManageableWindow(snapshot.Value))
         {
             return;
         }
@@ -786,20 +761,13 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private void PruneDeadHiddenWindows()
     {
-        var removed = _hiddenWindows.Keys
-            .Where(handle => !NativeMethods.IsWindow(handle))
-            .ToArray();
-        if (removed.Length == 0)
+        var removed = _windowHideService.PruneDeadWindows(_hiddenWindows);
+        if (removed == 0)
         {
             return;
         }
 
-        foreach (var handle in removed)
-        {
-            _hiddenWindows.Remove(handle);
-        }
-
-        _logger.Write("maintenance.pruned_handles", new { count = removed.Length });
+        _logger.Write("maintenance.pruned_handles", new { count = removed });
     }
 
     private void OnSessionSwitch(object? sender, SessionSwitchEventArgs eventArgs)
@@ -878,23 +846,13 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private NativeWindowSnapshot? GetActiveWindowSnapshot()
     {
-        var snapshot = NativeMethods.TryCreateWindowSnapshot(NativeMethods.GetForegroundWindow());
-        if (snapshot is null || !IsManageableWindow(snapshot.Value))
+        var snapshot = _windowPlatform.TryCreateWindowSnapshot(_windowPlatform.GetForegroundWindow());
+        if (snapshot is null || !WindowCatalog.IsManageableWindow(snapshot.Value))
         {
             return null;
         }
 
         return snapshot;
-    }
-
-    private static bool IsManageableWindow(NativeWindowSnapshot window)
-    {
-        return !string.IsNullOrWhiteSpace(window.Title) &&
-               !string.IsNullOrWhiteSpace(window.ProcessName) &&
-               window.Owner == 0 &&
-               (window.ExtendedStyle & NativeMethods.WS_EX_TOOLWINDOW) == 0 &&
-               !string.Equals(window.ClassName, "Shell_TrayWnd", StringComparison.Ordinal) &&
-               !string.Equals(window.ClassName, "Progman", StringComparison.Ordinal);
     }
 
     private static string TrimMenuLabel(string title)

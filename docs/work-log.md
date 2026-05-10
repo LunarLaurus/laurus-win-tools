@@ -32,3 +32,8 @@
   - bumped the app to `v0.1.0`
   - updated the build script to emit both the packaged exe and a portable zip
   - added a repo-local code-signing hook script and release documentation
+- Added a verification harness:
+  - factored hide/restore logic into a shared window service
+  - added a repo-local console test host for deterministic unit/integration checks
+  - added a repo-local WinForms smoke target so live tests stay self-contained
+  - recorded a passing live smoke run: find -> hide-verify-ok -> restore-verify-ok

@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- No unreleased changes yet.
+- Added a repo-local test host for deterministic verification.
+- Added an isolated smoke-window app and smoke-test script for live hide/restore checks.
 
 ## v0.1.0
 
