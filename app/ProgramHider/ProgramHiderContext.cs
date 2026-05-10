@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Drawing;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace ProgramHider;
@@ -12,11 +13,25 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _hideWindowMenu;
     private readonly HotkeyMessageWindow _messageWindow;
+    private readonly SettingsStore _settingsStore;
+    private readonly SynchronizationContext _uiContext;
+    private readonly NativeMethods.WinEventProc _minimizeEventCallback;
+    private readonly nint _minimizeEventHook;
     private readonly Dictionary<nint, HiddenWindow> _hiddenWindows = new();
+    private readonly Icon _appIcon;
+
+    private AppSettings _settings;
     private bool _disposed;
 
     public ProgramHiderContext()
     {
+        _settingsStore = new SettingsStore();
+        _settings = _settingsStore.Load();
+        _settings.Normalize();
+
+        _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
+        _appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
+
         _menu = new ContextMenuStrip();
         _menu.Opening += OnMenuOpening;
 
@@ -24,23 +39,25 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
         _notifyIcon = new NotifyIcon
         {
-            Text = "Program Hider v0.0.2",
-            Icon = SystemIcons.Application,
+            Text = BuildTrayText(),
+            Icon = _appIcon,
             ContextMenuStrip = _menu,
             Visible = true
         };
         _notifyIcon.MouseClick += OnNotifyIconMouseClick;
 
         _messageWindow = new HotkeyMessageWindow(OnHotkeyPressed);
+        RegisterConfiguredHotkey();
 
-        if (!NativeMethods.RegisterHotKey(
-                _messageWindow.Handle,
-                HotkeyId,
-                NativeMethods.MOD_CONTROL | NativeMethods.MOD_SHIFT | NativeMethods.MOD_NOREPEAT,
-                (uint)Keys.H))
-        {
-            throw new Win32Exception("Unable to register the Ctrl+Shift+H hotkey.");
-        }
+        _minimizeEventCallback = OnWindowEvent;
+        _minimizeEventHook = NativeMethods.SetWinEventHook(
+            NativeMethods.EVENT_SYSTEM_MINIMIZESTART,
+            NativeMethods.EVENT_SYSTEM_MINIMIZESTART,
+            0,
+            _minimizeEventCallback,
+            0,
+            0,
+            NativeMethods.WINEVENT_OUTOFCONTEXT | NativeMethods.WINEVENT_SKIPOWNPROCESS);
     }
 
     protected override void ExitThreadCore()
@@ -72,7 +89,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         {
             _menu.Items.Clear();
 
-            var hideActiveItem = new ToolStripMenuItem("Hide active window\tCtrl+Shift+H");
+            var hideActiveItem = new ToolStripMenuItem($"Hide active window\t{_settings.Hotkey.ToDisplayString()}");
             hideActiveItem.Click += (_, _) => HideActiveWindow();
             _menu.Items.Add(hideActiveItem);
 
@@ -90,6 +107,15 @@ internal sealed class ProgramHiderContext : ApplicationContext
             }
 
             _menu.Items.Add(_hideWindowMenu);
+
+            var addRuleItem = new ToolStripMenuItem("Always auto-hide active app on minimize");
+            addRuleItem.Click += (_, _) => AddActiveProcessRule();
+            _menu.Items.Add(addRuleItem);
+
+            var settingsItem = new ToolStripMenuItem("Settings...");
+            settingsItem.Click += (_, _) => OpenSettings();
+            _menu.Items.Add(settingsItem);
+
             _menu.Items.Add(new ToolStripSeparator());
 
             if (_hiddenWindows.Count == 0)
@@ -130,13 +156,12 @@ internal sealed class ProgramHiderContext : ApplicationContext
         return NativeMethods.EnumerateTopLevelWindows()
             .Where(window => window.Handle != _messageWindow.Handle)
             .Where(window => !_hiddenWindows.ContainsKey(window.Handle))
-            .Where(window => !string.IsNullOrWhiteSpace(window.Title))
-            .Where(window => window.Owner == 0)
-            .Where(window => (window.ExtendedStyle & NativeMethods.WS_EX_TOOLWINDOW) == 0)
-            .Where(window => !string.Equals(window.ClassName, "Shell_TrayWnd", StringComparison.Ordinal))
-            .Where(window => !string.Equals(window.ClassName, "Progman", StringComparison.Ordinal))
+            .Where(window => IsManageableWindow(window))
             .OrderBy(window => window.Title, StringComparer.OrdinalIgnoreCase)
-            .Select(window => new WindowSnapshot(window.Handle, EscapeMenuLabel(TrimMenuLabel(window.Title))))
+            .Select(window => new WindowSnapshot(
+                window.Handle,
+                $"{EscapeMenuLabel(TrimMenuLabel(window.Title))} ({window.ProcessName})",
+                window.ProcessName))
             .ToArray();
     }
 
@@ -145,6 +170,20 @@ internal sealed class ProgramHiderContext : ApplicationContext
         if (hotkeyId == HotkeyId)
         {
             HideActiveWindow();
+        }
+    }
+
+    private void RegisterConfiguredHotkey()
+    {
+        NativeMethods.UnregisterHotKey(_messageWindow.Handle, HotkeyId);
+
+        if (!NativeMethods.RegisterHotKey(
+                _messageWindow.Handle,
+                HotkeyId,
+                _settings.Hotkey.ToNativeModifiers(),
+                (uint)_settings.Hotkey.Key))
+        {
+            throw new Win32Exception("Unable to register the configured hotkey.");
         }
     }
 
@@ -161,17 +200,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         }
 
         var snapshot = NativeMethods.TryCreateWindowSnapshot(handle);
-        if (snapshot is null)
-        {
-            return;
-        }
-
-        var window = snapshot.Value;
-        if (window.Owner != 0 ||
-            string.IsNullOrWhiteSpace(window.Title) ||
-            (window.ExtendedStyle & NativeMethods.WS_EX_TOOLWINDOW) != 0 ||
-            string.Equals(window.ClassName, "Shell_TrayWnd", StringComparison.Ordinal) ||
-            string.Equals(window.ClassName, "Progman", StringComparison.Ordinal))
+        if (snapshot is null || !IsManageableWindow(snapshot.Value))
         {
             return;
         }
@@ -181,7 +210,11 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
-        _hiddenWindows[handle] = new HiddenWindow(handle, window.Title, window.IsMaximized);
+        _hiddenWindows[handle] = new HiddenWindow(
+            handle,
+            snapshot.Value.Title,
+            snapshot.Value.ProcessName,
+            snapshot.Value.IsMaximized);
     }
 
     private void RestoreWindow(nint handle)
@@ -210,6 +243,135 @@ internal sealed class ProgramHiderContext : ApplicationContext
         }
     }
 
+    private void AddActiveProcessRule()
+    {
+        var activeWindow = NativeMethods.TryCreateWindowSnapshot(NativeMethods.GetForegroundWindow());
+        if (activeWindow is null || string.IsNullOrWhiteSpace(activeWindow.Value.ProcessName))
+        {
+            MessageBox.Show(
+                "No eligible active application window was detected.",
+                "Program Hider",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        if (!TryAddAutoHideProcess(activeWindow.Value.ProcessName))
+        {
+            MessageBox.Show(
+                $"The app '{activeWindow.Value.ProcessName}' is already in the auto-hide rules.",
+                "Program Hider",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        ShowStatusBalloon(
+            "Auto-hide rule added",
+            $"{activeWindow.Value.ProcessName} will now hide to Program Hider when minimized.");
+    }
+
+    private bool TryAddAutoHideProcess(string processName)
+    {
+        var normalized = processName.Trim();
+        if (string.IsNullOrWhiteSpace(normalized) ||
+            _settings.AutoHideProcessNames.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        _settings.AutoHideProcessNames.Add(normalized);
+        _settings.Normalize();
+        PersistSettings();
+        return true;
+    }
+
+    private void OpenSettings()
+    {
+        using var settingsForm = new SettingsForm(
+            _settings.Clone(),
+            EnumerateCandidateWindows().Select(window => window.ProcessName).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            _settingsStore.SettingsPath);
+
+        if (settingsForm.ShowDialog() != DialogResult.OK || settingsForm.UpdatedSettings is null)
+        {
+            return;
+        }
+
+        var originalSettings = _settings.Clone();
+        var requestedSettings = settingsForm.UpdatedSettings.Clone();
+        var requestedHotkey = requestedSettings.Hotkey.ToDisplayString();
+        try
+        {
+            _settings = requestedSettings;
+            _settings.Normalize();
+            RegisterConfiguredHotkey();
+            PersistSettings();
+            ShowStatusBalloon("Settings saved", $"Hotkey is now {_settings.Hotkey.ToDisplayString()}.");
+        }
+        catch (Win32Exception)
+        {
+            _settings = originalSettings;
+            RegisterConfiguredHotkey();
+
+            MessageBox.Show(
+                $"Unable to register the requested hotkey {requestedHotkey}. Keep using {originalSettings.Hotkey.ToDisplayString()} or choose a different combination.",
+                "Program Hider",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
+    private void PersistSettings()
+    {
+        _settingsStore.Save(_settings);
+        _notifyIcon.Text = BuildTrayText();
+    }
+
+    private void OnWindowEvent(
+        nint eventHookHandle,
+        uint eventType,
+        nint handle,
+        int objectId,
+        int childId,
+        uint eventThreadId,
+        uint eventTime)
+    {
+        if (eventType != NativeMethods.EVENT_SYSTEM_MINIMIZESTART || handle == 0)
+        {
+            return;
+        }
+
+        _uiContext.Post(
+            static state =>
+            {
+                var payload = (MinimizeEventPayload)state!;
+                payload.Context.TryAutoHideMinimizedWindow(payload.Handle);
+            },
+            new MinimizeEventPayload(this, handle));
+    }
+
+    private void TryAutoHideMinimizedWindow(nint handle)
+    {
+        if (_hiddenWindows.ContainsKey(handle))
+        {
+            return;
+        }
+
+        var snapshot = NativeMethods.TryCreateWindowSnapshot(handle);
+        if (snapshot is null || !IsManageableWindow(snapshot.Value))
+        {
+            return;
+        }
+
+        if (!_settings.AutoHideProcessNames.Contains(snapshot.Value.ProcessName, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        HideWindow(handle);
+    }
+
     private void DisposeManagedState()
     {
         if (_disposed)
@@ -220,15 +382,43 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _disposed = true;
         RestoreAllWindows();
         NativeMethods.UnregisterHotKey(_messageWindow.Handle, HotkeyId);
+        if (_minimizeEventHook != 0)
+        {
+            NativeMethods.UnhookWinEvent(_minimizeEventHook);
+        }
+
         _messageWindow.Dispose();
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _menu.Dispose();
+        _appIcon.Dispose();
+    }
+
+    private void ShowStatusBalloon(string title, string message)
+    {
+        _notifyIcon.BalloonTipTitle = title;
+        _notifyIcon.BalloonTipText = message;
+        _notifyIcon.ShowBalloonTip(2500);
+    }
+
+    private string BuildTrayText()
+    {
+        return $"Program Hider v{Application.ProductVersion}";
+    }
+
+    private static bool IsManageableWindow(NativeWindowSnapshot window)
+    {
+        return !string.IsNullOrWhiteSpace(window.Title) &&
+               !string.IsNullOrWhiteSpace(window.ProcessName) &&
+               window.Owner == 0 &&
+               (window.ExtendedStyle & NativeMethods.WS_EX_TOOLWINDOW) == 0 &&
+               !string.Equals(window.ClassName, "Shell_TrayWnd", StringComparison.Ordinal) &&
+               !string.Equals(window.ClassName, "Progman", StringComparison.Ordinal);
     }
 
     private static string TrimMenuLabel(string title)
     {
-        const int MaxLength = 60;
+        const int MaxLength = 52;
         if (title.Length <= MaxLength)
         {
             return title;
@@ -242,5 +432,6 @@ internal sealed class ProgramHiderContext : ApplicationContext
         return title.Replace("&", "&&", StringComparison.Ordinal);
     }
 
-    private readonly record struct WindowSnapshot(nint Handle, string MenuLabel);
+    private readonly record struct WindowSnapshot(nint Handle, string MenuLabel, string ProcessName);
+    private readonly record struct MinimizeEventPayload(ProgramHiderContext Context, nint Handle);
 }

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Diagnostics;
 
 namespace ProgramHider;
 
@@ -13,10 +14,23 @@ internal static class NativeMethods
     internal const int SW_SHOWMAXIMIZED = 3;
     internal const int SW_RESTORE = 9;
     internal const int WM_HOTKEY = 0x0312;
+    internal const int MOD_ALT = 0x0001;
+    internal const int MOD_WIN = 0x0008;
+    internal const uint EVENT_SYSTEM_MINIMIZESTART = 0x0016;
     internal const uint GW_OWNER = 4;
     internal const nint WS_EX_TOOLWINDOW = 0x00000080;
+    internal const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+    internal const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
 
     private delegate bool EnumWindowsProc(nint handle, nint lParam);
+    internal delegate void WinEventProc(
+        nint eventHookHandle,
+        uint eventType,
+        nint handle,
+        int objectId,
+        int childId,
+        uint eventThreadId,
+        uint eventTime);
 
     internal static IEnumerable<NativeWindowSnapshot> EnumerateTopLevelWindows()
     {
@@ -49,8 +63,9 @@ internal static class NativeMethods
         var owner = GetWindow(handle, GW_OWNER);
         var extendedStyle = GetWindowLongPtr(handle, GWL_EXSTYLE);
         var isMaximized = IsZoomed(handle);
+        var processName = GetProcessName(handle);
 
-        return new NativeWindowSnapshot(handle, title, className, owner, extendedStyle, isMaximized);
+        return new NativeWindowSnapshot(handle, title, className, processName, owner, extendedStyle, isMaximized);
     }
 
     private static string GetWindowText(nint handle)
@@ -73,11 +88,32 @@ internal static class NativeMethods
         return builder.ToString();
     }
 
+    private static string GetProcessName(nint handle)
+    {
+        GetWindowThreadProcessId(handle, out var processId);
+        if (processId == 0)
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return Process.GetProcessById((int)processId).ProcessName;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool EnumWindows(EnumWindowsProc enumProc, nint lParam);
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern uint GetWindowThreadProcessId(nint handle, out uint processId);
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
     internal static extern nint GetWindowLongPtr(nint handle, int index);
@@ -119,14 +155,29 @@ internal static class NativeMethods
     internal static extern bool SetForegroundWindow(nint handle);
 
     [DllImport("user32.dll", SetLastError = true)]
+    internal static extern nint SetWinEventHook(
+        uint eventMin,
+        uint eventMax,
+        nint moduleHandle,
+        WinEventProc callback,
+        uint processId,
+        uint threadId,
+        uint flags);
+
+    [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool ShowWindow(nint handle, int command);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool UnhookWinEvent(nint eventHookHandle);
 }
 
 internal readonly record struct NativeWindowSnapshot(
     nint Handle,
     string Title,
     string ClassName,
+    string ProcessName,
     nint Owner,
     nint ExtendedStyle,
     bool IsMaximized);
