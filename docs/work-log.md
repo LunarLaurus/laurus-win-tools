@@ -19,3 +19,7 @@
   - added per-rule behaviors for auto-hide, PIN-gated restore, and quiet mode
   - added active-window inspection and one-click rule creation
   - added rule import/export in the settings UI
+- Landed the restore UX bundle:
+  - added a searchable restore browser with a recently hidden section
+  - added optional restore-without-focus behavior in settings
+  - started preserving window placement and monitor identity across hide/restore

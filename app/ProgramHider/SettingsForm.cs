@@ -15,6 +15,7 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _altCheckBox = new() { Text = "Alt", AutoSize = true };
     private readonly CheckBox _windowsCheckBox = new() { Text = "Win", AutoSize = true };
     private readonly CheckBox _launchOnStartupCheckBox = new() { Text = "Launch Program Hider when Windows starts", AutoSize = true };
+    private readonly CheckBox _restoreWithoutFocusCheckBox = new() { Text = "Restore windows without stealing focus", AutoSize = true };
     private readonly CheckBox _requirePinCheckBox = new() { Text = "Require PIN/password to restore hidden windows", AutoSize = true };
     private readonly ComboBox _keyComboBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
     private readonly ComboBox _candidateProcessComboBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220 };
@@ -134,9 +135,11 @@ internal sealed class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
             Padding = new Padding(10)
         };
         startupLayout.Controls.Add(_launchOnStartupCheckBox);
+        startupLayout.Controls.Add(_restoreWithoutFocusCheckBox);
         startupGroup.Controls.Add(startupLayout);
 
         var settingsPathLabel = new Label
@@ -326,6 +329,7 @@ internal sealed class SettingsForm : Form
         _windowsCheckBox.Checked = settings.Hotkey.Windows;
         _keyComboBox.SelectedItem = settings.Hotkey.Key;
         _launchOnStartupCheckBox.Checked = settings.LaunchOnWindowsStartup;
+        _restoreWithoutFocusCheckBox.Checked = settings.RestoreWithoutFocus;
         _requirePinCheckBox.Checked = settings.RequirePinToRestore;
     }
 
@@ -633,6 +637,7 @@ internal sealed class SettingsForm : Form
                 Key = key
             },
             LaunchOnWindowsStartup = _launchOnStartupCheckBox.Checked,
+            RestoreWithoutFocus = _restoreWithoutFocusCheckBox.Checked,
             RequirePinToRestore = requirePin,
             PinHash = pinHash,
             WindowRules = _workingRules.Select(rule => rule.Clone()).ToList(),

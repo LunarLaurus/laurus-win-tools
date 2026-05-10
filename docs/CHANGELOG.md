@@ -5,6 +5,9 @@
 - Added structured window rules with process, title, and class matching.
 - Added per-rule auto-hide, restore PIN, and quiet-notification behaviors.
 - Added active-window inspection plus rule import/export tooling.
+- Added a searchable restore browser with recent-window history.
+- Added optional restore-without-focus behavior.
+- Added placement/monitor capture to improve restore correctness.
 
 ## v0.0.4
 

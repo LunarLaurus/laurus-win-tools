@@ -123,6 +123,13 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
             _menu.Items.Add(new ToolStripSeparator());
 
+            var restoreBrowserItem = new ToolStripMenuItem("Restore browser...")
+            {
+                Enabled = _hiddenWindows.Count > 0
+            };
+            restoreBrowserItem.Click += (_, _) => OpenRestoreBrowser();
+            _menu.Items.Add(restoreBrowserItem);
+
             BuildHiddenWindowItems();
 
             _menu.Items.Add(new ToolStripSeparator());
@@ -211,6 +218,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
             snapshot.Value.ClassName,
             snapshot.Value.IsMaximized,
             DateTimeOffset.UtcNow,
+            NativeMethods.TryGetWindowPlacement(handle),
+            NativeMethods.TryGetMonitorDeviceNameForWindow(handle),
             ruleMatch.RequirePinOnRestore,
             ruleMatch.SuppressNotifications);
         return true;
@@ -243,10 +252,18 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
+        if (hiddenWindow.SavedPlacement is NativeMethods.WindowPlacement placement)
+        {
+            NativeMethods.TrySetWindowPlacement(handle, placement);
+        }
+
         NativeMethods.ShowWindow(
             handle,
             hiddenWindow.WasMaximized ? NativeMethods.SW_SHOWMAXIMIZED : NativeMethods.SW_RESTORE);
-        NativeMethods.SetForegroundWindow(handle);
+        if (!_settings.RestoreWithoutFocus)
+        {
+            NativeMethods.SetForegroundWindow(handle);
+        }
     }
 
     private void RestoreAllWindows()
@@ -391,6 +408,28 @@ internal sealed class ProgramHiderContext : ApplicationContext
         }
     }
 
+    private void OpenRestoreBrowser()
+    {
+        if (_hiddenWindows.Count == 0)
+        {
+            return;
+        }
+
+        using var restoreBrowser = new RestoreBrowserForm(_hiddenWindows.Values.ToArray(), _settings.RestoreWithoutFocus);
+        if (restoreBrowser.ShowDialog() != DialogResult.OK)
+        {
+            return;
+        }
+
+        if (restoreBrowser.RestoreAllRequested)
+        {
+            RestoreAllWindows();
+            return;
+        }
+
+        RestoreSelectedWindows(restoreBrowser.SelectedHandles);
+    }
+
     private void PersistSettings()
     {
         _settingsStore.Save(_settings);
@@ -474,24 +513,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
             .Where(window => string.Equals(window.ProcessName, processName, StringComparison.OrdinalIgnoreCase))
             .Select(window => window.Handle)
             .ToArray();
-
-        if (handles.Length == 0)
-        {
-            return;
-        }
-
-        var requiresPin = handles
-            .Select(handle => _hiddenWindows.TryGetValue(handle, out var hiddenWindow) ? hiddenWindow.RequirePinOnRestore : false)
-            .Any(value => value);
-        if (!EnsureRestoreAuthorized($"restore all hidden windows for {processName}", requiresPin))
-        {
-            return;
-        }
-
-        foreach (var handle in handles)
-        {
-            RestoreWindowCore(handle);
-        }
+        RestoreSelectedWindows(handles, $"restore all hidden windows for {processName}");
     }
 
     private void OnWindowEvent(
@@ -541,6 +563,27 @@ internal sealed class ProgramHiderContext : ApplicationContext
             ShowStatusBalloon(
                 "Window hidden",
                 $"{snapshot.Value.Title} was hidden automatically.");
+        }
+    }
+
+    private void RestoreSelectedWindows(IReadOnlyList<nint> handles, string actionDescription = "restore the selected windows")
+    {
+        if (handles.Count == 0)
+        {
+            return;
+        }
+
+        var requiresPin = handles
+            .Select(handle => _hiddenWindows.TryGetValue(handle, out var hiddenWindow) ? hiddenWindow.RequirePinOnRestore : false)
+            .Any(value => value);
+        if (!EnsureRestoreAuthorized(actionDescription, requiresPin))
+        {
+            return;
+        }
+
+        foreach (var handle in handles.Distinct().ToArray())
+        {
+            RestoreWindowCore(handle);
         }
     }
 

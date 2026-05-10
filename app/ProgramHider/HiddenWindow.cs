@@ -7,5 +7,7 @@ internal sealed record HiddenWindow(
     string ClassName,
     bool WasMaximized,
     DateTimeOffset HiddenAtUtc,
+    NativeMethods.WindowPlacement? SavedPlacement,
+    string MonitorDeviceName,
     bool RequirePinOnRestore,
     bool SuppressNotifications);

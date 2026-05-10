@@ -8,6 +8,7 @@ internal sealed class AppSettings
 {
     public HotkeySettings Hotkey { get; set; } = HotkeySettings.CreateDefault();
     public bool LaunchOnWindowsStartup { get; set; }
+    public bool RestoreWithoutFocus { get; set; }
     public bool RequirePinToRestore { get; set; }
     public string PinHash { get; set; } = string.Empty;
     public List<WindowRule> WindowRules { get; set; } = new();
@@ -23,6 +24,7 @@ internal sealed class AppSettings
         {
             Hotkey = Hotkey.Clone(),
             LaunchOnWindowsStartup = LaunchOnWindowsStartup,
+            RestoreWithoutFocus = RestoreWithoutFocus,
             RequirePinToRestore = RequirePinToRestore,
             PinHash = PinHash,
             WindowRules = WindowRules.Select(rule => rule.Clone()).ToList(),
