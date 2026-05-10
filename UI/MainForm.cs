@@ -41,6 +41,7 @@ public class MainForm : Form
 
     // Controls — action
     private FlatButton _btnApply = null!;
+    private FlatButton _btnSnap = null!;
 
     // Tray state
     private System.Windows.Forms.Timer? _switchingTimer;
@@ -180,6 +181,15 @@ public class MainForm : Form
         _rbDhcp.SetBounds(fx + 110, row - 2, 80, 22);
         _tip.SetToolTip(_rbDhcp, "Get an IP address automatically from the router.\nYou can still set custom DNS servers below.");
         editorBg.Controls.Add(_rbDhcp);
+
+        _btnSnap = new FlatButton(Theme.Surface2, Theme.AccentDim) { Text = "↓ Snap" };
+        _btnSnap.SetBounds(fx + 200, row - 3, 76, 24);
+        _btnSnap.Click += OnSnapFromAdapter;
+        _tip.SetToolTip(_btnSnap,
+            "Read the current adapter's IP, subnet, gateway, and DNS\n" +
+            "and fill in the editor fields. Useful for converting a\n" +
+            "DHCP lease into a static profile.");
+        editorBg.Controls.Add(_btnSnap);
         row += 32;
 
         editorBg.Controls.Add(FieldLabel("IP Address:", lx, row));
@@ -647,6 +657,36 @@ public class MainForm : Form
         RefreshProfileList();
         _profileList.SelectedItem = clone.Name;
         SetStatus($"Cloned \"{src.Name}\".");
+    }
+
+    private async void OnSnapFromAdapter(object? sender, EventArgs e)
+    {
+        string adapter = _adapterCombo.Text;
+        if (string.IsNullOrEmpty(adapter)) { SetStatus("Select an adapter first."); return; }
+
+        _btnSnap.Enabled = false;
+        SetStatus($"Reading {adapter}…");
+        try
+        {
+            var info = await Task.Run(() => NetCommands.GetAdapterInfo(adapter));
+            if (info == null) { SetStatus($"Could not read settings from {adapter}."); return; }
+
+            _rbDhcp.Checked  = info.IsDhcp;
+            _rbStatic.Checked = !info.IsDhcp;
+            _ipBox.Text      = info.Ip;
+            _subnetBox.Text  = string.IsNullOrEmpty(info.Subnet) ? "255.255.255.0" : info.Subnet;
+            _gatewayBox.Text = info.Gateway;
+            _dns1Box.Text    = info.Dns1;
+            _dns2Box.Text    = info.Dns2;
+            ToggleStaticFields();
+
+            string mode = info.IsDhcp ? "DHCP" : "Static";
+            SetStatus($"Snapped from {adapter}: {mode}, IP {info.Ip}");
+        }
+        finally
+        {
+            _btnSnap.Enabled = true;
+        }
     }
 
     private void OnStartupCheckChanged(object? sender, EventArgs e)

@@ -29,6 +29,47 @@ public static class NetCommands
         return match.Success ? match.Groups[1].Value.Trim() : "";
     }
 
+    public static AdapterInfo? GetAdapterInfo(string adapter)
+    {
+        var (code, output) = Run("netsh", $"interface ip show config \"{adapter}\"");
+        if (code != 0 || string.IsNullOrWhiteSpace(output)) return null;
+
+        bool isDhcp = Regex.IsMatch(output, @"DHCP enabled\s*:\s*Yes", RegexOptions.IgnoreCase);
+
+        var ipMatch     = Regex.Match(output, @"IP Address\s*:\s*(\d[\d.]+)",           RegexOptions.IgnoreCase);
+        var subnetMatch = Regex.Match(output, @"\(mask (\d[\d.]+)\)",                   RegexOptions.IgnoreCase);
+        var gwMatch     = Regex.Match(output, @"Default Gateway\s*:\s*(\d[\d.]+)",      RegexOptions.IgnoreCase);
+
+        // DNS IPs appear on the label line and may continue on indented-only lines below it
+        var dnsIps = new List<string>();
+        bool inDns = false;
+        foreach (var line in output.Split('\n'))
+        {
+            if (Regex.IsMatch(line, @"DNS [Ss]ervers|Statically Configured DNS", RegexOptions.IgnoreCase))
+            {
+                inDns = true;
+                var ip = Regex.Match(line, @"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}");
+                if (ip.Success) dnsIps.Add(ip.Value);
+            }
+            else if (inDns)
+            {
+                // Continuation lines are blank or heavily indented with only an IP
+                var ip = Regex.Match(line.Trim(), @"^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$");
+                if (ip.Success) dnsIps.Add(ip.Groups[1].Value);
+                else if (!string.IsNullOrWhiteSpace(line) && !line.StartsWith("  ")) inDns = false;
+            }
+        }
+
+        return new AdapterInfo(
+            IsDhcp:  isDhcp,
+            Ip:      ipMatch.Success     ? ipMatch.Groups[1].Value     : "",
+            Subnet:  subnetMatch.Success ? subnetMatch.Groups[1].Value : "",
+            Gateway: gwMatch.Success     ? gwMatch.Groups[1].Value     : "",
+            Dns1:    dnsIps.Count > 0   ? dnsIps[0]                  : "",
+            Dns2:    dnsIps.Count > 1   ? dnsIps[1]                  : ""
+        );
+    }
+
     public static List<string> GetAdapters()
     {
         var (_, output) = Run("netsh", "interface show interface");
@@ -54,11 +95,15 @@ public static class NetCommands
 
             if (!string.IsNullOrWhiteSpace(p.Dns1))
             {
-                var r2 = Run("netsh", $"interface ip set dns \"{adapter}\" static {p.Dns1} primary");
+                // Flush DHCP-pushed DNS first so the static assignment lands cleanly.
+                // validate=no skips reachability check — required when the IP lease is
+                // still settling and the route to the DNS server isn't yet established.
+                Run("netsh", $"interface ip set dns \"{adapter}\" dhcp");
+                var r2 = Run("netsh", $"interface ip set dns \"{adapter}\" static {p.Dns1} primary validate=no");
                 if (r2.code != 0) errors.Add(r2.output);
                 if (!string.IsNullOrWhiteSpace(p.Dns2))
                 {
-                    var r3 = Run("netsh", $"interface ip add dns \"{adapter}\" {p.Dns2} index=2");
+                    var r3 = Run("netsh", $"interface ip add dns \"{adapter}\" {p.Dns2} index=2 validate=no");
                     if (r3.code != 0) errors.Add(r3.output);
                 }
             }
@@ -76,12 +121,12 @@ public static class NetCommands
 
             if (!string.IsNullOrWhiteSpace(p.Dns1))
             {
-                var r2 = Run("netsh", $"interface ip set dns \"{adapter}\" static {p.Dns1} primary");
+                var r2 = Run("netsh", $"interface ip set dns \"{adapter}\" static {p.Dns1} primary validate=no");
                 if (r2.code != 0) errors.Add(r2.output);
             }
             if (!string.IsNullOrWhiteSpace(p.Dns2))
             {
-                var r3 = Run("netsh", $"interface ip add dns \"{adapter}\" {p.Dns2} index=2");
+                var r3 = Run("netsh", $"interface ip add dns \"{adapter}\" {p.Dns2} index=2 validate=no");
                 if (r3.code != 0) errors.Add(r3.output);
             }
         }
