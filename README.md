@@ -2,7 +2,7 @@
 
 `Program Hider` is a Windows tray utility for hiding open application windows away from the taskbar and restoring them from a single tray menu.
 
-`v0.1.0` is the current `.NET` implementation under `app/ProgramHider`. The earlier Rust prototype is preserved under `archive/legacy-rust-v0.0.1`.
+`v0.1.1` is the current `.NET` implementation under `app/ProgramHider`. The earlier Rust prototype is preserved under `archive/legacy-rust-v0.0.1`.
 
 ## Features
 
@@ -39,9 +39,9 @@
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-The packaged single-file executable is written to `release\v0.1.0\ProgramHider.exe`.
+The packaged single-file executable is written to `release\v0.1.1\ProgramHider.exe`.
 
-The portable zip is written to `release\ProgramHider-v0.1.0-portable.zip`.
+The portable zip is written to `release\ProgramHider-v0.1.1-portable.zip`.
 
 If you want to sign release builds, set:
 

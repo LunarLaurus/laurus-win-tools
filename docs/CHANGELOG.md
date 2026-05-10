@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+- No unreleased changes yet.
+
+## v0.1.1
+
 - Added a repo-local test host for deterministic verification.
 - Added an isolated smoke-window app and smoke-test script for live hide/restore checks.
+- Repackaged the app so the shipped artifact matches the verified test-harness state.
 
 ## v0.1.0
 
