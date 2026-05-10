@@ -109,9 +109,13 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
             _menu.Items.Add(_hideWindowMenu);
 
-            var addRuleItem = new ToolStripMenuItem("Always auto-hide active app on minimize");
-            addRuleItem.Click += (_, _) => AddActiveProcessRule();
-            _menu.Items.Add(addRuleItem);
+            var quickRuleItem = new ToolStripMenuItem("Create process rule from active window");
+            quickRuleItem.Click += (_, _) => AddActiveProcessRule();
+            _menu.Items.Add(quickRuleItem);
+
+            var inspectWindowItem = new ToolStripMenuItem("Inspect active window...");
+            inspectWindowItem.Click += (_, _) => InspectActiveWindow();
+            _menu.Items.Add(inspectWindowItem);
 
             var settingsItem = new ToolStripMenuItem("Settings...");
             settingsItem.Click += (_, _) => OpenSettings();
@@ -181,34 +185,45 @@ internal sealed class ProgramHiderContext : ApplicationContext
         HideWindow(NativeMethods.GetForegroundWindow());
     }
 
-    private void HideWindow(nint handle)
+    private bool HideWindow(nint handle, WindowRuleMatchResult? existingMatch = null)
     {
         if (handle == 0 || handle == _messageWindow.Handle || _hiddenWindows.ContainsKey(handle))
         {
-            return;
+            return false;
         }
 
         var snapshot = NativeMethods.TryCreateWindowSnapshot(handle);
         if (snapshot is null || !IsManageableWindow(snapshot.Value))
         {
-            return;
+            return false;
         }
 
+        var ruleMatch = existingMatch ?? WindowRuleMatchResult.Evaluate(_settings.WindowRules, snapshot.Value);
         if (!NativeMethods.ShowWindow(handle, NativeMethods.SW_HIDE))
         {
-            return;
+            return false;
         }
 
         _hiddenWindows[handle] = new HiddenWindow(
             handle,
             snapshot.Value.Title,
             snapshot.Value.ProcessName,
-            snapshot.Value.IsMaximized);
+            snapshot.Value.ClassName,
+            snapshot.Value.IsMaximized,
+            DateTimeOffset.UtcNow,
+            ruleMatch.RequirePinOnRestore,
+            ruleMatch.SuppressNotifications);
+        return true;
     }
 
     private void RestoreWindow(nint handle)
     {
-        if (!EnsureRestoreAuthorized("restore the selected window"))
+        if (!_hiddenWindows.TryGetValue(handle, out var hiddenWindow))
+        {
+            return;
+        }
+
+        if (!EnsureRestoreAuthorized("restore the selected window", hiddenWindow.RequirePinOnRestore))
         {
             return;
         }
@@ -241,7 +256,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
-        if (!EnsureRestoreAuthorized("restore all hidden windows"))
+        var requiresPin = _hiddenWindows.Values.Any(window => window.RequirePinOnRestore);
+        if (!EnsureRestoreAuthorized("restore all hidden windows", requiresPin))
         {
             return;
         }
@@ -254,7 +270,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private void AddActiveProcessRule()
     {
-        var activeWindow = NativeMethods.TryCreateWindowSnapshot(NativeMethods.GetForegroundWindow());
+        var activeWindow = GetActiveWindowSnapshot();
         if (activeWindow is null || string.IsNullOrWhiteSpace(activeWindow.Value.ProcessName))
         {
             MessageBox.Show(
@@ -265,10 +281,18 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
-        if (!TryAddAutoHideProcess(activeWindow.Value.ProcessName))
+        var rule = new WindowRule
+        {
+            RuleName = $"{activeWindow.Value.ProcessName} auto-hide",
+            MatchProcessName = activeWindow.Value.ProcessName,
+            AutoHideOnMinimize = true
+        };
+        rule.Normalize();
+
+        if (!TryAddWindowRule(rule))
         {
             MessageBox.Show(
-                $"The app '{activeWindow.Value.ProcessName}' is already in the auto-hide rules.",
+                $"A matching rule for '{activeWindow.Value.ProcessName}' already exists.",
                 "Program Hider",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -280,16 +304,50 @@ internal sealed class ProgramHiderContext : ApplicationContext
             $"{activeWindow.Value.ProcessName} will now hide to Program Hider when minimized.");
     }
 
-    private bool TryAddAutoHideProcess(string processName)
+    private void InspectActiveWindow()
     {
-        var normalized = processName.Trim();
-        if (string.IsNullOrWhiteSpace(normalized) ||
-            _settings.AutoHideProcessNames.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        var activeWindow = GetActiveWindowSnapshot();
+        if (activeWindow is null)
+        {
+            MessageBox.Show(
+                "No eligible active application window was detected.",
+                "Program Hider",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        using var inspector = new ActiveWindowInspectorForm(activeWindow.Value);
+        if (inspector.ShowDialog() != DialogResult.OK || inspector.CreatedRule is null)
+        {
+            return;
+        }
+
+        if (!TryAddWindowRule(inspector.CreatedRule))
+        {
+            MessageBox.Show(
+                "A matching rule for the inspected window already exists.",
+                "Program Hider",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        ShowStatusBalloon(
+            "Rule added",
+            $"{inspector.CreatedRule.RuleName} is now active.");
+    }
+
+    private bool TryAddWindowRule(WindowRule rule)
+    {
+        rule.Normalize();
+        if (!rule.HasAnyMatchField ||
+            _settings.WindowRules.Any(existing => string.Equals(existing.GetIdentityKey(), rule.GetIdentityKey(), StringComparison.OrdinalIgnoreCase)))
         {
             return false;
         }
 
-        _settings.AutoHideProcessNames.Add(normalized);
+        _settings.WindowRules.Add(rule.Clone());
         _settings.Normalize();
         PersistSettings();
         return true;
@@ -339,9 +397,9 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _notifyIcon.Text = BuildTrayText();
     }
 
-    private bool EnsureRestoreAuthorized(string actionDescription)
+    private bool EnsureRestoreAuthorized(string actionDescription, bool requirePinForSelection)
     {
-        if (!_settings.RequirePinToRestore || string.IsNullOrWhiteSpace(_settings.PinHash))
+        if ((!_settings.RequirePinToRestore && !requirePinForSelection) || string.IsNullOrWhiteSpace(_settings.PinHash))
         {
             return true;
         }
@@ -374,7 +432,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
         }
 
         foreach (var processGroup in _hiddenWindows.Values
-                     .OrderBy(window => window.ProcessName, StringComparer.OrdinalIgnoreCase)
+                     .OrderByDescending(window => window.HiddenAtUtc)
+                     .ThenBy(window => window.ProcessName, StringComparer.OrdinalIgnoreCase)
                      .ThenBy(window => window.Title, StringComparer.OrdinalIgnoreCase)
                      .GroupBy(window => window.ProcessName, StringComparer.OrdinalIgnoreCase))
         {
@@ -383,14 +442,14 @@ internal sealed class ProgramHiderContext : ApplicationContext
             {
                 var onlyWindow = windows[0];
                 var item = new ToolStripMenuItem(
-                    $"Restore: {EscapeMenuLabel(onlyWindow.Title)} ({onlyWindow.ProcessName})");
+                    $"Restore: {EscapeMenuLabel(onlyWindow.Title)} ({onlyWindow.ProcessName}){BuildProtectedSuffix(onlyWindow.RequirePinOnRestore)}");
                 item.Click += (_, _) => RestoreWindow(onlyWindow.Handle);
                 _menu.Items.Add(item);
                 continue;
             }
 
             var groupItem = new ToolStripMenuItem(
-                $"Restore: {processGroup.Key} ({windows.Count})");
+                $"Restore: {processGroup.Key} ({windows.Count}){BuildProtectedSuffix(windows.Any(window => window.RequirePinOnRestore))}");
 
             var restoreAllForProcess = new ToolStripMenuItem("Restore all in this app");
             restoreAllForProcess.Click += (_, _) => RestoreWindowsForProcess(processGroup.Key);
@@ -399,7 +458,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
             foreach (var hiddenWindow in windows)
             {
-                var childItem = new ToolStripMenuItem(EscapeMenuLabel(TrimMenuLabel(hiddenWindow.Title)));
+                var childItem = new ToolStripMenuItem(
+                    $"{EscapeMenuLabel(TrimMenuLabel(hiddenWindow.Title))}{BuildProtectedSuffix(hiddenWindow.RequirePinOnRestore)}");
                 childItem.Click += (_, _) => RestoreWindow(hiddenWindow.Handle);
                 groupItem.DropDownItems.Add(childItem);
             }
@@ -420,7 +480,10 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
-        if (!EnsureRestoreAuthorized($"restore all hidden windows for {processName}"))
+        var requiresPin = handles
+            .Select(handle => _hiddenWindows.TryGetValue(handle, out var hiddenWindow) ? hiddenWindow.RequirePinOnRestore : false)
+            .Any(value => value);
+        if (!EnsureRestoreAuthorized($"restore all hidden windows for {processName}", requiresPin))
         {
             return;
         }
@@ -467,12 +530,18 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
-        if (!_settings.AutoHideProcessNames.Contains(snapshot.Value.ProcessName, StringComparer.OrdinalIgnoreCase))
+        var ruleMatch = WindowRuleMatchResult.Evaluate(_settings.WindowRules, snapshot.Value);
+        if (!ruleMatch.AutoHideOnMinimize)
         {
             return;
         }
 
-        HideWindow(handle);
+        if (HideWindow(handle, ruleMatch) && !ruleMatch.SuppressNotifications)
+        {
+            ShowStatusBalloon(
+                "Window hidden",
+                $"{snapshot.Value.Title} was hidden automatically.");
+        }
     }
 
     private void DisposeManagedState()
@@ -506,8 +575,21 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private string BuildTrayText()
     {
-        var suffix = _settings.RequirePinToRestore ? " [Locked]" : string.Empty;
+        var suffix = _settings.RequirePinToRestore || _settings.WindowRules.Any(rule => rule.RequirePinOnRestore)
+            ? " [Locked]"
+            : string.Empty;
         return $"Program Hider v{Application.ProductVersion}{suffix}";
+    }
+
+    private NativeWindowSnapshot? GetActiveWindowSnapshot()
+    {
+        var snapshot = NativeMethods.TryCreateWindowSnapshot(NativeMethods.GetForegroundWindow());
+        if (snapshot is null || !IsManageableWindow(snapshot.Value))
+        {
+            return null;
+        }
+
+        return snapshot;
     }
 
     private static bool IsManageableWindow(NativeWindowSnapshot window)
@@ -534,6 +616,11 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private static string EscapeMenuLabel(string title)
     {
         return title.Replace("&", "&&", StringComparison.Ordinal);
+    }
+
+    private static string BuildProtectedSuffix(bool requiresPin)
+    {
+        return requiresPin ? " [PIN]" : string.Empty;
     }
 
     private readonly record struct WindowSnapshot(nint Handle, string MenuLabel, string ProcessName);

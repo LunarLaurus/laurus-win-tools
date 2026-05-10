@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 using System.Windows.Forms;
 
 namespace ProgramHider;
@@ -9,6 +10,11 @@ internal sealed class AppSettings
     public bool LaunchOnWindowsStartup { get; set; }
     public bool RequirePinToRestore { get; set; }
     public string PinHash { get; set; } = string.Empty;
+    public List<WindowRule> WindowRules { get; set; } = new();
+
+    // Kept for v0.0.x settings migration.
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [JsonInclude]
     public List<string> AutoHideProcessNames { get; set; } = new();
 
     public AppSettings Clone()
@@ -19,6 +25,7 @@ internal sealed class AppSettings
             LaunchOnWindowsStartup = LaunchOnWindowsStartup,
             RequirePinToRestore = RequirePinToRestore,
             PinHash = PinHash,
+            WindowRules = WindowRules.Select(rule => rule.Clone()).ToList(),
             AutoHideProcessNames = AutoHideProcessNames.ToList()
         };
     }
@@ -34,12 +41,48 @@ internal sealed class AppSettings
             PinHash = string.Empty;
         }
 
+        WindowRules = WindowRules
+            .Where(rule => rule is not null)
+            .Select(rule =>
+            {
+                rule.Normalize();
+                return rule;
+            })
+            .Where(rule => rule.HasAnyMatchField)
+            .GroupBy(rule => rule.GetIdentityKey(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(rule => rule.RuleName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         AutoHideProcessNames = AutoHideProcessNames
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        foreach (var processName in AutoHideProcessNames)
+        {
+            if (WindowRules.Any(rule =>
+                    string.Equals(rule.MatchProcessName, processName, StringComparison.OrdinalIgnoreCase) &&
+                    string.IsNullOrWhiteSpace(rule.MatchTitleContains) &&
+                    string.IsNullOrWhiteSpace(rule.MatchClassName)))
+            {
+                continue;
+            }
+
+            WindowRules.Add(new WindowRule
+            {
+                RuleName = $"{processName} auto-hide",
+                MatchProcessName = processName,
+                AutoHideOnMinimize = true
+            });
+        }
+
+        WindowRules = WindowRules
+            .OrderBy(rule => rule.RuleName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        AutoHideProcessNames.Clear();
     }
 }
 

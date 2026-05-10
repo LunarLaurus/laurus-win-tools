@@ -13,3 +13,9 @@
 ### Progress Entries
 
 - Started `v0.1.0` planning pass and created the design/work-log artifacts.
+- Landed the rich rule engine:
+  - migrated settings from process-only rules to structured window rules
+  - added rule match fields for process, title substring, and class name
+  - added per-rule behaviors for auto-hide, PIN-gated restore, and quiet mode
+  - added active-window inspection and one-click rule creation
+  - added rule import/export in the settings UI

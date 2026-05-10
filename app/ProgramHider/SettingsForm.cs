@@ -1,9 +1,15 @@
+using System.Text.Json;
 using System.Windows.Forms;
 
 namespace ProgramHider;
 
 internal sealed class SettingsForm : Form
 {
+    private static readonly JsonSerializerOptions RuleJsonOptions = new()
+    {
+        WriteIndented = true
+    };
+
     private readonly CheckBox _controlCheckBox = new() { Text = "Ctrl", AutoSize = true };
     private readonly CheckBox _shiftCheckBox = new() { Text = "Shift", AutoSize = true };
     private readonly CheckBox _altCheckBox = new() { Text = "Alt", AutoSize = true };
@@ -12,8 +18,14 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _requirePinCheckBox = new() { Text = "Require PIN/password to restore hidden windows", AutoSize = true };
     private readonly ComboBox _keyComboBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
     private readonly ComboBox _candidateProcessComboBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220 };
-    private readonly ListBox _rulesListBox = new() { Height = 180 };
-    private readonly TextBox _manualProcessTextBox = new() { Width = 220 };
+    private readonly ListView _rulesListView = new()
+    {
+        View = View.Details,
+        FullRowSelect = true,
+        MultiSelect = false,
+        HideSelection = false,
+        Dock = DockStyle.Fill
+    };
     private readonly TextBox _pinTextBox = new() { UseSystemPasswordChar = true, Width = 220 };
     private readonly TextBox _confirmPinTextBox = new() { UseSystemPasswordChar = true, Width = 220 };
     private readonly Label _pinHintLabel = new()
@@ -21,23 +33,31 @@ internal sealed class SettingsForm : Form
         AutoSize = true,
         Text = "Leave blank to keep the existing PIN/password. Disable the option to remove it."
     };
+    private readonly List<WindowRule> _workingRules;
 
     public SettingsForm(AppSettings currentSettings, IReadOnlyCollection<string> candidateProcessNames, string settingsPath)
     {
         UpdatedSettings = currentSettings.Clone();
+        _workingRules = currentSettings.WindowRules.Select(rule => rule.Clone()).ToList();
+
         Text = "Program Hider Settings";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(620, 560);
+        ClientSize = new Size(860, 640);
+
+        _rulesListView.Columns.Add("Rule", 180);
+        _rulesListView.Columns.Add("Match", 360);
+        _rulesListView.Columns.Add("Behavior", 220);
 
         PopulateHotkeyControls();
         PopulateProcessCandidates(candidateProcessNames);
         PopulateFromSettings(currentSettings);
         _requirePinCheckBox.CheckedChanged += (_, _) => UpdatePinControls();
         UpdatePinControls();
+        RefreshRulesListView();
 
         var tabs = new TabControl
         {
@@ -134,18 +154,14 @@ internal sealed class SettingsForm : Form
 
     private TabPage BuildRulesTab()
     {
-        var tab = new TabPage("Auto-hide Rules");
+        var tab = new TabPage("Rules");
         var panel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             Padding = new Padding(12),
-            ColumnCount = 2,
-            RowCount = 6
+            ColumnCount = 1,
+            RowCount = 4
         };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -154,45 +170,42 @@ internal sealed class SettingsForm : Form
         panel.Controls.Add(
             new Label
             {
-                Text = "Apps listed here will be hidden automatically when they are minimized.",
+                Text = "Rules can match process names, title substrings, and class names. Matching rules can auto-hide, require PIN restore, and suppress notifications.",
                 AutoSize = true
             },
             0,
             0);
-        panel.SetColumnSpan(panel.GetControlFromPosition(0, 0)!, 2);
 
-        panel.Controls.Add(new Label { Text = "Open app process", AutoSize = true, Margin = new Padding(0, 14, 0, 4) }, 0, 1);
-        panel.Controls.Add(_candidateProcessComboBox, 0, 2);
-
-        var addOpenProcessButton = new Button
+        var quickAddPanel = new FlowLayoutPanel
         {
-            Text = "Add",
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            Margin = new Padding(0, 12, 0, 12)
+        };
+        quickAddPanel.Controls.Add(new Label { Text = "Quick add process rule", AutoSize = true, Margin = new Padding(0, 8, 8, 0) });
+        quickAddPanel.Controls.Add(_candidateProcessComboBox);
+        var quickAddButton = new Button
+        {
+            Text = "Add Process Rule",
             AutoSize = true
         };
-        addOpenProcessButton.Click += (_, _) => AddSelectedRule();
-        panel.Controls.Add(addOpenProcessButton, 1, 2);
+        quickAddButton.Click += (_, _) => AddQuickProcessRule();
+        quickAddPanel.Controls.Add(quickAddButton);
+        panel.Controls.Add(quickAddPanel, 0, 1);
 
-        panel.Controls.Add(new Label { Text = "Manual process name", AutoSize = true, Margin = new Padding(0, 14, 0, 4) }, 0, 3);
-        panel.Controls.Add(_manualProcessTextBox, 0, 4);
+        panel.Controls.Add(_rulesListView, 0, 2);
 
-        var addManualProcessButton = new Button
+        var buttons = new FlowLayoutPanel
         {
-            Text = "Add Manual",
+            Dock = DockStyle.Fill,
             AutoSize = true
         };
-        addManualProcessButton.Click += (_, _) => AddManualRule();
-        panel.Controls.Add(addManualProcessButton, 1, 4);
-
-        panel.Controls.Add(_rulesListBox, 0, 5);
-        panel.SetColumnSpan(_rulesListBox, 2);
-
-        var removeRuleButton = new Button
-        {
-            Text = "Remove selected",
-            AutoSize = true
-        };
-        removeRuleButton.Click += (_, _) => RemoveSelectedRule();
-        panel.Controls.Add(removeRuleButton, 1, 6);
+        buttons.Controls.Add(CreateButton("Add...", (_, _) => AddRule()));
+        buttons.Controls.Add(CreateButton("Edit...", (_, _) => EditSelectedRule()));
+        buttons.Controls.Add(CreateButton("Remove", (_, _) => RemoveSelectedRule()));
+        buttons.Controls.Add(CreateButton("Import...", (_, _) => ImportRules()));
+        buttons.Controls.Add(CreateButton("Export...", (_, _) => ExportRules()));
+        panel.Controls.Add(buttons, 0, 3);
 
         tab.Controls.Add(panel);
         return tab;
@@ -262,6 +275,17 @@ internal sealed class SettingsForm : Form
         return buttonPanel;
     }
 
+    private static Button CreateButton(string text, EventHandler onClick)
+    {
+        var button = new Button
+        {
+            Text = text,
+            AutoSize = true
+        };
+        button.Click += onClick;
+        return button;
+    }
+
     private void UpdatePinControls()
     {
         var enabled = _requirePinCheckBox.Checked;
@@ -303,53 +327,228 @@ internal sealed class SettingsForm : Form
         _keyComboBox.SelectedItem = settings.Hotkey.Key;
         _launchOnStartupCheckBox.Checked = settings.LaunchOnWindowsStartup;
         _requirePinCheckBox.Checked = settings.RequirePinToRestore;
-
-        foreach (var rule in settings.AutoHideProcessNames)
-        {
-            _rulesListBox.Items.Add(rule);
-        }
     }
 
-    private void AddSelectedRule()
+    private void AddQuickProcessRule()
     {
         if (_candidateProcessComboBox.SelectedItem is not string processName)
         {
             return;
         }
 
-        AddRule(processName);
+        var rule = new WindowRule
+        {
+            RuleName = $"{processName} auto-hide",
+            MatchProcessName = processName,
+            AutoHideOnMinimize = true
+        };
+        rule.Normalize();
+        UpsertRule(rule, null);
     }
 
-    private void AddManualRule()
+    private void AddRule()
     {
-        AddRule(_manualProcessTextBox.Text);
-        _manualProcessTextBox.Clear();
-    }
-
-    private void AddRule(string processName)
-    {
-        var normalized = processName.Trim();
-        if (string.IsNullOrWhiteSpace(normalized))
+        using var editor = new RuleEditorForm();
+        if (editor.ShowDialog(this) != DialogResult.OK)
         {
             return;
         }
 
-        if (_rulesListBox.Items.Cast<string>().Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        UpsertRule(editor.EditedRule, null);
+    }
+
+    private void EditSelectedRule()
+    {
+        var index = GetSelectedRuleIndex();
+        if (index is null)
         {
             return;
         }
 
-        _rulesListBox.Items.Add(normalized);
+        using var editor = new RuleEditorForm(_workingRules[index.Value]);
+        if (editor.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        UpsertRule(editor.EditedRule, index.Value);
+    }
+
+    private void UpsertRule(WindowRule rule, int? replaceIndex)
+    {
+        var duplicateIndex = _workingRules.FindIndex(
+            existing => string.Equals(existing.GetIdentityKey(), rule.GetIdentityKey(), StringComparison.OrdinalIgnoreCase));
+
+        if (duplicateIndex >= 0 && duplicateIndex != replaceIndex)
+        {
+            MessageBox.Show(
+                "A rule with the same match fields and behavior already exists.",
+                "Program Hider",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        if (replaceIndex is int index)
+        {
+            _workingRules[index] = rule.Clone();
+        }
+        else
+        {
+            _workingRules.Add(rule.Clone());
+        }
+
+        SortRules();
+        RefreshRulesListView();
     }
 
     private void RemoveSelectedRule()
     {
-        if (_rulesListBox.SelectedItem is null)
+        var index = GetSelectedRuleIndex();
+        if (index is null)
         {
             return;
         }
 
-        _rulesListBox.Items.Remove(_rulesListBox.SelectedItem);
+        _workingRules.RemoveAt(index.Value);
+        RefreshRulesListView();
+    }
+
+    private void ImportRules()
+    {
+        using var openDialog = new OpenFileDialog
+        {
+            Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+            Title = "Import Program Hider Rules"
+        };
+
+        if (openDialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            var importedRules = JsonSerializer.Deserialize<List<WindowRule>>(File.ReadAllText(openDialog.FileName), RuleJsonOptions)
+                                ?? new List<WindowRule>();
+
+            foreach (var rule in importedRules)
+            {
+                rule.Normalize();
+            }
+
+            importedRules = importedRules.Where(rule => rule.HasAnyMatchField).ToList();
+            if (importedRules.Count == 0)
+            {
+                MessageBox.Show(
+                    "The selected file did not contain any usable rules.",
+                    "Program Hider",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            var mergeMode = MessageBox.Show(
+                "Choose Yes to replace current rules, No to merge, or Cancel to abort.",
+                "Import Rules",
+                MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Question);
+
+            if (mergeMode == DialogResult.Cancel)
+            {
+                return;
+            }
+
+            if (mergeMode == DialogResult.Yes)
+            {
+                _workingRules.Clear();
+            }
+
+            foreach (var rule in importedRules)
+            {
+                if (_workingRules.Any(existing => string.Equals(existing.GetIdentityKey(), rule.GetIdentityKey(), StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                _workingRules.Add(rule.Clone());
+            }
+
+            SortRules();
+            RefreshRulesListView();
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                $"Unable to import rules.{Environment.NewLine}{Environment.NewLine}{exception.Message}",
+                "Program Hider",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
+    private void ExportRules()
+    {
+        using var saveDialog = new SaveFileDialog
+        {
+            Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+            Title = "Export Program Hider Rules",
+            FileName = "program-hider-rules.json"
+        };
+
+        if (saveDialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            var json = JsonSerializer.Serialize(_workingRules, RuleJsonOptions);
+            File.WriteAllText(saveDialog.FileName, json);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                $"Unable to export rules.{Environment.NewLine}{Environment.NewLine}{exception.Message}",
+                "Program Hider",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
+    private void SortRules()
+    {
+        _workingRules.Sort((left, right) => string.Compare(left.RuleName, right.RuleName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void RefreshRulesListView()
+    {
+        _rulesListView.BeginUpdate();
+        try
+        {
+            _rulesListView.Items.Clear();
+            foreach (var rule in _workingRules)
+            {
+                var item = new ListViewItem(rule.RuleName);
+                item.SubItems.Add(rule.DescribeMatch());
+                item.SubItems.Add(rule.DescribeBehavior());
+                _rulesListView.Items.Add(item);
+            }
+        }
+        finally
+        {
+            _rulesListView.EndUpdate();
+        }
+    }
+
+    private int? GetSelectedRuleIndex()
+    {
+        if (_rulesListView.SelectedIndices.Count == 0)
+        {
+            return null;
+        }
+
+        return _rulesListView.SelectedIndices[0];
     }
 
     private void SaveAndClose()
@@ -436,7 +635,8 @@ internal sealed class SettingsForm : Form
             LaunchOnWindowsStartup = _launchOnStartupCheckBox.Checked,
             RequirePinToRestore = requirePin,
             PinHash = pinHash,
-            AutoHideProcessNames = _rulesListBox.Items.Cast<string>().ToList()
+            WindowRules = _workingRules.Select(rule => rule.Clone()).ToList(),
+            AutoHideProcessNames = new List<string>()
         };
         UpdatedSettings.Normalize();
 
