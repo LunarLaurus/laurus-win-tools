@@ -90,15 +90,20 @@ public static class NetCommands
 
         if (p.UseDhcp)
         {
-            var r1 = Run("netsh", $"interface ip set address \"{adapter}\" dhcp");
-            if (r1.code != 0) errors.Add(r1.output);
+            // Skip set address dhcp if already in DHCP mode — avoids triggering a
+            // lease renewal that can asynchronously push DNS from the router and
+            // race with the static DNS we set below.
+            var current = GetAdapterInfo(adapter);
+            if (current == null || !current.IsDhcp)
+            {
+                var r1 = Run("netsh", $"interface ip set address \"{adapter}\" dhcp");
+                if (r1.code != 0) errors.Add(r1.output);
+            }
 
             if (!string.IsNullOrWhiteSpace(p.Dns1))
             {
-                // Flush DHCP-pushed DNS first so the static assignment lands cleanly.
-                // validate=no skips reachability check — required when the IP lease is
-                // still settling and the route to the DNS server isn't yet established.
-                Run("netsh", $"interface ip set dns \"{adapter}\" dhcp");
+                // validate=no skips reachability check so this succeeds even when
+                // the route to the DNS server isn't established yet.
                 var r2 = Run("netsh", $"interface ip set dns \"{adapter}\" static {p.Dns1} primary validate=no");
                 if (r2.code != 0) errors.Add(r2.output);
                 if (!string.IsNullOrWhiteSpace(p.Dns2))
