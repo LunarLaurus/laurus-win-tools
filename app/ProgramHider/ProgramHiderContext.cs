@@ -6,6 +6,8 @@ using System.Windows.Forms;
 
 namespace ProgramHider;
 
+// Owns the tray icon, global hooks, and the user-facing window-management
+// flows. Most application behavior is coordinated from this context.
 internal sealed class ProgramHiderContext : ApplicationContext
 {
     private const int HotkeyId = 0x1000;
@@ -70,6 +72,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
         RegisterConfiguredHotkey();
         StartupRegistration.Apply(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
 
+        // Listen for foreground changes and minimize starts so active-window
+        // targeting and auto-hide rules can react without polling.
         _minimizeEventCallback = OnWindowEvent;
         _foregroundEventCallback = OnForegroundWindowEvent;
         _minimizeEventHook = NativeMethods.SetWinEventHook(
@@ -278,6 +282,9 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private void HideActiveWindow()
     {
+        // Resolve through the tracker rather than only GetForegroundWindow so
+        // tray interactions and hotkey timing races do not lose the user's
+        // original target window.
         var activeWindow = GetActiveWindowSnapshot();
         if (activeWindow is null)
         {
@@ -957,6 +964,9 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private void ReportHideFailure(NativeWindowSnapshot snapshot, string operation)
     {
         bool? targetElevated = snapshot.ProcessId == 0 ? null : ElevationService.IsProcessElevated(snapshot.ProcessId);
+        // A false return from ShowWindow is not enough to prove elevation was
+        // the cause, but an elevated target is the most actionable recovery
+        // path we can offer from the tray UI.
         var shouldOfferElevation = !_isElevated && (targetElevated is null || targetElevated.Value);
         var message = shouldOfferElevation
             ? $"Could not hide '{snapshot.Title}' ({snapshot.ProcessName}). Program Hider can relaunch as administrator and retry."
@@ -1040,6 +1050,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
+        // The target window may still be recreating or finishing activation
+        // while the elevated retry instance starts.
         for (var attempt = 0; attempt < 8; attempt++)
         {
             Application.DoEvents();

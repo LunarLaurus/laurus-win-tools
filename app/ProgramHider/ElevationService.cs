@@ -14,6 +14,8 @@ internal enum ElevationAttemptResult
     Failed
 }
 
+// Handles the narrow "relaunch as administrator and retry" path for windows
+// that sit behind Windows integrity boundaries.
 internal static class ElevationService
 {
     private const uint ProcessQueryLimitedInformation = 0x1000;
@@ -106,6 +108,9 @@ internal static class ElevationService
     internal static string BuildRestartArguments(StartupOptions startupOptions, nint? pendingHideHandle)
     {
         var parts = new List<string>();
+        // Preserve startup semantics, but force a short delay so the unelevated
+        // instance has time to release global hooks before the elevated one
+        // registers them again.
         var effectiveDelaySeconds = Math.Max(startupOptions.DelaySeconds, 2);
         if (startupOptions.IsStartupLaunch)
         {

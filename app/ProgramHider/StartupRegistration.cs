@@ -2,6 +2,8 @@ using Microsoft.Win32;
 
 namespace ProgramHider;
 
+// Stores startup intent in the current-user Run key so Program Hider can
+// relaunch itself at sign-in without requiring a service or scheduled task.
 internal static class StartupRegistration
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";

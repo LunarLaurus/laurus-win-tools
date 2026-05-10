@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- No unreleased changes yet.
+- Added a detailed end-user guide covering installation, tray usage, rules, settings, elevation, and logs.
+- Expanded code comments around active-window tracking, hide/restore behavior, elevation retry, startup registration, and release verification.
+- Updated release packaging so `user-guide.md` ships alongside the executable.
 
 ## v0.1.4
 

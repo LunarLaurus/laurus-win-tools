@@ -1,5 +1,7 @@
 namespace ProgramHider;
 
+// Encapsulates the low-level hide/restore mechanics so UI flows and tests can
+// share the same behavior.
 internal sealed class WindowHideService
 {
     private readonly IWindowPlatform _platform;
@@ -28,6 +30,8 @@ internal sealed class WindowHideService
             return false;
         }
 
+        // Capture placement before hiding so restores can return the window to
+        // a sensible position and show state.
         var savedPlacement = _platform.TryGetWindowPlacement(handle);
         var monitorDeviceName = _platform.TryGetMonitorDeviceNameForWindow(handle);
         var ruleMatch = existingMatch ?? WindowRuleMatchResult.Evaluate(Array.Empty<WindowRule>(), snapshot.Value);
@@ -74,6 +78,8 @@ internal sealed class WindowHideService
             _platform.TrySetWindowPlacement(handle, placement);
         }
 
+        // Some users want background restores for sensitive windows; others
+        // want the restored window focused immediately.
         _platform.ShowWindow(
             handle,
             hiddenWindow.WasMaximized ? NativeMethods.SW_SHOWMAXIMIZED : NativeMethods.SW_RESTORE);

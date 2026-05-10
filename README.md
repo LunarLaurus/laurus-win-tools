@@ -34,6 +34,17 @@
 - Administrator relaunch and retry when a hide is blocked by elevation boundaries
 - `Restore all` on demand and automatically on app exit
 
+## Quick Start
+
+1. Launch `ProgramHider.exe`.
+2. Focus the window you want to hide.
+3. Press `Ctrl+Shift+H`, or use the tray menu.
+4. Restore the window from the tray menu or `Restore browser...`.
+
+If a target app is running as administrator, Program Hider can relaunch itself elevated and retry.
+
+For step-by-step usage, see [docs/user-guide.md](D:/code/program-hider/docs/user-guide.md).
+
 ## Build
 
 ```powershell
@@ -112,6 +123,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\verify-release.ps1
 - `docs/design-v0.1.0.md`: roadmap/design record for the `v0.1.0` pass
 - `docs/work-log.md`: feature implementation log for this pass
 - `docs/CHANGELOG.md`: project changelog
+- `docs/user-guide.md`: detailed end-user usage guide
 - `docs/testing.md`: test and smoke-test commands
 - `docs/window-compatibility.md`: supported, elevation-required, and unsupported window classes
 - `fix-tooling-path.ps1`: machine PATH baseline helper

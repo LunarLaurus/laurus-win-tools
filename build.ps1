@@ -40,6 +40,8 @@ try {
 
     & $dotnet build $projectPath -c Release
 
+    # Verification runs before publish so release packaging never gets ahead of
+    # the tested tree unless the caller explicitly opts out.
     if (-not $SkipVerification) {
         $verifyArgs = @(
             "-ExecutionPolicy", "Bypass",
@@ -67,6 +69,7 @@ try {
     }
 
     Copy-Item (Join-Path $repoRoot "README.md") (Join-Path $releaseDir "README.md")
+    Copy-Item (Join-Path $repoRoot "docs\user-guide.md") (Join-Path $releaseDir "user-guide.md")
     Copy-Item (Join-Path $repoRoot "docs\CHANGELOG.md") (Join-Path $releaseDir "CHANGELOG.md")
     Copy-Item (Join-Path $repoRoot "docs\window-compatibility.md") (Join-Path $releaseDir "window-compatibility.md")
 

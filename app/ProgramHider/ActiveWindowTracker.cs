@@ -1,5 +1,7 @@
 namespace ProgramHider;
 
+// Tracks the last manageable foreground window so tray interactions can still
+// act on the user's real target after the tray menu steals focus.
 internal sealed class ActiveWindowTracker
 {
     private readonly IWindowPlatform _platform;
@@ -40,6 +42,8 @@ internal sealed class ActiveWindowTracker
             return currentSnapshot;
         }
 
+        // Fall back to the last known good foreground window when focus has
+        // already moved to the tray host or another non-manageable surface.
         nint fallbackHandle;
         lock (_sync)
         {

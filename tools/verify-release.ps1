@@ -9,6 +9,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 
 Push-Location $repoRoot
 try {
+    # Keep this script focused on repo-owned targets so routine verification
+    # never depends on arbitrary third-party windows being open.
     Write-Host "Running Program Hider verification harness..."
     & $DotNetPath run --project tests\ProgramHider.TestHost\ProgramHider.TestHost.csproj -c Release
 
