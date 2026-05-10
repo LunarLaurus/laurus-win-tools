@@ -56,6 +56,7 @@ internal static class TestHostProgram
         runner.Run("AppSettings normalize preserves rule-level PIN hash", AppSettingsNormalizePreservesRuleProtectedPin);
         runner.Run("SettingsStore honors environment override path", SettingsStoreHonorsEnvironmentOverridePath);
         runner.Run("StartupOptions parse handles startup safe mode and delay", StartupOptionsParsesFlags);
+        runner.Run("Elevation restart arguments preserve retry state", ElevationRestartArgumentsPreserveRetryState);
         runner.Run("PinSecurity hashes and verifies secrets", PinSecurityHashesAndVerifiesSecrets);
         runner.Run("HotkeySettings normalizes modifiers and default key", HotkeySettingsNormalizesDefaults);
         runner.Run("WindowCatalog find by title respects process filter and null on miss", WindowCatalogFindByTitleRespectsProcessFilter);
@@ -232,6 +233,7 @@ internal static class TestHostProgram
             "Adguard Home - Administrator: PowerShell",
             "ConsoleWindowClass",
             "pwsh",
+            42,
             0,
             0,
             false);
@@ -243,7 +245,7 @@ internal static class TestHostProgram
 
     private static void WindowRuleEvaluatorMergesFlags()
     {
-        var window = new NativeWindowSnapshot((nint)7, "Adguard Home", "ConsoleWindowClass", "powershell", 0, 0, false);
+        var window = new NativeWindowSnapshot((nint)7, "Adguard Home", "ConsoleWindowClass", "powershell", 7, 0, 0, false);
         var rules = new[]
         {
             new WindowRule { RuleName = "auto", MatchProcessName = "powershell", AutoHideOnMinimize = true },
@@ -297,11 +299,28 @@ internal static class TestHostProgram
 
     private static void StartupOptionsParsesFlags()
     {
-        var options = StartupOptions.Parse(new[] { "--startup", "--delay=42", "--safe-mode" });
+        var options = StartupOptions.Parse(new[] { "--startup", "--delay=42", "--safe-mode", "--rehide=0x1A2B" });
 
         TestAssert.True(options.IsStartupLaunch, "Expected startup flag.");
         TestAssert.Equal(42, options.DelaySeconds, "Expected delay to parse.");
         TestAssert.True(options.SafeMode, "Expected safe mode flag.");
+        TestAssert.Equal((nint)0x1A2B, options.PendingHideHandle, "Expected pending hide handle to parse.");
+    }
+
+    private static void ElevationRestartArgumentsPreserveRetryState()
+    {
+        var options = new StartupOptions
+        {
+            IsStartupLaunch = true,
+            DelaySeconds = 12,
+            SafeMode = true
+        };
+
+        var arguments = ElevationService.BuildRestartArguments(options, (nint)0x45AF);
+        TestAssert.True(arguments.Contains("--startup", StringComparison.Ordinal), "Expected startup flag in elevated relaunch arguments.");
+        TestAssert.True(arguments.Contains("--safe-mode", StringComparison.Ordinal), "Expected safe-mode flag in elevated relaunch arguments.");
+        TestAssert.True(arguments.Contains("--delay=12", StringComparison.Ordinal), "Expected delay flag in elevated relaunch arguments.");
+        TestAssert.True(arguments.Contains("--rehide=0x45AF", StringComparison.Ordinal), "Expected pending hide handle in elevated relaunch arguments.");
     }
 
     private static void SettingsStoreHonorsEnvironmentOverridePath()
@@ -349,11 +368,11 @@ internal static class TestHostProgram
     {
         var fakePlatform = new FakeWindowPlatform(
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)1, "Program Hider Smoke Window", "SmokeClass", "ProgramHider.SmokeWindow", 0, 0, false),
+                new NativeWindowSnapshot((nint)1, "Program Hider Smoke Window", "SmokeClass", "ProgramHider.SmokeWindow", 1, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true),
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)2, "Program Hider Smoke Window", "FirefoxClass", "firefox", 0, 0, false),
+                new NativeWindowSnapshot((nint)2, "Program Hider Smoke Window", "FirefoxClass", "firefox", 2, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true));
 
@@ -369,23 +388,23 @@ internal static class TestHostProgram
     {
         var fakePlatform = new FakeWindowPlatform(
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)1, "Visible Window", "NormalClass", "powershell", 0, 0, false),
+                new NativeWindowSnapshot((nint)1, "Visible Window", "NormalClass", "powershell", 1, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true),
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)2, "Hidden Tracked", "NormalClass", "powershell", 0, 0, false),
+                new NativeWindowSnapshot((nint)2, "Hidden Tracked", "NormalClass", "powershell", 2, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true),
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)3, "Tool Window", "NormalClass", "powershell", 0, NativeMethods.WS_EX_TOOLWINDOW, false),
+                new NativeWindowSnapshot((nint)3, "Tool Window", "NormalClass", "powershell", 3, 0, NativeMethods.WS_EX_TOOLWINDOW, false),
                 IsVisible: true,
                 IsAlive: true),
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)4, "Owned Window", "NormalClass", "powershell", (nint)123, 0, false),
+                new NativeWindowSnapshot((nint)4, "Owned Window", "NormalClass", "powershell", 4, (nint)123, 0, false),
                 IsVisible: true,
                 IsAlive: true),
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)5, "Progman", "Progman", "explorer", 0, 0, false),
+                new NativeWindowSnapshot((nint)5, "Progman", "Progman", "explorer", 5, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true));
 
@@ -399,11 +418,11 @@ internal static class TestHostProgram
     {
         var fakePlatform = new FakeWindowPlatform(
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)10, "Tracked Window", "NormalClass", "powershell", 0, 0, false),
+                new NativeWindowSnapshot((nint)10, "Tracked Window", "NormalClass", "powershell", 10, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true),
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)11, "Tray Host", "Shell_TrayWnd", "explorer", 0, 0, false),
+                new NativeWindowSnapshot((nint)11, "Tray Host", "Shell_TrayWnd", "explorer", 11, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true));
         var tracker = new ActiveWindowTracker(fakePlatform);
@@ -422,11 +441,11 @@ internal static class TestHostProgram
     {
         var fakePlatform = new FakeWindowPlatform(
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)10, "Tracked Window", "NormalClass", "powershell", 0, 0, false),
+                new NativeWindowSnapshot((nint)10, "Tracked Window", "NormalClass", "powershell", 10, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true),
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)11, "Tray Host", "Shell_TrayWnd", "explorer", 0, 0, false),
+                new NativeWindowSnapshot((nint)11, "Tray Host", "Shell_TrayWnd", "explorer", 11, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true));
         var tracker = new ActiveWindowTracker(fakePlatform);
@@ -444,11 +463,11 @@ internal static class TestHostProgram
     {
         var fakePlatform = new FakeWindowPlatform(
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)21, "Tracked Window", "NormalClass", "powershell", 0, 0, false),
+                new NativeWindowSnapshot((nint)21, "Tracked Window", "NormalClass", "powershell", 21, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true),
             new FakeWindowState(
-                new NativeWindowSnapshot((nint)22, "Menu Host", "Shell_TrayWnd", "explorer", 0, 0, false),
+                new NativeWindowSnapshot((nint)22, "Menu Host", "Shell_TrayWnd", "explorer", 22, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true));
         var tracker = new ActiveWindowTracker(fakePlatform);
@@ -467,7 +486,7 @@ internal static class TestHostProgram
         var handle = (nint)99;
         var fakePlatform = new FakeWindowPlatform(
             new FakeWindowState(
-                new NativeWindowSnapshot(handle, "Adguard Home", "ConsoleWindowClass", "powershell", 0, 0, false),
+                new NativeWindowSnapshot(handle, "Adguard Home", "ConsoleWindowClass", "powershell", 99, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true));
         var service = new WindowHideService(fakePlatform);
@@ -496,7 +515,7 @@ internal static class TestHostProgram
         var handle = (nint)77;
         var fakePlatform = new FakeWindowPlatform(
             new FakeWindowState(
-                new NativeWindowSnapshot(handle, "Visible Window", "NormalClass", "powershell", 0, 0, false),
+                new NativeWindowSnapshot(handle, "Visible Window", "NormalClass", "powershell", 77, 0, 0, false),
                 IsVisible: true,
                 IsAlive: true));
         var service = new WindowHideService(fakePlatform);

@@ -5,6 +5,7 @@ internal sealed class StartupOptions
     public bool IsStartupLaunch { get; init; }
     public int DelaySeconds { get; init; }
     public bool SafeMode { get; init; }
+    public nint PendingHideHandle { get; init; }
 
     public static StartupOptions Parse(string[] args)
     {
@@ -12,6 +13,7 @@ internal sealed class StartupOptions
         var delaySeconds = 0;
         var isStartupLaunch = false;
         var safeMode = false;
+        nint pendingHideHandle = 0;
 
         foreach (var arg in args)
         {
@@ -31,6 +33,13 @@ internal sealed class StartupOptions
                 int.TryParse(arg["--delay=".Length..], out var parsedDelay))
             {
                 delaySeconds = Math.Clamp(parsedDelay, 0, 300);
+                continue;
+            }
+
+            if (arg.StartsWith("--rehide=", StringComparison.OrdinalIgnoreCase) &&
+                ElevationService.TryParseHandle(arg["--rehide=".Length..], out var parsedHandle))
+            {
+                pendingHideHandle = parsedHandle;
             }
         }
 
@@ -38,7 +47,8 @@ internal sealed class StartupOptions
         {
             IsStartupLaunch = isStartupLaunch,
             DelaySeconds = delaySeconds,
-            SafeMode = safeMode
+            SafeMode = safeMode,
+            PendingHideHandle = pendingHideHandle
         };
     }
 }

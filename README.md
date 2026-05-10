@@ -2,7 +2,7 @@
 
 `Program Hider` is a Windows tray utility for hiding open application windows away from the taskbar and restoring them from a single tray menu.
 
-`v0.1.3` is the current `.NET` implementation under `app/ProgramHider`. The earlier Rust prototype is preserved under `archive/legacy-rust-v0.0.1`.
+`v0.1.4` is the current `.NET` implementation under `app/ProgramHider`. The earlier Rust prototype is preserved under `archive/legacy-rust-v0.0.1`.
 
 ## Features
 
@@ -31,6 +31,7 @@
 - Structured JSONL logs under `%APPDATA%\ProgramHider\logs`
 - Watchdog pruning for dead handles
 - Optional restore-on-session-lock / restore-on-suspend safety behavior
+- Administrator relaunch and retry when a hide is blocked by elevation boundaries
 - `Restore all` on demand and automatically on app exit
 
 ## Build
@@ -39,9 +40,25 @@
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-The packaged single-file executable is written to `release\v0.1.3\ProgramHider.exe`.
+By default, `build.ps1` now:
 
-The portable zip is written to `release\ProgramHider-v0.1.3-portable.zip`.
+- builds the app
+- runs the repo-local verification suite
+- runs live smoke tests
+- publishes the release artifact
+- runs a release-startup smoke check
+- writes release docs alongside the exe
+
+If you need to bypass part of that flow, the main switches are:
+
+- `-SkipVerification`
+- `-SkipLiveSmoke`
+- `-SkipStartupSmoke`
+- `-SkipSigning`
+
+The packaged single-file executable is written to `release\v0.1.4\ProgramHider.exe`.
+
+The portable zip is written to `release\ProgramHider-v0.1.4-portable.zip`.
 
 If you want to sign release builds, set:
 
@@ -82,6 +99,12 @@ powershell -ExecutionPolicy Bypass -File .\tools\smoke-test-program-hider-hotkey
 
 The hotkey smoke uses an isolated temporary settings file, so it does not depend on the machine's real Program Hider hotkey.
 
+Run the full verification suite:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\verify-release.ps1
+```
+
 ## Layout
 
 - `app/ProgramHider`: current WinForms application
@@ -90,5 +113,6 @@ The hotkey smoke uses an isolated temporary settings file, so it does not depend
 - `docs/work-log.md`: feature implementation log for this pass
 - `docs/CHANGELOG.md`: project changelog
 - `docs/testing.md`: test and smoke-test commands
+- `docs/window-compatibility.md`: supported, elevation-required, and unsupported window classes
 - `fix-tooling-path.ps1`: machine PATH baseline helper
 - `verify-tooling-path.ps1`: command-resolution verifier

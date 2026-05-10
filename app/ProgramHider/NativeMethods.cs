@@ -66,9 +66,10 @@ internal static class NativeMethods
         var owner = GetWindow(handle, GW_OWNER);
         var extendedStyle = GetWindowLongPtr(handle, GWL_EXSTYLE);
         var isMaximized = IsZoomed(handle);
-        var processName = GetProcessName(handle);
+        GetWindowThreadProcessId(handle, out var processId);
+        var processName = GetProcessName(processId);
 
-        return new NativeWindowSnapshot(handle, title, className, processName, owner, extendedStyle, isMaximized);
+        return new NativeWindowSnapshot(handle, title, className, processName, processId, owner, extendedStyle, isMaximized);
     }
 
     internal static WindowPlacement? TryGetWindowPlacement(nint handle)
@@ -122,9 +123,8 @@ internal static class NativeMethods
         return builder.ToString();
     }
 
-    private static string GetProcessName(nint handle)
+    private static string GetProcessName(uint processId)
     {
-        GetWindowThreadProcessId(handle, out var processId);
         if (processId == 0)
         {
             return string.Empty;
@@ -283,6 +283,7 @@ internal readonly record struct NativeWindowSnapshot(
     string Title,
     string ClassName,
     string ProcessName,
+    uint ProcessId,
     nint Owner,
     nint ExtendedStyle,
     bool IsMaximized);

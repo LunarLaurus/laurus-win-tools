@@ -32,6 +32,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private AppSettings _settings;
     private DateTimeOffset _restoreUnlockedUntilUtc = DateTimeOffset.MinValue;
     private DateTimeOffset _bulkRestoreUnlockedUntilUtc = DateTimeOffset.MinValue;
+    private readonly bool _isElevated;
     private bool _safeModeEnabled;
     private bool _disposed;
 
@@ -45,6 +46,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _activeWindowTracker = new ActiveWindowTracker(_windowPlatform);
         _settings = _settingsStore.Load();
         _settings.Normalize();
+        _isElevated = ElevationService.IsCurrentProcessElevated();
         _safeModeEnabled = startupOptions.SafeMode;
 
         _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
@@ -104,12 +106,21 @@ internal sealed class ProgramHiderContext : ApplicationContext
                 startup = _startupOptions.IsStartupLaunch,
                 delaySeconds = _startupOptions.DelaySeconds,
                 safeMode = _safeModeEnabled,
+                elevated = _isElevated,
+                pendingHideHandle = _startupOptions.PendingHideHandle == 0 ? null : $"0x{_startupOptions.PendingHideHandle.ToInt64():X}",
                 settingsPath = _settingsStore.SettingsPath
             });
 
         if (_safeModeEnabled)
         {
             ShowStatusBalloon("Safe mode enabled", "Auto-hide automation is suspended until you turn safe mode off.");
+        }
+
+        if (_startupOptions.PendingHideHandle != 0)
+        {
+            _uiContext.Post(
+                static state => ((ProgramHiderContext)state!).TryHidePendingStartupWindow(),
+                this);
         }
     }
 
@@ -192,6 +203,11 @@ internal sealed class ProgramHiderContext : ApplicationContext
             };
             safeModeItem.Click += (_, _) => ToggleSafeMode();
             _menu.Items.Add(safeModeItem);
+
+            var elevateItem = new ToolStripMenuItem(_isElevated ? "Running as administrator" : "Restart as administrator...");
+            elevateItem.Enabled = !_isElevated;
+            elevateItem.Click += (_, _) => RestartAsAdministrator();
+            _menu.Items.Add(elevateItem);
 
             _menu.Items.Add(new ToolStripSeparator());
 
@@ -895,6 +911,11 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private string BuildTrayText()
     {
         var suffixParts = new List<string>();
+        if (_isElevated)
+        {
+            suffixParts.Add("Admin");
+        }
+
         if (_settings.RequirePinToRestore ||
             _settings.WindowRules.Any(rule => rule.RequirePinOnRestore) ||
             !string.IsNullOrWhiteSpace(_settings.RestoreAllPinHash))
@@ -935,8 +956,11 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private void ReportHideFailure(NativeWindowSnapshot snapshot, string operation)
     {
-        var message = $"Could not hide '{snapshot.Title}' ({snapshot.ProcessName}). If that window is elevated, run Program Hider as administrator too.";
-        ShowStatusBalloon(operation, message);
+        bool? targetElevated = snapshot.ProcessId == 0 ? null : ElevationService.IsProcessElevated(snapshot.ProcessId);
+        var shouldOfferElevation = !_isElevated && (targetElevated is null || targetElevated.Value);
+        var message = shouldOfferElevation
+            ? $"Could not hide '{snapshot.Title}' ({snapshot.ProcessName}). Program Hider can relaunch as administrator and retry."
+            : $"Could not hide '{snapshot.Title}' ({snapshot.ProcessName}).";
         _logger.Write(
             "window.hide_failed",
             new
@@ -944,8 +968,93 @@ internal sealed class ProgramHiderContext : ApplicationContext
                 operation,
                 snapshot.Title,
                 snapshot.ProcessName,
-                snapshot.ClassName
+                snapshot.ClassName,
+                snapshot.ProcessId,
+                elevated = _isElevated,
+                targetElevated
             });
+
+        if (shouldOfferElevation)
+        {
+            ShowStatusBalloon(operation, message);
+            PromptForElevationRetry(snapshot, operation);
+            return;
+        }
+
+        ShowStatusBalloon(operation, message);
+    }
+
+    private void PromptForElevationRetry(NativeWindowSnapshot snapshot, string operation)
+    {
+        var result = MessageBox.Show(
+            $"Program Hider could not hide '{snapshot.Title}' ({snapshot.ProcessName}).{Environment.NewLine}{Environment.NewLine}Restart Program Hider as administrator and retry this window?",
+            operation,
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+        if (result != DialogResult.Yes)
+        {
+            _logger.Write("elevation.declined", new { operation, snapshot.Title, snapshot.ProcessName, snapshot.ProcessId });
+            return;
+        }
+
+        RestartAsAdministrator(snapshot.Handle);
+    }
+
+    private void RestartAsAdministrator(nint? pendingHideHandle = null)
+    {
+        var elevationResult = ElevationService.TryRestartElevated(_startupOptions, pendingHideHandle);
+        _logger.Write(
+            "elevation.attempt",
+            new
+            {
+                pendingHideHandle = pendingHideHandle.HasValue ? $"0x{pendingHideHandle.Value.ToInt64():X}" : null,
+                result = elevationResult.ToString()
+            });
+
+        switch (elevationResult)
+        {
+            case ElevationAttemptResult.NotNeeded:
+                ShowStatusBalloon("Already elevated", "Program Hider is already running as administrator.");
+                return;
+            case ElevationAttemptResult.Relaunched:
+                ExitThread();
+                return;
+            case ElevationAttemptResult.Cancelled:
+                ShowStatusBalloon("Elevation cancelled", "Program Hider stayed in the current session.");
+                return;
+            default:
+                MessageBox.Show(
+                    "Program Hider could not relaunch as administrator.",
+                    "Program Hider",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+        }
+    }
+
+    private void TryHidePendingStartupWindow()
+    {
+        var pendingHandle = _startupOptions.PendingHideHandle;
+        if (pendingHandle == 0)
+        {
+            return;
+        }
+
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            Application.DoEvents();
+            if (HideWindow(pendingHandle))
+            {
+                ShowStatusBalloon("Elevated retry succeeded", "Program Hider relaunched as administrator and hid the requested window.");
+                _logger.Write("elevation.retry_succeeded", new { handle = $"0x{pendingHandle.ToInt64():X}" });
+                return;
+            }
+
+            Thread.Sleep(250);
+        }
+
+        _logger.Write("elevation.retry_failed", new { handle = $"0x{pendingHandle.ToInt64():X}" });
+        ShowStatusBalloon("Elevated retry failed", "The requested window could not be hidden after relaunch.");
     }
 
     private static string TrimMenuLabel(string title)

@@ -46,3 +46,11 @@
   - added a foreground-window event hook so the app keeps following the last real active target
   - expanded the test host with repo-local foreground inspection, `SendInput`, and Program Hider message-window probes
   - tightened the hotkey smoke flow so it drives the real `WM_HOTKEY` handler without depending on fragile shell focus tricks
+- Added elevation recovery for admin-only windows:
+  - added a tray command to restart Program Hider as administrator
+  - added failure prompts that can relaunch elevated and retry the same window handle automatically
+  - added startup argument parsing for pending re-hide handles and tests for relaunch argument composition
+- Tightened the release workflow:
+  - added an explicit window compatibility doc
+  - added a repo-local verification wrapper script for future builds
+  - updated `build.ps1` to run verification and a release-startup smoke check by default

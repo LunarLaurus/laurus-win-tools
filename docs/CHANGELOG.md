@@ -4,6 +4,14 @@
 
 - No unreleased changes yet.
 
+## v0.1.4
+
+- Added a tray command to restart Program Hider as administrator.
+- Added hide-failure prompts that can relaunch elevated and retry the same target window automatically.
+- Added startup support for pending re-hide handles during an elevated relaunch.
+- Expanded automated coverage for startup-option parsing and elevated relaunch argument composition.
+- Added a compatibility document plus a verification-first build flow with release-startup smoke testing.
+
 ## v0.1.3
 
 - Added a foreground-window event hook so hotkey and inspect actions retain the last real active window more reliably.
