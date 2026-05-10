@@ -5,6 +5,7 @@ namespace ProgramHider;
 
 internal sealed class SettingsStore
 {
+    private const string SettingsPathOverrideEnvironmentVariable = "PROGRAM_HIDER_SETTINGS_PATH";
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -16,6 +17,13 @@ internal sealed class SettingsStore
 
     public SettingsStore()
     {
+        var overriddenPath = Environment.GetEnvironmentVariable(SettingsPathOverrideEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(overriddenPath))
+        {
+            SettingsPath = Path.GetFullPath(overriddenPath);
+            return;
+        }
+
         var appDataDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         SettingsPath = Path.Combine(appDataDirectory, "ProgramHider", "settings.json");
     }

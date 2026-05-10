@@ -4,6 +4,21 @@
 
 - No unreleased changes yet.
 
+## v0.1.3
+
+- Added a foreground-window event hook so hotkey and inspect actions retain the last real active window more reliably.
+- Added repo-local foreground, `SendInput`, and message-window probe helpers to the verification harness.
+- Hardened the hotkey smoke test by driving the real `WM_HOTKEY` path through Program Hider's hidden message window and retry-based hide assertions.
+- Expanded the repo-local verification harness to 15 automated checks.
+
+## v0.1.2
+
+- Fixed tray-driven active-window resolution by tracking the last real foreground window before the tray steals focus.
+- Added deterministic settings-path override support for smoke runs.
+- Added direct normal-PowerShell and real Program Hider hotkey smoke scripts.
+- Expanded the repo-local verification harness to 14 automated checks.
+- Clarified hide failures for windows that likely require Program Hider to run elevated too.
+
 ## v0.1.1
 
 - Added a repo-local test host for deterministic verification.

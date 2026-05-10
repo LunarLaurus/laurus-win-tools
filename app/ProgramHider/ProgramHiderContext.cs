@@ -17,10 +17,13 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private readonly SettingsStore _settingsStore;
     private readonly SynchronizationContext _uiContext;
     private readonly NativeMethods.WinEventProc _minimizeEventCallback;
+    private readonly NativeMethods.WinEventProc _foregroundEventCallback;
     private readonly nint _minimizeEventHook;
+    private readonly nint _foregroundEventHook;
     private readonly Dictionary<nint, HiddenWindow> _hiddenWindows = new();
     private readonly IWindowPlatform _windowPlatform;
     private readonly WindowHideService _windowHideService;
+    private readonly ActiveWindowTracker _activeWindowTracker;
     private readonly Icon _appIcon;
     private readonly AppLogger _logger;
     private readonly StartupOptions _startupOptions;
@@ -39,6 +42,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _settingsStore = new SettingsStore();
         _windowPlatform = new Win32WindowPlatform();
         _windowHideService = new WindowHideService(_windowPlatform);
+        _activeWindowTracker = new ActiveWindowTracker(_windowPlatform);
         _settings = _settingsStore.Load();
         _settings.Normalize();
         _safeModeEnabled = startupOptions.SafeMode;
@@ -65,11 +69,20 @@ internal sealed class ProgramHiderContext : ApplicationContext
         StartupRegistration.Apply(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
 
         _minimizeEventCallback = OnWindowEvent;
+        _foregroundEventCallback = OnForegroundWindowEvent;
         _minimizeEventHook = NativeMethods.SetWinEventHook(
             NativeMethods.EVENT_SYSTEM_MINIMIZESTART,
             NativeMethods.EVENT_SYSTEM_MINIMIZESTART,
             0,
             _minimizeEventCallback,
+            0,
+            0,
+            NativeMethods.WINEVENT_OUTOFCONTEXT | NativeMethods.WINEVENT_SKIPOWNPROCESS);
+        _foregroundEventHook = NativeMethods.SetWinEventHook(
+            NativeMethods.EVENT_SYSTEM_FOREGROUND,
+            NativeMethods.EVENT_SYSTEM_FOREGROUND,
+            0,
+            _foregroundEventCallback,
             0,
             0,
             NativeMethods.WINEVENT_OUTOFCONTEXT | NativeMethods.WINEVENT_SKIPOWNPROCESS);
@@ -113,12 +126,14 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
+        CaptureCurrentActiveWindow();
         RebuildMenu();
         _menu.Show(Cursor.Position);
     }
 
     private void OnMenuOpening(object? sender, CancelEventArgs eventArgs)
     {
+        CaptureCurrentActiveWindow();
         RebuildMenu();
     }
 
@@ -137,7 +152,17 @@ internal sealed class ProgramHiderContext : ApplicationContext
             foreach (var candidate in EnumerateCandidateWindows())
             {
                 var item = new ToolStripMenuItem(candidate.MenuLabel);
-                item.Click += (_, _) => HideWindow(candidate.Handle);
+                item.Click += (_, _) =>
+                {
+                    if (!HideWindow(candidate.Handle))
+                    {
+                        var snapshot = _windowPlatform.TryCreateWindowSnapshot(candidate.Handle);
+                        if (snapshot is not null)
+                        {
+                            ReportHideFailure(snapshot.Value, "Hide window");
+                        }
+                    }
+                };
                 _hideWindowMenu.DropDownItems.Add(item);
             }
 
@@ -216,6 +241,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
     {
         if (hotkeyId == HotkeyId)
         {
+            _logger.Write("hotkey.pressed", new { hotkey = _settings.Hotkey.ToDisplayString() });
             HideActiveWindow();
         }
     }
@@ -236,7 +262,18 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private void HideActiveWindow()
     {
-        HideWindow(_windowPlatform.GetForegroundWindow());
+        var activeWindow = GetActiveWindowSnapshot();
+        if (activeWindow is null)
+        {
+            _logger.Write("window.hide_failed", new { operation = "Hide active window", reason = "no_active_window" });
+            ShowStatusBalloon("No active window", "Program Hider could not resolve a hideable foreground window.");
+            return;
+        }
+
+        if (!HideWindow(activeWindow.Value.Handle))
+        {
+            ReportHideFailure(activeWindow.Value, "Hide active window");
+        }
     }
 
     private bool HideWindow(nint handle, WindowRuleMatchResult? existingMatch = null, bool wasAutomatic = false)
@@ -702,6 +739,32 @@ internal sealed class ProgramHiderContext : ApplicationContext
             new MinimizeEventPayload(this, handle));
     }
 
+    private void OnForegroundWindowEvent(
+        nint eventHookHandle,
+        uint eventType,
+        nint handle,
+        int objectId,
+        int childId,
+        uint eventThreadId,
+        uint eventTime)
+    {
+        if (eventType != NativeMethods.EVENT_SYSTEM_FOREGROUND ||
+            handle == 0 ||
+            objectId != NativeMethods.OBJID_WINDOW ||
+            childId != 0)
+        {
+            return;
+        }
+
+        _uiContext.Post(
+            static state =>
+            {
+                var payload = (ForegroundEventPayload)state!;
+                payload.Context.TrackForegroundWindow(payload.Handle);
+            },
+            new ForegroundEventPayload(this, handle));
+    }
+
     private void TryAutoHideMinimizedWindow(nint handle)
     {
         if (_safeModeEnabled || _hiddenWindows.ContainsKey(handle))
@@ -808,6 +871,10 @@ internal sealed class ProgramHiderContext : ApplicationContext
         {
             NativeMethods.UnhookWinEvent(_minimizeEventHook);
         }
+        if (_foregroundEventHook != 0)
+        {
+            NativeMethods.UnhookWinEvent(_foregroundEventHook);
+        }
 
         _logger.Write("app.stopped", new { remainingHiddenWindows = _hiddenWindows.Count });
 
@@ -846,13 +913,39 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private NativeWindowSnapshot? GetActiveWindowSnapshot()
     {
-        var snapshot = _windowPlatform.TryCreateWindowSnapshot(_windowPlatform.GetForegroundWindow());
-        if (snapshot is null || !WindowCatalog.IsManageableWindow(snapshot.Value))
-        {
-            return null;
-        }
+        return _activeWindowTracker.ResolveSnapshot(CanTrackActiveWindow);
+    }
 
-        return snapshot;
+    private void CaptureCurrentActiveWindow()
+    {
+        _activeWindowTracker.CaptureCurrentSnapshot(CanTrackActiveWindow);
+    }
+
+    private void TrackForegroundWindow(nint handle)
+    {
+        _activeWindowTracker.CaptureSnapshotForHandle(handle, CanTrackActiveWindow);
+    }
+
+    private bool CanTrackActiveWindow(NativeWindowSnapshot snapshot)
+    {
+        return snapshot.Handle != _messageWindow.Handle &&
+               !_hiddenWindows.ContainsKey(snapshot.Handle) &&
+               WindowCatalog.IsManageableWindow(snapshot);
+    }
+
+    private void ReportHideFailure(NativeWindowSnapshot snapshot, string operation)
+    {
+        var message = $"Could not hide '{snapshot.Title}' ({snapshot.ProcessName}). If that window is elevated, run Program Hider as administrator too.";
+        ShowStatusBalloon(operation, message);
+        _logger.Write(
+            "window.hide_failed",
+            new
+            {
+                operation,
+                snapshot.Title,
+                snapshot.ProcessName,
+                snapshot.ClassName
+            });
     }
 
     private static string TrimMenuLabel(string title)
@@ -878,4 +971,5 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private readonly record struct WindowSnapshot(nint Handle, string MenuLabel, string ProcessName);
     private readonly record struct MinimizeEventPayload(ProgramHiderContext Context, nint Handle);
+    private readonly record struct ForegroundEventPayload(ProgramHiderContext Context, nint Handle);
 }

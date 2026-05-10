@@ -16,7 +16,9 @@ internal static class NativeMethods
     internal const int WM_HOTKEY = 0x0312;
     internal const int MOD_ALT = 0x0001;
     internal const int MOD_WIN = 0x0008;
+    internal const int OBJID_WINDOW = 0;
     internal const uint EVENT_SYSTEM_MINIMIZESTART = 0x0016;
+    internal const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
     internal const uint GW_OWNER = 4;
     internal const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
     internal const nint WS_EX_TOOLWINDOW = 0x00000080;

@@ -14,9 +14,16 @@ Current coverage includes:
 - merged rule behavior
 - settings normalization and legacy-rule migration
 - rule-protected PIN preservation
+- settings-path override handling
 - startup option parsing
+- PIN hashing/verification
+- hotkey normalization
 - window lookup with process filtering
+- manageable-window filtering
+- explicit foreground-handle tracking
+- active-window tracking fallback behavior
 - hide/restore/prune behavior against a fake window platform
+- hide guard rails for excluded/duplicate windows
 
 ## Live Smoke Test
 
@@ -42,7 +49,23 @@ The smoke test:
 - restores the sample window
 - verifies it is visible again
 
+Run the normal PowerShell smoke test:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\smoke-test-powershell-window.ps1
+```
+
+Run the real Program Hider hotkey smoke test:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\smoke-test-program-hider-hotkey.ps1
+```
+
 ## Notes
 
 - The PowerShell custom-title target was dropped because it was not a reliable probe on this machine.
 - The sample smoke window keeps live verification self-contained and avoids touching system or user windows.
+- The hotkey smoke uses `PROGRAM_HIDER_SETTINGS_PATH` to force a deterministic `Ctrl+Shift+H` binding without touching the real user config.
+- The hotkey smoke now drives Program Hider's real `WM_HOTKEY` handler through a repo-local message-window probe instead of relying on brittle shell focus tricks.
+- Normal `powershell.exe` windows were verified to hide and restore correctly.
+- Administrator/elevated PowerShell windows require Program Hider to run elevated too; otherwise Windows integrity boundaries can block manipulation.

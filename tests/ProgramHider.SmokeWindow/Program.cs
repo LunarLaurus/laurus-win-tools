@@ -13,6 +13,7 @@ internal sealed class SmokeForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         Width = 720;
         Height = 220;
+        Shown += OnShown;
 
         var label = new Label
         {
@@ -23,5 +24,17 @@ internal sealed class SmokeForm : Form
         };
 
         Controls.Add(label);
+    }
+
+    private void OnShown(object? sender, EventArgs eventArgs)
+    {
+        BeginInvoke(
+            () =>
+            {
+                TopMost = true;
+                Activate();
+                BringToFront();
+                TopMost = false;
+            });
     }
 }

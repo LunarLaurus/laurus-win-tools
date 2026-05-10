@@ -37,3 +37,12 @@
   - added a repo-local console test host for deterministic unit/integration checks
   - added a repo-local WinForms smoke target so live tests stay self-contained
   - recorded a passing live smoke run: find -> hide-verify-ok -> restore-verify-ok
+- Tightened the active-window path and live verification:
+  - tracked the last manageable foreground window so tray actions do not lose the true active target
+  - added deterministic settings override support for app-level hotkey smoke runs
+  - verified direct normal-PowerShell hide/restore
+  - verified the real Program Hider hotkey path against the sample window
+- Hardened the hotkey/foreground path:
+  - added a foreground-window event hook so the app keeps following the last real active target
+  - expanded the test host with repo-local foreground inspection, `SendInput`, and Program Hider message-window probes
+  - tightened the hotkey smoke flow so it drives the real `WM_HOTKEY` handler without depending on fragile shell focus tricks
