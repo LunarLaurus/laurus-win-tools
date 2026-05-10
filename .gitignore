@@ -1,0 +1,6 @@
+/target/
+/release/
+/app/**/bin/
+/app/**/obj/
+/.git-bootstrap-rust/
+*.user

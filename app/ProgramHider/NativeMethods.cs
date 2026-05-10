@@ -1,0 +1,132 @@
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace ProgramHider;
+
+internal static class NativeMethods
+{
+    internal const int GWL_EXSTYLE = -20;
+    internal const int MOD_CONTROL = 0x0002;
+    internal const int MOD_SHIFT = 0x0004;
+    internal const int MOD_NOREPEAT = 0x4000;
+    internal const int SW_HIDE = 0;
+    internal const int SW_SHOWMAXIMIZED = 3;
+    internal const int SW_RESTORE = 9;
+    internal const int WM_HOTKEY = 0x0312;
+    internal const uint GW_OWNER = 4;
+    internal const nint WS_EX_TOOLWINDOW = 0x00000080;
+
+    private delegate bool EnumWindowsProc(nint handle, nint lParam);
+
+    internal static IEnumerable<NativeWindowSnapshot> EnumerateTopLevelWindows()
+    {
+        var windows = new List<NativeWindowSnapshot>();
+        EnumWindows(
+            (handle, _) =>
+            {
+                var snapshot = TryCreateWindowSnapshot(handle);
+                if (snapshot is not null)
+                {
+                    windows.Add(snapshot.Value);
+                }
+
+                return true;
+            },
+            0);
+
+        return windows;
+    }
+
+    internal static NativeWindowSnapshot? TryCreateWindowSnapshot(nint handle)
+    {
+        if (handle == 0 || !IsWindow(handle) || !IsWindowVisible(handle))
+        {
+            return null;
+        }
+
+        var title = GetWindowText(handle);
+        var className = GetClassName(handle);
+        var owner = GetWindow(handle, GW_OWNER);
+        var extendedStyle = GetWindowLongPtr(handle, GWL_EXSTYLE);
+        var isMaximized = IsZoomed(handle);
+
+        return new NativeWindowSnapshot(handle, title, className, owner, extendedStyle, isMaximized);
+    }
+
+    private static string GetWindowText(nint handle)
+    {
+        var length = GetWindowTextLengthW(handle);
+        if (length <= 0)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(length + 1);
+        GetWindowTextW(handle, builder, builder.Capacity);
+        return builder.ToString();
+    }
+
+    private static string GetClassName(nint handle)
+    {
+        var builder = new StringBuilder(256);
+        GetClassNameW(handle, builder, builder.Capacity);
+        return builder.ToString();
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool EnumWindows(EnumWindowsProc enumProc, nint lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    internal static extern nint GetWindowLongPtr(nint handle, int index);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern nint GetWindow(nint handle, uint command);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int GetWindowTextW(nint handle, StringBuilder text, int maxCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetWindowTextLengthW(nint handle);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int GetClassNameW(nint handle, StringBuilder className, int maxCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsWindow(nint handle);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsWindowVisible(nint handle);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsZoomed(nint handle);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool RegisterHotKey(nint handle, int id, int modifiers, uint virtualKeyCode);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool UnregisterHotKey(nint handle, int id);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetForegroundWindow(nint handle);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ShowWindow(nint handle, int command);
+}
+
+internal readonly record struct NativeWindowSnapshot(
+    nint Handle,
+    string Title,
+    string ClassName,
+    nint Owner,
+    nint ExtendedStyle,
+    bool IsMaximized);
