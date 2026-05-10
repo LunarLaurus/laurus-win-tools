@@ -23,3 +23,8 @@
   - added a searchable restore browser with a recently hidden section
   - added optional restore-without-focus behavior in settings
   - started preserving window placement and monitor identity across hide/restore
+- Landed the security/startup/reliability bundle:
+  - added unlock timeout caching and separate bulk-restore PIN support
+  - added startup delay handling and safe mode automation suspension
+  - added automatic restore options for session lock and suspend
+  - added watchdog pruning for dead handles and structured JSONL app logs

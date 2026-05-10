@@ -1,3 +1,4 @@
+using Microsoft.Win32;
 using System.ComponentModel;
 using System.Drawing;
 using System.Threading;
@@ -19,15 +20,24 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private readonly nint _minimizeEventHook;
     private readonly Dictionary<nint, HiddenWindow> _hiddenWindows = new();
     private readonly Icon _appIcon;
+    private readonly AppLogger _logger;
+    private readonly StartupOptions _startupOptions;
+    private readonly System.Windows.Forms.Timer _maintenanceTimer;
 
     private AppSettings _settings;
+    private DateTimeOffset _restoreUnlockedUntilUtc = DateTimeOffset.MinValue;
+    private DateTimeOffset _bulkRestoreUnlockedUntilUtc = DateTimeOffset.MinValue;
+    private bool _safeModeEnabled;
     private bool _disposed;
 
-    public ProgramHiderContext()
+    public ProgramHiderContext(StartupOptions startupOptions)
     {
+        _startupOptions = startupOptions;
+        _logger = new AppLogger();
         _settingsStore = new SettingsStore();
         _settings = _settingsStore.Load();
         _settings.Normalize();
+        _safeModeEnabled = startupOptions.SafeMode;
 
         _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
@@ -48,7 +58,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
         _messageWindow = new HotkeyMessageWindow(OnHotkeyPressed);
         RegisterConfiguredHotkey();
-        StartupRegistration.Apply(_settings.LaunchOnWindowsStartup);
+        StartupRegistration.Apply(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
 
         _minimizeEventCallback = OnWindowEvent;
         _minimizeEventHook = NativeMethods.SetWinEventHook(
@@ -59,6 +69,31 @@ internal sealed class ProgramHiderContext : ApplicationContext
             0,
             0,
             NativeMethods.WINEVENT_OUTOFCONTEXT | NativeMethods.WINEVENT_SKIPOWNPROCESS);
+
+        _maintenanceTimer = new System.Windows.Forms.Timer
+        {
+            Interval = 15000
+        };
+        _maintenanceTimer.Tick += OnMaintenanceTick;
+        _maintenanceTimer.Start();
+
+        SystemEvents.SessionSwitch += OnSessionSwitch;
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+
+        _logger.Write(
+            "app.started",
+            new
+            {
+                startup = _startupOptions.IsStartupLaunch,
+                delaySeconds = _startupOptions.DelaySeconds,
+                safeMode = _safeModeEnabled,
+                settingsPath = _settingsStore.SettingsPath
+            });
+
+        if (_safeModeEnabled)
+        {
+            ShowStatusBalloon("Safe mode enabled", "Auto-hide automation is suspended until you turn safe mode off.");
+        }
     }
 
     protected override void ExitThreadCore()
@@ -120,6 +155,14 @@ internal sealed class ProgramHiderContext : ApplicationContext
             var settingsItem = new ToolStripMenuItem("Settings...");
             settingsItem.Click += (_, _) => OpenSettings();
             _menu.Items.Add(settingsItem);
+
+            var safeModeItem = new ToolStripMenuItem("Safe mode (disable auto-hide)")
+            {
+                Checked = _safeModeEnabled,
+                CheckOnClick = false
+            };
+            safeModeItem.Click += (_, _) => ToggleSafeMode();
+            _menu.Items.Add(safeModeItem);
 
             _menu.Items.Add(new ToolStripSeparator());
 
@@ -192,7 +235,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         HideWindow(NativeMethods.GetForegroundWindow());
     }
 
-    private bool HideWindow(nint handle, WindowRuleMatchResult? existingMatch = null)
+    private bool HideWindow(nint handle, WindowRuleMatchResult? existingMatch = null, bool wasAutomatic = false)
     {
         if (handle == 0 || handle == _messageWindow.Handle || _hiddenWindows.ContainsKey(handle))
         {
@@ -205,6 +248,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return false;
         }
 
+        var savedPlacement = NativeMethods.TryGetWindowPlacement(handle);
+        var monitorDeviceName = NativeMethods.TryGetMonitorDeviceNameForWindow(handle);
         var ruleMatch = existingMatch ?? WindowRuleMatchResult.Evaluate(_settings.WindowRules, snapshot.Value);
         if (!NativeMethods.ShowWindow(handle, NativeMethods.SW_HIDE))
         {
@@ -218,10 +263,23 @@ internal sealed class ProgramHiderContext : ApplicationContext
             snapshot.Value.ClassName,
             snapshot.Value.IsMaximized,
             DateTimeOffset.UtcNow,
-            NativeMethods.TryGetWindowPlacement(handle),
-            NativeMethods.TryGetMonitorDeviceNameForWindow(handle),
+            savedPlacement,
+            monitorDeviceName,
             ruleMatch.RequirePinOnRestore,
             ruleMatch.SuppressNotifications);
+
+        _logger.Write(
+            "window.hidden",
+            new
+            {
+                title = snapshot.Value.Title,
+                process = snapshot.Value.ProcessName,
+                className = snapshot.Value.ClassName,
+                automatic = wasAutomatic,
+                requirePin = ruleMatch.RequirePinOnRestore,
+                quiet = ruleMatch.SuppressNotifications,
+                matchedRules = ruleMatch.MatchingRules.Select(rule => rule.RuleName).ToArray()
+            });
         return true;
     }
 
@@ -249,6 +307,14 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
         if (!NativeMethods.IsWindow(handle))
         {
+            _logger.Write(
+                "window.restore_skipped",
+                new
+                {
+                    reason = "invalid_handle",
+                    title = hiddenWindow.Title,
+                    process = hiddenWindow.ProcessName
+                });
             return;
         }
 
@@ -264,25 +330,47 @@ internal sealed class ProgramHiderContext : ApplicationContext
         {
             NativeMethods.SetForegroundWindow(handle);
         }
+
+        var restoredMonitor = NativeMethods.TryGetMonitorDeviceNameForWindow(handle);
+        var monitorMismatch =
+            !string.IsNullOrWhiteSpace(hiddenWindow.MonitorDeviceName) &&
+            !string.IsNullOrWhiteSpace(restoredMonitor) &&
+            !string.Equals(hiddenWindow.MonitorDeviceName, restoredMonitor, StringComparison.OrdinalIgnoreCase);
+
+        _logger.Write(
+            "window.restored",
+            new
+            {
+                title = hiddenWindow.Title,
+                process = hiddenWindow.ProcessName,
+                className = hiddenWindow.ClassName,
+                focusRestored = !_settings.RestoreWithoutFocus,
+                requirePin = hiddenWindow.RequirePinOnRestore,
+                originalMonitor = hiddenWindow.MonitorDeviceName,
+                restoredMonitor,
+                monitorMismatch
+            });
     }
 
     private void RestoreAllWindows()
+    {
+        RestoreSelectedWindows(_hiddenWindows.Keys.ToArray(), "restore all hidden windows", isBulkRestore: true);
+    }
+
+    private void RestoreAllWindowsWithoutPrompt(string reason)
     {
         if (_hiddenWindows.Count == 0)
         {
             return;
         }
 
-        var requiresPin = _hiddenWindows.Values.Any(window => window.RequirePinOnRestore);
-        if (!EnsureRestoreAuthorized("restore all hidden windows", requiresPin))
-        {
-            return;
-        }
-
-        foreach (var handle in _hiddenWindows.Keys.ToArray())
+        var handles = _hiddenWindows.Keys.ToArray();
+        foreach (var handle in handles)
         {
             RestoreWindowCore(handle);
         }
+
+        _logger.Write("window.restore_all_automatic", new { reason, count = handles.Length });
     }
 
     private void AddActiveProcessRule()
@@ -367,6 +455,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _settings.WindowRules.Add(rule.Clone());
         _settings.Normalize();
         PersistSettings();
+        _logger.Write("rule.added", new { rule = rule.RuleName, match = rule.DescribeMatch(), behavior = rule.DescribeBehavior() });
         return true;
     }
 
@@ -390,15 +479,59 @@ internal sealed class ProgramHiderContext : ApplicationContext
             _settings = requestedSettings;
             _settings.Normalize();
             RegisterConfiguredHotkey();
-            StartupRegistration.Apply(_settings.LaunchOnWindowsStartup);
+            StartupRegistration.Apply(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
+            ClearUnlockCache();
             PersistSettings();
-            ShowStatusBalloon("Settings saved", $"Hotkey is now {_settings.Hotkey.ToDisplayString()}.");
+
+            var statusParts = new List<string>
+            {
+                $"Hotkey is now {_settings.Hotkey.ToDisplayString()}."
+            };
+            if (originalSettings.LaunchOnWindowsStartup != _settings.LaunchOnWindowsStartup ||
+                originalSettings.StartupDelaySeconds != _settings.StartupDelaySeconds)
+            {
+                statusParts.Add(
+                    _settings.LaunchOnWindowsStartup
+                        ? $"Startup enabled with {_settings.StartupDelaySeconds}s delay."
+                        : "Startup disabled.");
+            }
+
+            if (originalSettings.RestoreWithoutFocus != _settings.RestoreWithoutFocus)
+            {
+                statusParts.Add(
+                    _settings.RestoreWithoutFocus
+                        ? "Restores will no longer steal focus."
+                        : "Restores will now bring windows to the foreground.");
+            }
+
+            if (originalSettings.RequirePinToRestore != _settings.RequirePinToRestore ||
+                !string.Equals(originalSettings.PinHash, _settings.PinHash, StringComparison.Ordinal) ||
+                !string.Equals(originalSettings.RestoreAllPinHash, _settings.RestoreAllPinHash, StringComparison.Ordinal) ||
+                originalSettings.UnlockTimeoutMinutes != _settings.UnlockTimeoutMinutes)
+            {
+                statusParts.Add("Security settings updated.");
+            }
+
+            ShowStatusBalloon("Settings saved", string.Join(" ", statusParts));
+            _logger.Write(
+                "settings.saved",
+                new
+                {
+                    hotkey = _settings.Hotkey.ToDisplayString(),
+                    startup = _settings.LaunchOnWindowsStartup,
+                    startupDelaySeconds = _settings.StartupDelaySeconds,
+                    restoreWithoutFocus = _settings.RestoreWithoutFocus,
+                    globalPin = _settings.RequirePinToRestore,
+                    bulkPin = !string.IsNullOrWhiteSpace(_settings.RestoreAllPinHash),
+                    unlockTimeoutMinutes = _settings.UnlockTimeoutMinutes,
+                    rules = _settings.WindowRules.Count
+                });
         }
         catch (Win32Exception)
         {
             _settings = originalSettings;
             RegisterConfiguredHotkey();
-            StartupRegistration.Apply(_settings.LaunchOnWindowsStartup);
+            StartupRegistration.Apply(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
 
             MessageBox.Show(
                 $"Unable to register the requested hotkey {requestedHotkey}. Keep using {originalSettings.Hotkey.ToDisplayString()} or choose a different combination.",
@@ -427,7 +560,22 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
-        RestoreSelectedWindows(restoreBrowser.SelectedHandles);
+        RestoreSelectedWindows(
+            restoreBrowser.SelectedHandles,
+            restoreBrowser.SelectedHandles.Count > 1 ? "restore the selected windows" : "restore the selected window",
+            isBulkRestore: restoreBrowser.SelectedHandles.Count > 1);
+    }
+
+    private void ToggleSafeMode()
+    {
+        _safeModeEnabled = !_safeModeEnabled;
+        _notifyIcon.Text = BuildTrayText();
+        ShowStatusBalloon(
+            _safeModeEnabled ? "Safe mode enabled" : "Safe mode disabled",
+            _safeModeEnabled
+                ? "Auto-hide automation is suspended."
+                : "Auto-hide automation is active again.");
+        _logger.Write("safe_mode.toggled", new { enabled = _safeModeEnabled });
     }
 
     private void PersistSettings()
@@ -436,9 +584,17 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _notifyIcon.Text = BuildTrayText();
     }
 
-    private bool EnsureRestoreAuthorized(string actionDescription, bool requirePinForSelection)
+    private bool EnsureRestoreAuthorized(string actionDescription, bool requirePinForSelection, bool isBulkRestore = false)
     {
-        if ((!_settings.RequirePinToRestore && !requirePinForSelection) || string.IsNullOrWhiteSpace(_settings.PinHash))
+        var useBulkSecret = isBulkRestore && !string.IsNullOrWhiteSpace(_settings.RestoreAllPinHash);
+        var expectedHash = useBulkSecret ? _settings.RestoreAllPinHash : _settings.PinHash;
+        var requiresPin = useBulkSecret || _settings.RequirePinToRestore || requirePinForSelection;
+        if (!requiresPin || string.IsNullOrWhiteSpace(expectedHash))
+        {
+            return true;
+        }
+
+        if (IsUnlockStillValid(useBulkSecret))
         {
             return true;
         }
@@ -446,20 +602,52 @@ internal sealed class ProgramHiderContext : ApplicationContext
         using var prompt = new PinPromptForm(actionDescription);
         if (prompt.ShowDialog() != DialogResult.OK || string.IsNullOrWhiteSpace(prompt.EnteredSecret))
         {
+            _logger.Write("auth.cancelled", new { action = actionDescription, bulk = useBulkSecret });
             return false;
         }
 
-        if (PinSecurity.VerifySecret(prompt.EnteredSecret, _settings.PinHash))
+        if (PinSecurity.VerifySecret(prompt.EnteredSecret, expectedHash))
         {
+            RecordSuccessfulUnlock(useBulkSecret);
+            _logger.Write("auth.success", new { action = actionDescription, bulk = useBulkSecret });
             return true;
         }
 
+        _logger.Write("auth.failure", new { action = actionDescription, bulk = useBulkSecret });
         MessageBox.Show(
             "The restore PIN/password was incorrect.",
             "Program Hider",
             MessageBoxButtons.OK,
             MessageBoxIcon.Warning);
         return false;
+    }
+
+    private bool IsUnlockStillValid(bool useBulkSecret)
+    {
+        var unlockUntil = useBulkSecret ? _bulkRestoreUnlockedUntilUtc : _restoreUnlockedUntilUtc;
+        return unlockUntil > DateTimeOffset.UtcNow;
+    }
+
+    private void RecordSuccessfulUnlock(bool useBulkSecret)
+    {
+        var unlockUntil = _settings.UnlockTimeoutMinutes <= 0
+            ? DateTimeOffset.MinValue
+            : DateTimeOffset.UtcNow.AddMinutes(_settings.UnlockTimeoutMinutes);
+
+        if (useBulkSecret)
+        {
+            _bulkRestoreUnlockedUntilUtc = unlockUntil;
+        }
+        else
+        {
+            _restoreUnlockedUntilUtc = unlockUntil;
+        }
+    }
+
+    private void ClearUnlockCache()
+    {
+        _restoreUnlockedUntilUtc = DateTimeOffset.MinValue;
+        _bulkRestoreUnlockedUntilUtc = DateTimeOffset.MinValue;
     }
 
     private void BuildHiddenWindowItems()
@@ -513,7 +701,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
             .Where(window => string.Equals(window.ProcessName, processName, StringComparison.OrdinalIgnoreCase))
             .Select(window => window.Handle)
             .ToArray();
-        RestoreSelectedWindows(handles, $"restore all hidden windows for {processName}");
+        RestoreSelectedWindows(handles, $"restore all hidden windows for {processName}", isBulkRestore: handles.Length > 1);
     }
 
     private void OnWindowEvent(
@@ -541,7 +729,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private void TryAutoHideMinimizedWindow(nint handle)
     {
-        if (_hiddenWindows.ContainsKey(handle))
+        if (_safeModeEnabled || _hiddenWindows.ContainsKey(handle))
         {
             return;
         }
@@ -558,7 +746,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
-        if (HideWindow(handle, ruleMatch) && !ruleMatch.SuppressNotifications)
+        if (HideWindow(handle, ruleMatch, wasAutomatic: true) && !ruleMatch.SuppressNotifications)
         {
             ShowStatusBalloon(
                 "Window hidden",
@@ -566,25 +754,72 @@ internal sealed class ProgramHiderContext : ApplicationContext
         }
     }
 
-    private void RestoreSelectedWindows(IReadOnlyList<nint> handles, string actionDescription = "restore the selected windows")
+    private void RestoreSelectedWindows(
+        IReadOnlyList<nint> handles,
+        string actionDescription = "restore the selected windows",
+        bool isBulkRestore = false)
     {
         if (handles.Count == 0)
         {
             return;
         }
 
-        var requiresPin = handles
+        var distinctHandles = handles.Distinct().ToArray();
+        var requiresPin = distinctHandles
             .Select(handle => _hiddenWindows.TryGetValue(handle, out var hiddenWindow) ? hiddenWindow.RequirePinOnRestore : false)
             .Any(value => value);
-        if (!EnsureRestoreAuthorized(actionDescription, requiresPin))
+        if (!EnsureRestoreAuthorized(actionDescription, requiresPin, isBulkRestore))
         {
             return;
         }
 
-        foreach (var handle in handles.Distinct().ToArray())
+        foreach (var handle in distinctHandles)
         {
             RestoreWindowCore(handle);
         }
+    }
+
+    private void OnMaintenanceTick(object? sender, EventArgs eventArgs)
+    {
+        PruneDeadHiddenWindows();
+    }
+
+    private void PruneDeadHiddenWindows()
+    {
+        var removed = _hiddenWindows.Keys
+            .Where(handle => !NativeMethods.IsWindow(handle))
+            .ToArray();
+        if (removed.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var handle in removed)
+        {
+            _hiddenWindows.Remove(handle);
+        }
+
+        _logger.Write("maintenance.pruned_handles", new { count = removed.Length });
+    }
+
+    private void OnSessionSwitch(object? sender, SessionSwitchEventArgs eventArgs)
+    {
+        if (eventArgs.Reason != SessionSwitchReason.SessionLock || !_settings.RestoreHiddenWindowsOnSessionLock)
+        {
+            return;
+        }
+
+        RestoreAllWindowsWithoutPrompt("session-lock");
+    }
+
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs eventArgs)
+    {
+        if (eventArgs.Mode != PowerModes.Suspend || !_settings.RestoreHiddenWindowsOnSuspend)
+        {
+            return;
+        }
+
+        RestoreAllWindowsWithoutPrompt("suspend");
     }
 
     private void DisposeManagedState()
@@ -595,12 +830,18 @@ internal sealed class ProgramHiderContext : ApplicationContext
         }
 
         _disposed = true;
-        RestoreAllWindows();
+        _maintenanceTimer.Stop();
+        _maintenanceTimer.Dispose();
+        SystemEvents.SessionSwitch -= OnSessionSwitch;
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        RestoreAllWindowsWithoutPrompt("app-exit");
         NativeMethods.UnregisterHotKey(_messageWindow.Handle, HotkeyId);
         if (_minimizeEventHook != 0)
         {
             NativeMethods.UnhookWinEvent(_minimizeEventHook);
         }
+
+        _logger.Write("app.stopped", new { remainingHiddenWindows = _hiddenWindows.Count });
 
         _messageWindow.Dispose();
         _notifyIcon.Visible = false;
@@ -618,9 +859,20 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private string BuildTrayText()
     {
-        var suffix = _settings.RequirePinToRestore || _settings.WindowRules.Any(rule => rule.RequirePinOnRestore)
-            ? " [Locked]"
-            : string.Empty;
+        var suffixParts = new List<string>();
+        if (_settings.RequirePinToRestore ||
+            _settings.WindowRules.Any(rule => rule.RequirePinOnRestore) ||
+            !string.IsNullOrWhiteSpace(_settings.RestoreAllPinHash))
+        {
+            suffixParts.Add("Locked");
+        }
+
+        if (_safeModeEnabled)
+        {
+            suffixParts.Add("Safe");
+        }
+
+        var suffix = suffixParts.Count == 0 ? string.Empty : $" [{string.Join(", ", suffixParts)}]";
         return $"Program Hider v{Application.ProductVersion}{suffix}";
     }
 

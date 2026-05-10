@@ -8,9 +8,14 @@ internal sealed class AppSettings
 {
     public HotkeySettings Hotkey { get; set; } = HotkeySettings.CreateDefault();
     public bool LaunchOnWindowsStartup { get; set; }
+    public int StartupDelaySeconds { get; set; }
     public bool RestoreWithoutFocus { get; set; }
     public bool RequirePinToRestore { get; set; }
     public string PinHash { get; set; } = string.Empty;
+    public string RestoreAllPinHash { get; set; } = string.Empty;
+    public int UnlockTimeoutMinutes { get; set; } = 5;
+    public bool RestoreHiddenWindowsOnSessionLock { get; set; }
+    public bool RestoreHiddenWindowsOnSuspend { get; set; }
     public List<WindowRule> WindowRules { get; set; } = new();
 
     // Kept for v0.0.x settings migration.
@@ -24,9 +29,14 @@ internal sealed class AppSettings
         {
             Hotkey = Hotkey.Clone(),
             LaunchOnWindowsStartup = LaunchOnWindowsStartup,
+            StartupDelaySeconds = StartupDelaySeconds,
             RestoreWithoutFocus = RestoreWithoutFocus,
             RequirePinToRestore = RequirePinToRestore,
             PinHash = PinHash,
+            RestoreAllPinHash = RestoreAllPinHash,
+            UnlockTimeoutMinutes = UnlockTimeoutMinutes,
+            RestoreHiddenWindowsOnSessionLock = RestoreHiddenWindowsOnSessionLock,
+            RestoreHiddenWindowsOnSuspend = RestoreHiddenWindowsOnSuspend,
             WindowRules = WindowRules.Select(rule => rule.Clone()).ToList(),
             AutoHideProcessNames = AutoHideProcessNames.ToList()
         };
@@ -37,11 +47,9 @@ internal sealed class AppSettings
         Hotkey ??= HotkeySettings.CreateDefault();
         Hotkey.Normalize();
         PinHash = PinHash?.Trim() ?? string.Empty;
-
-        if (!RequirePinToRestore)
-        {
-            PinHash = string.Empty;
-        }
+        RestoreAllPinHash = RestoreAllPinHash?.Trim() ?? string.Empty;
+        StartupDelaySeconds = Math.Clamp(StartupDelaySeconds, 0, 300);
+        UnlockTimeoutMinutes = Math.Clamp(UnlockTimeoutMinutes, 0, 120);
 
         WindowRules = WindowRules
             .Where(rule => rule is not null)
@@ -55,6 +63,11 @@ internal sealed class AppSettings
             .Select(group => group.First())
             .OrderBy(rule => rule.RuleName, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        if (!RequirePinToRestore && !WindowRules.Any(rule => rule.RequirePinOnRestore))
+        {
+            PinHash = string.Empty;
+        }
 
         AutoHideProcessNames = AutoHideProcessNames
             .Where(name => !string.IsNullOrWhiteSpace(name))

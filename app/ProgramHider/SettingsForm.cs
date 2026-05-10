@@ -16,7 +16,10 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _windowsCheckBox = new() { Text = "Win", AutoSize = true };
     private readonly CheckBox _launchOnStartupCheckBox = new() { Text = "Launch Program Hider when Windows starts", AutoSize = true };
     private readonly CheckBox _restoreWithoutFocusCheckBox = new() { Text = "Restore windows without stealing focus", AutoSize = true };
-    private readonly CheckBox _requirePinCheckBox = new() { Text = "Require PIN/password to restore hidden windows", AutoSize = true };
+    private readonly CheckBox _requirePinCheckBox = new() { Text = "Require PIN/password for all restores", AutoSize = true };
+    private readonly CheckBox _separateRestoreAllPinCheckBox = new() { Text = "Use a separate PIN/password for Restore All and bulk restores", AutoSize = true };
+    private readonly CheckBox _restoreOnSessionLockCheckBox = new() { Text = "Restore hidden windows automatically when the session locks", AutoSize = true };
+    private readonly CheckBox _restoreOnSuspendCheckBox = new() { Text = "Restore hidden windows automatically before suspend/sleep", AutoSize = true };
     private readonly ComboBox _keyComboBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
     private readonly ComboBox _candidateProcessComboBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220 };
     private readonly ListView _rulesListView = new()
@@ -27,12 +30,21 @@ internal sealed class SettingsForm : Form
         HideSelection = false,
         Dock = DockStyle.Fill
     };
+    private readonly NumericUpDown _startupDelaySecondsUpDown = new() { Minimum = 0, Maximum = 300, Width = 90 };
+    private readonly NumericUpDown _unlockTimeoutMinutesUpDown = new() { Minimum = 0, Maximum = 120, Width = 90 };
     private readonly TextBox _pinTextBox = new() { UseSystemPasswordChar = true, Width = 220 };
     private readonly TextBox _confirmPinTextBox = new() { UseSystemPasswordChar = true, Width = 220 };
+    private readonly TextBox _restoreAllPinTextBox = new() { UseSystemPasswordChar = true, Width = 220 };
+    private readonly TextBox _confirmRestoreAllPinTextBox = new() { UseSystemPasswordChar = true, Width = 220 };
     private readonly Label _pinHintLabel = new()
     {
         AutoSize = true,
-        Text = "Leave blank to keep the existing PIN/password. Disable the option to remove it."
+        Text = "Leave blank to keep the existing PIN/password. This PIN is also used for rule-protected restores."
+    };
+    private readonly Label _restoreAllPinHintLabel = new()
+    {
+        AutoSize = true,
+        Text = "Leave blank to keep the existing bulk-restore PIN/password. Disable the option to remove it."
     };
     private readonly List<WindowRule> _workingRules;
 
@@ -57,6 +69,7 @@ internal sealed class SettingsForm : Form
         PopulateProcessCandidates(candidateProcessNames);
         PopulateFromSettings(currentSettings);
         _requirePinCheckBox.CheckedChanged += (_, _) => UpdatePinControls();
+        _separateRestoreAllPinCheckBox.CheckedChanged += (_, _) => UpdatePinControls();
         UpdatePinControls();
         RefreshRulesListView();
 
@@ -140,6 +153,14 @@ internal sealed class SettingsForm : Form
         };
         startupLayout.Controls.Add(_launchOnStartupCheckBox);
         startupLayout.Controls.Add(_restoreWithoutFocusCheckBox);
+        var delayPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            Margin = new Padding(0)
+        };
+        delayPanel.Controls.Add(new Label { Text = "Startup delay (seconds)", AutoSize = true, Margin = new Padding(0, 6, 8, 0) });
+        delayPanel.Controls.Add(_startupDelaySecondsUpDown);
+        startupLayout.Controls.Add(delayPanel);
         startupGroup.Controls.Add(startupLayout);
 
         var settingsPathLabel = new Label
@@ -222,14 +243,15 @@ internal sealed class SettingsForm : Form
             Dock = DockStyle.Fill,
             Padding = new Padding(12),
             ColumnCount = 2,
-            RowCount = 5
+            RowCount = 10
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        for (var row = 0; row < 9; row++)
+        {
+            panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        }
+
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         panel.Controls.Add(_requirePinCheckBox, 0, 0);
@@ -243,6 +265,41 @@ internal sealed class SettingsForm : Form
 
         panel.Controls.Add(_pinHintLabel, 0, 3);
         panel.SetColumnSpan(_pinHintLabel, 2);
+
+        panel.Controls.Add(_separateRestoreAllPinCheckBox, 0, 4);
+        panel.SetColumnSpan(_separateRestoreAllPinCheckBox, 2);
+
+        panel.Controls.Add(new Label { Text = "Bulk restore PIN/password", AutoSize = true, Margin = new Padding(0, 16, 8, 0) }, 0, 5);
+        panel.Controls.Add(_restoreAllPinTextBox, 1, 5);
+
+        panel.Controls.Add(new Label { Text = "Confirm bulk restore PIN/password", AutoSize = true, Margin = new Padding(0, 16, 8, 0) }, 0, 6);
+        panel.Controls.Add(_confirmRestoreAllPinTextBox, 1, 6);
+
+        panel.Controls.Add(_restoreAllPinHintLabel, 0, 7);
+        panel.SetColumnSpan(_restoreAllPinHintLabel, 2);
+
+        var unlockPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            Margin = new Padding(0)
+        };
+        unlockPanel.Controls.Add(new Label { Text = "Unlock timeout (minutes)", AutoSize = true, Margin = new Padding(0, 6, 8, 0) });
+        unlockPanel.Controls.Add(_unlockTimeoutMinutesUpDown);
+        panel.Controls.Add(unlockPanel, 0, 8);
+        panel.SetColumnSpan(unlockPanel, 2);
+
+        var automationGroup = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            AutoSize = true,
+            WrapContents = false
+        };
+        automationGroup.Controls.Add(_restoreOnSessionLockCheckBox);
+        automationGroup.Controls.Add(_restoreOnSuspendCheckBox);
+        panel.Controls.Add(automationGroup, 0, 9);
+        panel.SetColumnSpan(automationGroup, 2);
 
         tab.Controls.Add(panel);
         return tab;
@@ -291,10 +348,14 @@ internal sealed class SettingsForm : Form
 
     private void UpdatePinControls()
     {
-        var enabled = _requirePinCheckBox.Checked;
-        _pinTextBox.Enabled = enabled;
-        _confirmPinTextBox.Enabled = enabled;
-        _pinHintLabel.Enabled = enabled;
+        _pinTextBox.Enabled = true;
+        _confirmPinTextBox.Enabled = true;
+        _pinHintLabel.Enabled = true;
+
+        var bulkEnabled = _separateRestoreAllPinCheckBox.Checked;
+        _restoreAllPinTextBox.Enabled = bulkEnabled;
+        _confirmRestoreAllPinTextBox.Enabled = bulkEnabled;
+        _restoreAllPinHintLabel.Enabled = bulkEnabled;
     }
 
     private void PopulateHotkeyControls()
@@ -329,8 +390,13 @@ internal sealed class SettingsForm : Form
         _windowsCheckBox.Checked = settings.Hotkey.Windows;
         _keyComboBox.SelectedItem = settings.Hotkey.Key;
         _launchOnStartupCheckBox.Checked = settings.LaunchOnWindowsStartup;
+        _startupDelaySecondsUpDown.Value = Math.Clamp(settings.StartupDelaySeconds, 0, 300);
         _restoreWithoutFocusCheckBox.Checked = settings.RestoreWithoutFocus;
         _requirePinCheckBox.Checked = settings.RequirePinToRestore;
+        _separateRestoreAllPinCheckBox.Checked = !string.IsNullOrWhiteSpace(settings.RestoreAllPinHash);
+        _unlockTimeoutMinutesUpDown.Value = Math.Clamp(settings.UnlockTimeoutMinutes, 0, 120);
+        _restoreOnSessionLockCheckBox.Checked = settings.RestoreHiddenWindowsOnSessionLock;
+        _restoreOnSuspendCheckBox.Checked = settings.RestoreHiddenWindowsOnSuspend;
     }
 
     private void AddQuickProcessRule()
@@ -581,9 +647,12 @@ internal sealed class SettingsForm : Form
         }
 
         var existingPinHash = UpdatedSettings?.PinHash ?? string.Empty;
+        var existingRestoreAllPinHash = UpdatedSettings?.RestoreAllPinHash ?? string.Empty;
         var requirePin = _requirePinCheckBox.Checked;
+        var ruleLevelPinRequired = _workingRules.Any(rule => rule.RequirePinOnRestore);
         var pinHash = existingPinHash;
-        if (requirePin)
+        var restoreAllPinHash = existingRestoreAllPinHash;
+        if (requirePin || ruleLevelPinRequired || !string.IsNullOrWhiteSpace(_pinTextBox.Text) || !string.IsNullOrWhiteSpace(_confirmPinTextBox.Text))
         {
             var newPin = _pinTextBox.Text.Trim();
             var confirmPin = _confirmPinTextBox.Text.Trim();
@@ -626,6 +695,49 @@ internal sealed class SettingsForm : Form
             pinHash = string.Empty;
         }
 
+        if (_separateRestoreAllPinCheckBox.Checked)
+        {
+            var newRestoreAllPin = _restoreAllPinTextBox.Text.Trim();
+            var confirmRestoreAllPin = _confirmRestoreAllPinTextBox.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(newRestoreAllPin) || !string.IsNullOrWhiteSpace(confirmRestoreAllPin))
+            {
+                if (newRestoreAllPin.Length < 4)
+                {
+                    MessageBox.Show(
+                        "Use at least 4 characters for the bulk restore PIN/password.",
+                        "Program Hider",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!string.Equals(newRestoreAllPin, confirmRestoreAllPin, StringComparison.Ordinal))
+                {
+                    MessageBox.Show(
+                        "Bulk restore PIN/password confirmation does not match.",
+                        "Program Hider",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                restoreAllPinHash = PinSecurity.HashSecret(newRestoreAllPin);
+            }
+            else if (string.IsNullOrWhiteSpace(existingRestoreAllPinHash))
+            {
+                MessageBox.Show(
+                    "Enter and confirm a bulk restore PIN/password before enabling it.",
+                    "Program Hider",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+        }
+        else
+        {
+            restoreAllPinHash = string.Empty;
+        }
+
         UpdatedSettings = new AppSettings
         {
             Hotkey = new HotkeySettings
@@ -637,9 +749,14 @@ internal sealed class SettingsForm : Form
                 Key = key
             },
             LaunchOnWindowsStartup = _launchOnStartupCheckBox.Checked,
+            StartupDelaySeconds = (int)_startupDelaySecondsUpDown.Value,
             RestoreWithoutFocus = _restoreWithoutFocusCheckBox.Checked,
             RequirePinToRestore = requirePin,
             PinHash = pinHash,
+            RestoreAllPinHash = restoreAllPinHash,
+            UnlockTimeoutMinutes = (int)_unlockTimeoutMinutesUpDown.Value,
+            RestoreHiddenWindowsOnSessionLock = _restoreOnSessionLockCheckBox.Checked,
+            RestoreHiddenWindowsOnSuspend = _restoreOnSuspendCheckBox.Checked,
             WindowRules = _workingRules.Select(rule => rule.Clone()).ToList(),
             AutoHideProcessNames = new List<string>()
         };

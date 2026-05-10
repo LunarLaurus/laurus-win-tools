@@ -8,6 +8,9 @@
 - Added a searchable restore browser with recent-window history.
 - Added optional restore-without-focus behavior.
 - Added placement/monitor capture to improve restore correctness.
+- Added unlock timeout caching and an optional separate bulk-restore PIN/password.
+- Added startup delay handling plus a safe mode toggle for suspending automation.
+- Added session-lock/suspend safety actions, dead-handle pruning, and structured JSONL logs.
 
 ## v0.0.4
 
