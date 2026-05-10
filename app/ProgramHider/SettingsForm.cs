@@ -8,9 +8,19 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _shiftCheckBox = new() { Text = "Shift", AutoSize = true };
     private readonly CheckBox _altCheckBox = new() { Text = "Alt", AutoSize = true };
     private readonly CheckBox _windowsCheckBox = new() { Text = "Win", AutoSize = true };
-    private readonly ComboBox _keyComboBox = new() { DropDownStyle = ComboBoxStyle.DropDownList };
-    private readonly ComboBox _candidateProcessComboBox = new() { DropDownStyle = ComboBoxStyle.DropDownList };
-    private readonly ListBox _rulesListBox = new();
+    private readonly CheckBox _launchOnStartupCheckBox = new() { Text = "Launch Program Hider when Windows starts", AutoSize = true };
+    private readonly CheckBox _requirePinCheckBox = new() { Text = "Require PIN/password to restore hidden windows", AutoSize = true };
+    private readonly ComboBox _keyComboBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
+    private readonly ComboBox _candidateProcessComboBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220 };
+    private readonly ListBox _rulesListBox = new() { Height = 180 };
+    private readonly TextBox _manualProcessTextBox = new() { Width = 220 };
+    private readonly TextBox _pinTextBox = new() { UseSystemPasswordChar = true, Width = 220 };
+    private readonly TextBox _confirmPinTextBox = new() { UseSystemPasswordChar = true, Width = 220 };
+    private readonly Label _pinHintLabel = new()
+    {
+        AutoSize = true,
+        Text = "Leave blank to keep the existing PIN/password. Disable the option to remove it."
+    };
 
     public SettingsForm(AppSettings currentSettings, IReadOnlyCollection<string> candidateProcessNames, string settingsPath)
     {
@@ -21,24 +31,54 @@ internal sealed class SettingsForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(520, 420);
+        ClientSize = new Size(620, 560);
 
         PopulateHotkeyControls();
         PopulateProcessCandidates(candidateProcessNames);
         PopulateFromSettings(currentSettings);
+        _requirePinCheckBox.CheckedChanged += (_, _) => UpdatePinControls();
+        UpdatePinControls();
+
+        var tabs = new TabControl
+        {
+            Dock = DockStyle.Fill
+        };
+
+        tabs.TabPages.Add(BuildGeneralTab(settingsPath));
+        tabs.TabPages.Add(BuildRulesTab());
+        tabs.TabPages.Add(BuildSecurityTab());
 
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             Padding = new Padding(12),
             ColumnCount = 1,
-            RowCount = 5
+            RowCount = 2
         };
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.Controls.Add(tabs, 0, 0);
+        root.Controls.Add(BuildButtonPanel(), 0, 1);
+
+        Controls.Add(root);
+    }
+
+    public AppSettings? UpdatedSettings { get; private set; }
+
+    private TabPage BuildGeneralTab(string settingsPath)
+    {
+        var tab = new TabPage("General");
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12),
+            ColumnCount = 1,
+            RowCount = 4
+        };
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var hotkeyGroup = new GroupBox
         {
@@ -64,53 +104,20 @@ internal sealed class SettingsForm : Form
             });
         hotkeyGroup.Controls.Add(hotkeyLayout);
 
-        var rulesGroup = new GroupBox
+        var startupGroup = new GroupBox
         {
-            Text = "Auto-hide on minimize rules",
-            Dock = DockStyle.Fill
+            Text = "Startup",
+            Dock = DockStyle.Top,
+            AutoSize = true
         };
-        var rulesLayout = new TableLayoutPanel
+        var startupLayout = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(10),
-            ColumnCount = 2,
-            RowCount = 3
-        };
-        rulesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        rulesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        rulesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        rulesLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        rulesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
-        var processHint = new Label
-        {
-            Text = "Choose an open app process to auto-hide whenever it is minimized.",
             AutoSize = true,
-            Dock = DockStyle.Fill
+            Padding = new Padding(10)
         };
-
-        var addRuleButton = new Button
-        {
-            Text = "Add",
-            AutoSize = true
-        };
-        addRuleButton.Click += (_, _) => AddSelectedRule();
-
-        var removeRuleButton = new Button
-        {
-            Text = "Remove selected",
-            AutoSize = true
-        };
-        removeRuleButton.Click += (_, _) => RemoveSelectedRule();
-
-        rulesLayout.Controls.Add(processHint, 0, 0);
-        rulesLayout.Controls.Add(_candidateProcessComboBox, 0, 1);
-        rulesLayout.Controls.Add(addRuleButton, 1, 1);
-        rulesLayout.Controls.Add(_rulesListBox, 0, 2);
-        rulesLayout.SetColumnSpan(_rulesListBox, 2);
-        rulesGroup.Controls.Add(rulesLayout);
-
-        _rulesListBox.Height = 180;
+        startupLayout.Controls.Add(_launchOnStartupCheckBox);
+        startupGroup.Controls.Add(startupLayout);
 
         var settingsPathLabel = new Label
         {
@@ -118,6 +125,115 @@ internal sealed class SettingsForm : Form
             AutoSize = true
         };
 
+        panel.Controls.Add(hotkeyGroup, 0, 0);
+        panel.Controls.Add(startupGroup, 0, 1);
+        panel.Controls.Add(settingsPathLabel, 0, 2);
+        tab.Controls.Add(panel);
+        return tab;
+    }
+
+    private TabPage BuildRulesTab()
+    {
+        var tab = new TabPage("Auto-hide Rules");
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12),
+            ColumnCount = 2,
+            RowCount = 6
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        panel.Controls.Add(
+            new Label
+            {
+                Text = "Apps listed here will be hidden automatically when they are minimized.",
+                AutoSize = true
+            },
+            0,
+            0);
+        panel.SetColumnSpan(panel.GetControlFromPosition(0, 0)!, 2);
+
+        panel.Controls.Add(new Label { Text = "Open app process", AutoSize = true, Margin = new Padding(0, 14, 0, 4) }, 0, 1);
+        panel.Controls.Add(_candidateProcessComboBox, 0, 2);
+
+        var addOpenProcessButton = new Button
+        {
+            Text = "Add",
+            AutoSize = true
+        };
+        addOpenProcessButton.Click += (_, _) => AddSelectedRule();
+        panel.Controls.Add(addOpenProcessButton, 1, 2);
+
+        panel.Controls.Add(new Label { Text = "Manual process name", AutoSize = true, Margin = new Padding(0, 14, 0, 4) }, 0, 3);
+        panel.Controls.Add(_manualProcessTextBox, 0, 4);
+
+        var addManualProcessButton = new Button
+        {
+            Text = "Add Manual",
+            AutoSize = true
+        };
+        addManualProcessButton.Click += (_, _) => AddManualRule();
+        panel.Controls.Add(addManualProcessButton, 1, 4);
+
+        panel.Controls.Add(_rulesListBox, 0, 5);
+        panel.SetColumnSpan(_rulesListBox, 2);
+
+        var removeRuleButton = new Button
+        {
+            Text = "Remove selected",
+            AutoSize = true
+        };
+        removeRuleButton.Click += (_, _) => RemoveSelectedRule();
+        panel.Controls.Add(removeRuleButton, 1, 6);
+
+        tab.Controls.Add(panel);
+        return tab;
+    }
+
+    private TabPage BuildSecurityTab()
+    {
+        var tab = new TabPage("Security");
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12),
+            ColumnCount = 2,
+            RowCount = 5
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        panel.Controls.Add(_requirePinCheckBox, 0, 0);
+        panel.SetColumnSpan(_requirePinCheckBox, 2);
+
+        panel.Controls.Add(new Label { Text = "New PIN/password", AutoSize = true, Margin = new Padding(0, 16, 8, 0) }, 0, 1);
+        panel.Controls.Add(_pinTextBox, 1, 1);
+
+        panel.Controls.Add(new Label { Text = "Confirm PIN/password", AutoSize = true, Margin = new Padding(0, 16, 8, 0) }, 0, 2);
+        panel.Controls.Add(_confirmPinTextBox, 1, 2);
+
+        panel.Controls.Add(_pinHintLabel, 0, 3);
+        panel.SetColumnSpan(_pinHintLabel, 2);
+
+        tab.Controls.Add(panel);
+        return tab;
+    }
+
+    private FlowLayoutPanel BuildButtonPanel()
+    {
         var buttonPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -141,19 +257,18 @@ internal sealed class SettingsForm : Form
 
         buttonPanel.Controls.Add(saveButton);
         buttonPanel.Controls.Add(cancelButton);
-        buttonPanel.Controls.Add(removeRuleButton);
-
-        root.Controls.Add(hotkeyGroup, 0, 0);
-        root.Controls.Add(rulesGroup, 0, 2);
-        root.Controls.Add(settingsPathLabel, 0, 3);
-        root.Controls.Add(buttonPanel, 0, 4);
-
-        Controls.Add(root);
         AcceptButton = saveButton;
         CancelButton = cancelButton;
+        return buttonPanel;
     }
 
-    public AppSettings? UpdatedSettings { get; private set; }
+    private void UpdatePinControls()
+    {
+        var enabled = _requirePinCheckBox.Checked;
+        _pinTextBox.Enabled = enabled;
+        _confirmPinTextBox.Enabled = enabled;
+        _pinHintLabel.Enabled = enabled;
+    }
 
     private void PopulateHotkeyControls()
     {
@@ -186,6 +301,8 @@ internal sealed class SettingsForm : Form
         _altCheckBox.Checked = settings.Hotkey.Alt;
         _windowsCheckBox.Checked = settings.Hotkey.Windows;
         _keyComboBox.SelectedItem = settings.Hotkey.Key;
+        _launchOnStartupCheckBox.Checked = settings.LaunchOnWindowsStartup;
+        _requirePinCheckBox.Checked = settings.RequirePinToRestore;
 
         foreach (var rule in settings.AutoHideProcessNames)
         {
@@ -200,12 +317,29 @@ internal sealed class SettingsForm : Form
             return;
         }
 
-        if (_rulesListBox.Items.Contains(processName))
+        AddRule(processName);
+    }
+
+    private void AddManualRule()
+    {
+        AddRule(_manualProcessTextBox.Text);
+        _manualProcessTextBox.Clear();
+    }
+
+    private void AddRule(string processName)
+    {
+        var normalized = processName.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
         {
             return;
         }
 
-        _rulesListBox.Items.Add(processName);
+        if (_rulesListBox.Items.Cast<string>().Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _rulesListBox.Items.Add(normalized);
     }
 
     private void RemoveSelectedRule()
@@ -243,6 +377,52 @@ internal sealed class SettingsForm : Form
             return;
         }
 
+        var existingPinHash = UpdatedSettings?.PinHash ?? string.Empty;
+        var requirePin = _requirePinCheckBox.Checked;
+        var pinHash = existingPinHash;
+        if (requirePin)
+        {
+            var newPin = _pinTextBox.Text.Trim();
+            var confirmPin = _confirmPinTextBox.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(newPin) || !string.IsNullOrWhiteSpace(confirmPin))
+            {
+                if (newPin.Length < 4)
+                {
+                    MessageBox.Show(
+                        "Use at least 4 characters for the restore PIN/password.",
+                        "Program Hider",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!string.Equals(newPin, confirmPin, StringComparison.Ordinal))
+                {
+                    MessageBox.Show(
+                        "PIN/password confirmation does not match.",
+                        "Program Hider",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                pinHash = PinSecurity.HashSecret(newPin);
+            }
+            else if (string.IsNullOrWhiteSpace(existingPinHash))
+            {
+                MessageBox.Show(
+                    "Enter and confirm a PIN/password before enabling restore protection.",
+                    "Program Hider",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+        }
+        else
+        {
+            pinHash = string.Empty;
+        }
+
         UpdatedSettings = new AppSettings
         {
             Hotkey = new HotkeySettings
@@ -253,6 +433,9 @@ internal sealed class SettingsForm : Form
                 Windows = _windowsCheckBox.Checked,
                 Key = key
             },
+            LaunchOnWindowsStartup = _launchOnStartupCheckBox.Checked,
+            RequirePinToRestore = requirePin,
+            PinHash = pinHash,
             AutoHideProcessNames = _rulesListBox.Items.Cast<string>().ToList()
         };
         UpdatedSettings.Normalize();

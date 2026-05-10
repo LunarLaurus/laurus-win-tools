@@ -48,6 +48,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
         _messageWindow = new HotkeyMessageWindow(OnHotkeyPressed);
         RegisterConfiguredHotkey();
+        StartupRegistration.Apply(_settings.LaunchOnWindowsStartup);
 
         _minimizeEventCallback = OnWindowEvent;
         _minimizeEventHook = NativeMethods.SetWinEventHook(
@@ -118,19 +119,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
             _menu.Items.Add(new ToolStripSeparator());
 
-            if (_hiddenWindows.Count == 0)
-            {
-                _menu.Items.Add(new ToolStripMenuItem("No hidden windows") { Enabled = false });
-            }
-            else
-            {
-                foreach (var hiddenWindow in _hiddenWindows.Values.OrderBy(window => window.Title, StringComparer.OrdinalIgnoreCase))
-                {
-                    var restoreItem = new ToolStripMenuItem($"Restore: {EscapeMenuLabel(hiddenWindow.Title)}");
-                    restoreItem.Click += (_, _) => RestoreWindow(hiddenWindow.Handle);
-                    _menu.Items.Add(restoreItem);
-                }
-            }
+            BuildHiddenWindowItems();
 
             _menu.Items.Add(new ToolStripSeparator());
 
@@ -219,6 +208,16 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private void RestoreWindow(nint handle)
     {
+        if (!EnsureRestoreAuthorized("restore the selected window"))
+        {
+            return;
+        }
+
+        RestoreWindowCore(handle);
+    }
+
+    private void RestoreWindowCore(nint handle)
+    {
         if (!_hiddenWindows.Remove(handle, out var hiddenWindow))
         {
             return;
@@ -237,9 +236,19 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private void RestoreAllWindows()
     {
+        if (_hiddenWindows.Count == 0)
+        {
+            return;
+        }
+
+        if (!EnsureRestoreAuthorized("restore all hidden windows"))
+        {
+            return;
+        }
+
         foreach (var handle in _hiddenWindows.Keys.ToArray())
         {
-            RestoreWindow(handle);
+            RestoreWindowCore(handle);
         }
     }
 
@@ -306,6 +315,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
             _settings = requestedSettings;
             _settings.Normalize();
             RegisterConfiguredHotkey();
+            StartupRegistration.Apply(_settings.LaunchOnWindowsStartup);
             PersistSettings();
             ShowStatusBalloon("Settings saved", $"Hotkey is now {_settings.Hotkey.ToDisplayString()}.");
         }
@@ -313,6 +323,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         {
             _settings = originalSettings;
             RegisterConfiguredHotkey();
+            StartupRegistration.Apply(_settings.LaunchOnWindowsStartup);
 
             MessageBox.Show(
                 $"Unable to register the requested hotkey {requestedHotkey}. Keep using {originalSettings.Hotkey.ToDisplayString()} or choose a different combination.",
@@ -326,6 +337,98 @@ internal sealed class ProgramHiderContext : ApplicationContext
     {
         _settingsStore.Save(_settings);
         _notifyIcon.Text = BuildTrayText();
+    }
+
+    private bool EnsureRestoreAuthorized(string actionDescription)
+    {
+        if (!_settings.RequirePinToRestore || string.IsNullOrWhiteSpace(_settings.PinHash))
+        {
+            return true;
+        }
+
+        using var prompt = new PinPromptForm(actionDescription);
+        if (prompt.ShowDialog() != DialogResult.OK || string.IsNullOrWhiteSpace(prompt.EnteredSecret))
+        {
+            return false;
+        }
+
+        if (PinSecurity.VerifySecret(prompt.EnteredSecret, _settings.PinHash))
+        {
+            return true;
+        }
+
+        MessageBox.Show(
+            "The restore PIN/password was incorrect.",
+            "Program Hider",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning);
+        return false;
+    }
+
+    private void BuildHiddenWindowItems()
+    {
+        if (_hiddenWindows.Count == 0)
+        {
+            _menu.Items.Add(new ToolStripMenuItem("No hidden windows") { Enabled = false });
+            return;
+        }
+
+        foreach (var processGroup in _hiddenWindows.Values
+                     .OrderBy(window => window.ProcessName, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(window => window.Title, StringComparer.OrdinalIgnoreCase)
+                     .GroupBy(window => window.ProcessName, StringComparer.OrdinalIgnoreCase))
+        {
+            var windows = processGroup.ToList();
+            if (windows.Count == 1)
+            {
+                var onlyWindow = windows[0];
+                var item = new ToolStripMenuItem(
+                    $"Restore: {EscapeMenuLabel(onlyWindow.Title)} ({onlyWindow.ProcessName})");
+                item.Click += (_, _) => RestoreWindow(onlyWindow.Handle);
+                _menu.Items.Add(item);
+                continue;
+            }
+
+            var groupItem = new ToolStripMenuItem(
+                $"Restore: {processGroup.Key} ({windows.Count})");
+
+            var restoreAllForProcess = new ToolStripMenuItem("Restore all in this app");
+            restoreAllForProcess.Click += (_, _) => RestoreWindowsForProcess(processGroup.Key);
+            groupItem.DropDownItems.Add(restoreAllForProcess);
+            groupItem.DropDownItems.Add(new ToolStripSeparator());
+
+            foreach (var hiddenWindow in windows)
+            {
+                var childItem = new ToolStripMenuItem(EscapeMenuLabel(TrimMenuLabel(hiddenWindow.Title)));
+                childItem.Click += (_, _) => RestoreWindow(hiddenWindow.Handle);
+                groupItem.DropDownItems.Add(childItem);
+            }
+
+            _menu.Items.Add(groupItem);
+        }
+    }
+
+    private void RestoreWindowsForProcess(string processName)
+    {
+        var handles = _hiddenWindows.Values
+            .Where(window => string.Equals(window.ProcessName, processName, StringComparison.OrdinalIgnoreCase))
+            .Select(window => window.Handle)
+            .ToArray();
+
+        if (handles.Length == 0)
+        {
+            return;
+        }
+
+        if (!EnsureRestoreAuthorized($"restore all hidden windows for {processName}"))
+        {
+            return;
+        }
+
+        foreach (var handle in handles)
+        {
+            RestoreWindowCore(handle);
+        }
     }
 
     private void OnWindowEvent(
@@ -403,7 +506,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private string BuildTrayText()
     {
-        return $"Program Hider v{Application.ProductVersion}";
+        var suffix = _settings.RequirePinToRestore ? " [Locked]" : string.Empty;
+        return $"Program Hider v{Application.ProductVersion}{suffix}";
     }
 
     private static bool IsManageableWindow(NativeWindowSnapshot window)

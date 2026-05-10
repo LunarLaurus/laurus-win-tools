@@ -2,7 +2,7 @@
 
 `Program Hider` is a Windows tray utility for hiding open application windows away from the taskbar and restoring them from a single tray menu.
 
-`v0.0.3` is the current `.NET` implementation under `app/ProgramHider`. The earlier Rust prototype is preserved under `archive/legacy-rust-v0.0.1`.
+`v0.0.4` is the current `.NET` implementation under `app/ProgramHider`. The earlier Rust prototype is preserved under `archive/legacy-rust-v0.0.1`.
 
 ## Features
 
@@ -10,8 +10,11 @@
 - Branded executable and tray icon
 - `Ctrl+Shift+H` global hotkey to hide the active window
 - Persistent settings stored under `%APPDATA%\ProgramHider\settings.json`
-- Configurable hotkey with a built-in settings dialog
+- Configurable hotkey with a fuller built-in settings dialog
+- Optional restore PIN/password protection, off by default
+- Launch-on-Windows-start option
 - Auto-hide-on-minimize rules for selected app processes
+- Hidden windows grouped by process in the tray restore menu
 - `Hide window` submenu listing visible top-level windows
 - One-click restore entries for hidden windows
 - `Restore all` on demand and automatically on app exit
@@ -22,7 +25,7 @@
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-The packaged single-file executable is written to `release\v0.0.3\ProgramHider.exe`.
+The packaged single-file executable is written to `release\v0.0.4\ProgramHider.exe`.
 
 ## Layout
 

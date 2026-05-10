@@ -6,6 +6,9 @@ namespace ProgramHider;
 internal sealed class AppSettings
 {
     public HotkeySettings Hotkey { get; set; } = HotkeySettings.CreateDefault();
+    public bool LaunchOnWindowsStartup { get; set; }
+    public bool RequirePinToRestore { get; set; }
+    public string PinHash { get; set; } = string.Empty;
     public List<string> AutoHideProcessNames { get; set; } = new();
 
     public AppSettings Clone()
@@ -13,6 +16,9 @@ internal sealed class AppSettings
         return new AppSettings
         {
             Hotkey = Hotkey.Clone(),
+            LaunchOnWindowsStartup = LaunchOnWindowsStartup,
+            RequirePinToRestore = RequirePinToRestore,
+            PinHash = PinHash,
             AutoHideProcessNames = AutoHideProcessNames.ToList()
         };
     }
@@ -21,6 +27,12 @@ internal sealed class AppSettings
     {
         Hotkey ??= HotkeySettings.CreateDefault();
         Hotkey.Normalize();
+        PinHash = PinHash?.Trim() ?? string.Empty;
+
+        if (!RequirePinToRestore)
+        {
+            PinHash = string.Empty;
+        }
 
         AutoHideProcessNames = AutoHideProcessNames
             .Where(name => !string.IsNullOrWhiteSpace(name))
