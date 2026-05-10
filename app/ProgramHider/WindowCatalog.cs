@@ -1,5 +1,6 @@
 namespace ProgramHider;
 
+// Stateless helpers for enumerating and filtering candidate top-level windows.
 internal static class WindowCatalog
 {
     internal static IReadOnlyList<NativeWindowSnapshot> EnumerateManageableWindows(

@@ -2,6 +2,7 @@ using System.Windows.Forms;
 
 namespace ProgramHider;
 
+// Hidden message-only window used as the target for WM_HOTKEY delivery.
 internal sealed class HotkeyMessageWindow : NativeWindow, IDisposable
 {
     private readonly Action<int> _onHotkey;

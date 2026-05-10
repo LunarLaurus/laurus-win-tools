@@ -2,7 +2,7 @@
 
 `Program Hider` is a Windows tray utility for hiding open application windows away from the taskbar and restoring them from a single tray menu.
 
-`v0.1.4` is the current `.NET` implementation under `app/ProgramHider`. The earlier Rust prototype is preserved under `archive/legacy-rust-v0.0.1`.
+`v0.1.5` is the current `.NET` implementation under `app/ProgramHider`. The earlier Rust prototype is preserved under `archive/legacy-rust-v0.0.1`.
 
 ## Features
 
@@ -67,9 +67,9 @@ If you need to bypass part of that flow, the main switches are:
 - `-SkipStartupSmoke`
 - `-SkipSigning`
 
-The packaged single-file executable is written to `release\v0.1.4\ProgramHider.exe`.
+The packaged single-file executable is written to `release\v0.1.5\ProgramHider.exe`.
 
-The portable zip is written to `release\ProgramHider-v0.1.4-portable.zip`.
+The portable zip is written to `release\ProgramHider-v0.1.5-portable.zip`.
 
 If you want to sign release builds, set:
 
@@ -123,6 +123,8 @@ powershell -ExecutionPolicy Bypass -File .\tools\verify-release.ps1
 - `docs/design-v0.1.0.md`: roadmap/design record for the `v0.1.0` pass
 - `docs/work-log.md`: feature implementation log for this pass
 - `docs/CHANGELOG.md`: project changelog
+- `docs/architecture.md`: component-level architecture overview
+- `docs/runtime-flows.md`: key hide/restore/elevation/release flows
 - `docs/user-guide.md`: detailed end-user usage guide
 - `docs/testing.md`: test and smoke-test commands
 - `docs/window-compatibility.md`: supported, elevation-required, and unsupported window classes

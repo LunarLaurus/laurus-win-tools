@@ -54,3 +54,8 @@
   - added an explicit window compatibility doc
   - added a repo-local verification wrapper script for future builds
   - updated `build.ps1` to run verification and a release-startup smoke check by default
+- Expanded repository documentation:
+  - added a contributor guide at the repo root
+  - added a detailed user guide for tray usage, settings, and elevation behavior
+  - added architecture and runtime-flow docs for maintainers
+  - added class-level summary comments across the WinForms, runtime, and interop code

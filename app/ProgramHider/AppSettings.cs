@@ -4,6 +4,8 @@ using System.Windows.Forms;
 
 namespace ProgramHider;
 
+// Serializable root settings model for tray behavior, security options, and
+// structured window rules.
 internal sealed class AppSettings
 {
     public HotkeySettings Hotkey { get; set; } = HotkeySettings.CreateDefault();
@@ -101,6 +103,8 @@ internal sealed class AppSettings
     }
 }
 
+// Describes the global hide hotkey and knows how to convert itself into
+// Win32 modifier flags and user-facing text.
 internal sealed class HotkeySettings
 {
     public bool Control { get; set; } = true;

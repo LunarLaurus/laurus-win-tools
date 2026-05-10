@@ -1,5 +1,7 @@
 namespace ProgramHider;
 
+// Small automation helper used by the repo-local test host to verify live
+// window lookup, hide, and restore behavior.
 internal sealed class AutomationRunner
 {
     private readonly IWindowPlatform _platform;

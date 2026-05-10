@@ -3,6 +3,7 @@ using System.Windows.Forms;
 
 namespace ProgramHider;
 
+// Main configuration dialog for hotkeys, startup, security, and rules.
 internal sealed class SettingsForm : Form
 {
     private static readonly JsonSerializerOptions RuleJsonOptions = new()

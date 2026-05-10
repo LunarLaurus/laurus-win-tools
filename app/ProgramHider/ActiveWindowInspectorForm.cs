@@ -2,6 +2,8 @@ using System.Windows.Forms;
 
 namespace ProgramHider;
 
+// Inspection dialog that surfaces the active window's title, process, and
+// class, then lets the user turn that snapshot into a rule.
 internal sealed class ActiveWindowInspectorForm : Form
 {
     private readonly TextBox _ruleNameTextBox = new() { Width = 260 };

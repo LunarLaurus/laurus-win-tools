@@ -2,6 +2,7 @@ using System.Windows.Forms;
 
 namespace ProgramHider;
 
+// Editor dialog for creating and modifying structured window rules.
 internal sealed class RuleEditorForm : Form
 {
     private readonly TextBox _ruleNameTextBox = new() { Width = 280 };

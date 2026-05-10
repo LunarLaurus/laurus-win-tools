@@ -2,6 +2,7 @@ using System.Windows.Forms;
 
 namespace ProgramHider;
 
+// Searchable restore UI for selecting one or more hidden windows.
 internal sealed class RestoreBrowserForm : Form
 {
     private readonly List<HiddenWindow> _hiddenWindows;

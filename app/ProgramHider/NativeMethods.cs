@@ -4,6 +4,8 @@ using System.Diagnostics;
 
 namespace ProgramHider;
 
+// Central Win32 interop surface for window enumeration, visibility changes,
+// hotkeys, and monitor/placement queries.
 internal static class NativeMethods
 {
     internal const int GWL_EXSTYLE = -20;
@@ -278,6 +280,8 @@ internal static class NativeMethods
     }
 }
 
+// Snapshot of the top-level window data Program Hider needs for rule matching,
+// menu labels, elevation checks, and restore behavior.
 internal readonly record struct NativeWindowSnapshot(
     nint Handle,
     string Title,

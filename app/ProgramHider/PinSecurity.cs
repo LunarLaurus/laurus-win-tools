@@ -3,6 +3,7 @@ using System.Text;
 
 namespace ProgramHider;
 
+// Hashing and verification helpers for restore PIN/password flows.
 internal static class PinSecurity
 {
     internal static string HashSecret(string secret)

@@ -2,8 +2,11 @@
 
 ## Unreleased
 
+## v0.1.5
+
 - Added a detailed end-user guide covering installation, tray usage, rules, settings, elevation, and logs.
-- Expanded code comments around active-window tracking, hide/restore behavior, elevation retry, startup registration, and release verification.
+- Added architecture and runtime-flow docs for the main application components and tray behaviors.
+- Expanded class-level code comments across the runtime, forms, settings, and Win32 integration layers.
 - Updated release packaging so `user-guide.md` ships alongside the executable.
 
 ## v0.1.4

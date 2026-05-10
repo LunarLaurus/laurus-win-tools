@@ -3,6 +3,8 @@ using System.Text.Json.Serialization;
 
 namespace ProgramHider;
 
+// Loads and saves the JSON settings file, with an environment override used by
+// deterministic smoke tests.
 internal sealed class SettingsStore
 {
     private const string SettingsPathOverrideEnvironmentVariable = "PROGRAM_HIDER_SETTINGS_PATH";

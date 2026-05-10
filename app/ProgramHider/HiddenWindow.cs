@@ -1,5 +1,7 @@
 namespace ProgramHider;
 
+// Captures everything Program Hider needs to restore a previously hidden
+// window and present it in restore menus.
 internal sealed record HiddenWindow(
     nint Handle,
     string Title,

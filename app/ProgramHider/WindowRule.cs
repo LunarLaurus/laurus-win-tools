@@ -1,5 +1,7 @@
 namespace ProgramHider;
 
+// A user-defined rule that can match windows by process, title, and class, and
+// then apply auto-hide/security/notification behavior.
 internal sealed class WindowRule
 {
     public string RuleName { get; set; } = "New rule";
@@ -138,6 +140,7 @@ internal sealed class WindowRule
     }
 }
 
+// Combined effect of every rule that matched a specific window snapshot.
 internal readonly record struct WindowRuleMatchResult(
     bool AutoHideOnMinimize,
     bool RequirePinOnRestore,

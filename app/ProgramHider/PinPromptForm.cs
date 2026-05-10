@@ -2,6 +2,7 @@ using System.Windows.Forms;
 
 namespace ProgramHider;
 
+// Simple credential prompt used for restore authorization.
 internal sealed class PinPromptForm : Form
 {
     private readonly TextBox _pinTextBox = new()

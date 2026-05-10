@@ -1,5 +1,7 @@
 namespace ProgramHider;
 
+// Minimal platform surface for window enumeration and show/hide primitives.
+// This lets runtime logic stay testable without binding every test to Win32.
 internal interface IWindowPlatform
 {
     IReadOnlyList<NativeWindowSnapshot> EnumerateTopLevelWindows();
@@ -13,6 +15,7 @@ internal interface IWindowPlatform
     nint GetForegroundWindow();
 }
 
+// Production Win32 implementation of the window platform abstraction.
 internal sealed class Win32WindowPlatform : IWindowPlatform
 {
     public IReadOnlyList<NativeWindowSnapshot> EnumerateTopLevelWindows()

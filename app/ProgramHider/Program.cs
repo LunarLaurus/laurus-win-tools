@@ -1,5 +1,7 @@
 namespace ProgramHider;
 
+// Application entry point. Parses startup flags, applies any startup delay,
+// then hands control to the tray application context.
 internal static class Program
 {
     [STAThread]

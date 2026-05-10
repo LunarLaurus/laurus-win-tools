@@ -2,6 +2,8 @@ using System.Text.Json;
 
 namespace ProgramHider;
 
+// Appends structured JSONL events for runtime diagnostics and smoke-test
+// evidence without taking the tray process down if logging fails.
 internal sealed class AppLogger
 {
     private static readonly JsonSerializerOptions JsonOptions = new()

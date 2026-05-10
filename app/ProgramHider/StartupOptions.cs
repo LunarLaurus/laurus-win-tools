@@ -1,5 +1,7 @@
 namespace ProgramHider;
 
+// Parses command-line switches used for startup launches and elevation retry
+// handoff between Program Hider instances.
 internal sealed class StartupOptions
 {
     public bool IsStartupLaunch { get; init; }
