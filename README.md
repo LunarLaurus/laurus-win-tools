@@ -2,7 +2,7 @@
 
 `Program Hider` is a Windows tray utility for hiding open application windows away from the taskbar and restoring them from a single tray menu.
 
-`v0.0.4` is the current `.NET` implementation under `app/ProgramHider`. The earlier Rust prototype is preserved under `archive/legacy-rust-v0.0.1`.
+`v0.1.0` is the current `.NET` implementation under `app/ProgramHider`. The earlier Rust prototype is preserved under `archive/legacy-rust-v0.0.1`.
 
 ## Features
 
@@ -11,12 +11,26 @@
 - `Ctrl+Shift+H` global hotkey to hide the active window
 - Persistent settings stored under `%APPDATA%\ProgramHider\settings.json`
 - Configurable hotkey with a fuller built-in settings dialog
+- Structured window rules:
+  - match by process name
+  - match by title substring
+  - match by class name
+  - per-rule auto-hide, restore PIN, and quiet-mode behavior
+- Active-window inspector with one-click rule creation
+- Rule import/export as JSON
 - Optional restore PIN/password protection, off by default
-- Launch-on-Windows-start option
-- Auto-hide-on-minimize rules for selected app processes
+- Optional separate PIN/password for `Restore all` and other bulk restores
+- Unlock timeout cache for repeated restores
+- Launch-on-Windows-start option with configurable startup delay
+- Safe mode toggle to suspend automation without closing the app
+- Searchable restore browser with a recently hidden section
 - Hidden windows grouped by process in the tray restore menu
 - `Hide window` submenu listing visible top-level windows
-- One-click restore entries for hidden windows
+- Optional restore-without-focus behavior
+- Placement and monitor capture to improve restore correctness
+- Structured JSONL logs under `%APPDATA%\ProgramHider\logs`
+- Watchdog pruning for dead handles
+- Optional restore-on-session-lock / restore-on-suspend safety behavior
 - `Restore all` on demand and automatically on app exit
 
 ## Build
@@ -25,11 +39,25 @@
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-The packaged single-file executable is written to `release\v0.0.4\ProgramHider.exe`.
+The packaged single-file executable is written to `release\v0.1.0\ProgramHider.exe`.
+
+The portable zip is written to `release\ProgramHider-v0.1.0-portable.zip`.
+
+If you want to sign release builds, set:
+
+- `PROGRAM_HIDER_SIGNTOOL`
+- `PROGRAM_HIDER_PFX_PATH`
+- `PROGRAM_HIDER_PFX_PASSWORD`
+- optional: `PROGRAM_HIDER_TIMESTAMP_URL`
+
+Then `build.ps1` will invoke `tools\sign-release.ps1` automatically.
 
 ## Layout
 
 - `app/ProgramHider`: current WinForms application
 - `archive/legacy-rust-v0.0.1`: preserved Rust prototype
+- `docs/design-v0.1.0.md`: roadmap/design record for the `v0.1.0` pass
+- `docs/work-log.md`: feature implementation log for this pass
+- `docs/CHANGELOG.md`: project changelog
 - `fix-tooling-path.ps1`: machine PATH baseline helper
 - `verify-tooling-path.ps1`: command-resolution verifier

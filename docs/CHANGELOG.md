@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- No unreleased changes yet.
+
+## v0.1.0
+
 - Added structured window rules with process, title, and class matching.
 - Added per-rule auto-hide, restore PIN, and quiet-notification behaviors.
 - Added active-window inspection plus rule import/export tooling.

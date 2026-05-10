@@ -28,3 +28,7 @@
   - added startup delay handling and safe mode automation suspension
   - added automatic restore options for session lock and suspend
   - added watchdog pruning for dead handles and structured JSONL app logs
+- Landed the packaging/release bundle:
+  - bumped the app to `v0.1.0`
+  - updated the build script to emit both the packaged exe and a portable zip
+  - added a repo-local code-signing hook script and release documentation

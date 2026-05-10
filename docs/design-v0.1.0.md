@@ -6,6 +6,8 @@ Evolve `Program Hider` from a working tray utility into a more complete Windows 
 
 Target milestone: `v0.1.0`
 
+Status: implemented and shipped in the `v0.1.0` release on 2026-05-10.
+
 ## Current State
 
 Current baseline already supports:
