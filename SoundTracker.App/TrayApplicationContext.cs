@@ -6,13 +6,16 @@ namespace SoundTracker.App;
 
 internal sealed class TrayApplicationContext : ApplicationContext
 {
-    private readonly AudioSessionPoller _audioSessionPoller = new();
+    private readonly AudioSessionMonitor _audioSessionMonitor;
     private readonly ToolStripMenuItem _statusItem;
     private readonly NotifyIcon _notifyIcon;
-    private readonly System.Windows.Forms.Timer _refreshTimer;
+    private readonly Control _uiDispatcher;
 
     public TrayApplicationContext()
     {
+        _uiDispatcher = new Control();
+        _ = _uiDispatcher.Handle;
+
         var menu = new ContextMenuStrip();
         _statusItem = new ToolStripMenuItem("Checking audio sessions...")
         {
@@ -35,20 +38,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
         };
         _notifyIcon.DoubleClick += (_, _) => RefreshSessions();
 
-        _refreshTimer = new System.Windows.Forms.Timer
-        {
-            Interval = 1000,
-        };
-        _refreshTimer.Tick += (_, _) => RefreshSessions();
+        _audioSessionMonitor = new AudioSessionMonitor();
+        _audioSessionMonitor.SessionsChanged += HandleSessionsChanged;
 
         RefreshSessions();
-        _refreshTimer.Start();
     }
 
     protected override void ExitThreadCore()
     {
-        _refreshTimer.Stop();
-        _refreshTimer.Dispose();
+        _audioSessionMonitor.SessionsChanged -= HandleSessionsChanged;
+        _audioSessionMonitor.Dispose();
+
+        _uiDispatcher.Dispose();
 
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
@@ -56,11 +57,27 @@ internal sealed class TrayApplicationContext : ApplicationContext
         base.ExitThreadCore();
     }
 
+    private void HandleSessionsChanged(object? sender, EventArgs e)
+    {
+        if (_uiDispatcher.IsDisposed)
+        {
+            return;
+        }
+
+        if (_uiDispatcher.InvokeRequired)
+        {
+            _uiDispatcher.BeginInvoke(RefreshSessions);
+            return;
+        }
+
+        RefreshSessions();
+    }
+
     private void RefreshSessions()
     {
         try
         {
-            var sessions = _audioSessionPoller.GetActiveSessionNames();
+            var sessions = _audioSessionMonitor.GetActiveSessionNames();
             _notifyIcon.Text = TooltipFormatter.Build(sessions);
             _statusItem.Text = TooltipFormatter.BuildMenuLabel(sessions);
         }

@@ -49,7 +49,7 @@ Map the current responsibilities as follows:
 
 - `main()` -> `Program.cs` plus `TrayApplicationContext`
 - `create_tray_icon()` -> `NotifyIcon` initialization
-- `SetTimer(..., 1000, ...)` -> `System.Windows.Forms.Timer`
+- `SetTimer(..., 1000, ...)` -> replaced with Core Audio session and endpoint event callbacks
 - `window_proc()` right-click exit behavior -> `ContextMenuStrip` with `Exit`
 - `get_recent_audio_sessions()` -> `AudioSessionPoller.GetActiveSessionNames()`
 - `get_process_name()` -> `Process.GetProcessById(id).ProcessName`
@@ -64,7 +64,7 @@ The C# version should stop modeling a hidden message-only window explicitly unle
 Build the smallest working WinForms tray app:
 
 - tray icon appears on startup
-- tooltip updates every second
+- tooltip updates when session or endpoint events fire
 - active audio sessions are enumerated
 - right-click offers an `Exit` action
 
@@ -96,7 +96,7 @@ dotnet publish .\SoundTracker.App\SoundTracker.App.csproj -c Release -r win-x64 
 ## Implementation notes
 
 - Prefer `Application.Run(new TrayApplicationContext())` instead of a visible form.
-- Keep polling isolated behind an interface if you expect later tests or alternate audio backends.
+- Keep the callback-driven audio monitor isolated from the WinForms tray shell.
 - Cap tooltip text aggressively; tray tooltips are short and inconsistent across Windows shells.
 - Store the icon as a normal asset. Recreating `build.rs`-style dynamic icon generation in C# adds complexity without value.
 - Keep the manual COM definitions inside `CoreAudioInterop.cs` so they do not bleed into UI code.
