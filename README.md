@@ -15,3 +15,10 @@ dotnet build SoundTracker.sln -c Release
 ```powershell
 dotnet run --project .\SoundTracker.App\SoundTracker.App.csproj
 ```
+
+## Smoke Tests
+
+```powershell
+dotnet build SoundTracker.sln -c Release
+.\SoundTracker.SmokeTests\bin\Release\net8.0-windows10.0.19041.0\SoundTracker.SmokeTests.exe
+```

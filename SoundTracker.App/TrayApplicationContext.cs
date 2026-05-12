@@ -6,13 +6,24 @@ namespace SoundTracker.App;
 
 internal sealed class TrayApplicationContext : ApplicationContext
 {
-    private readonly AudioSessionMonitor _audioSessionMonitor;
+    private readonly IAudioSessionSource _audioSessionSource;
+    private readonly bool _ownsAudioSessionSource;
     private readonly ToolStripMenuItem _statusItem;
     private readonly NotifyIcon _notifyIcon;
     private readonly Control _uiDispatcher;
 
     public TrayApplicationContext()
+        : this(new AudioSessionMonitor(), ownsAudioSessionSource: true, showNotifyIcon: true)
     {
+    }
+
+    internal TrayApplicationContext(
+        IAudioSessionSource audioSessionSource,
+        bool ownsAudioSessionSource,
+        bool showNotifyIcon)
+    {
+        _audioSessionSource = audioSessionSource;
+        _ownsAudioSessionSource = ownsAudioSessionSource;
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
 
@@ -34,20 +45,31 @@ internal sealed class TrayApplicationContext : ApplicationContext
             ContextMenuStrip = menu,
             Icon = SystemIcons.Information,
             Text = "Sound Tracker: starting",
-            Visible = true,
+            Visible = showNotifyIcon,
         };
         _notifyIcon.DoubleClick += (_, _) => RefreshSessions();
 
-        _audioSessionMonitor = new AudioSessionMonitor();
-        _audioSessionMonitor.SessionsChanged += HandleSessionsChanged;
+        _audioSessionSource.SessionsChanged += HandleSessionsChanged;
 
         RefreshSessions();
     }
 
+    internal string CurrentTooltipText => _notifyIcon.Text;
+
+    internal string CurrentStatusText => _statusItem.Text ?? string.Empty;
+
+    internal void ShutdownForTests()
+    {
+        ExitThreadCore();
+    }
+
     protected override void ExitThreadCore()
     {
-        _audioSessionMonitor.SessionsChanged -= HandleSessionsChanged;
-        _audioSessionMonitor.Dispose();
+        _audioSessionSource.SessionsChanged -= HandleSessionsChanged;
+        if (_ownsAudioSessionSource)
+        {
+            _audioSessionSource.Dispose();
+        }
 
         _uiDispatcher.Dispose();
 
@@ -77,7 +99,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         try
         {
-            var sessions = _audioSessionMonitor.GetActiveSessionNames();
+            var sessions = _audioSessionSource.GetActiveSessionNames();
             _notifyIcon.Text = TooltipFormatter.Build(sessions);
             _statusItem.Text = TooltipFormatter.BuildMenuLabel(sessions);
         }

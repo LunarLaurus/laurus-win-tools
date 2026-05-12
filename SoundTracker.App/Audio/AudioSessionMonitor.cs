@@ -3,7 +3,7 @@ using SoundTracker.App.Processes;
 
 namespace SoundTracker.App.Audio;
 
-internal sealed class AudioSessionMonitor : IDisposable
+internal sealed class AudioSessionMonitor : IAudioSessionSource
 {
     private readonly object _sync = new();
     private readonly ProcessNameResolver _processNameResolver = new();
