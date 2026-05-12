@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Collections.Concurrent;
+using SoundTracker.App.Diagnostics;
 using SoundTracker.App.Processes;
 
 namespace SoundTracker.App.Audio;
@@ -25,6 +26,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
     public AudioSessionMonitor()
     {
+        AppLog.Info("audio session monitor constructing");
         _endpointNotificationClient = new EndpointNotificationClient(HandleDefaultEndpointChanged);
         _sessionNotificationSink = new AudioSessionNotificationSink(HandleSessionCreated);
         _workerThread = new Thread(WorkerLoop)
@@ -34,12 +36,16 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         };
         _workerThread.SetApartmentState(ApartmentState.MTA);
         _workerThread.Start();
+        AppLog.Info("audio monitor worker thread started");
 
         _startupCompleted.Wait();
         if (_startupException is not null)
         {
+            AppLog.Error("audio session monitor startup failed", _startupException);
             throw new InvalidOperationException("Failed to initialize the audio session monitor.", _startupException);
         }
+
+        AppLog.Info("audio session monitor startup completed");
     }
 
     public event EventHandler? SessionsChanged;
@@ -76,10 +82,12 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
         if (shouldStop)
         {
+            AppLog.Info("audio session monitor disposing");
             _workQueue.Add(null);
             _workerThread.Join();
             _workQueue.Dispose();
             _startupCompleted.Dispose();
+            AppLog.Info("audio session monitor disposed");
         }
 
         GC.SuppressFinalize(this);
@@ -91,6 +99,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
         try
         {
+            AppLog.Info("audio monitor worker loop starting");
             var hr = CoInitializeEx(IntPtr.Zero, COINIT_MULTITHREADED);
             if (hr < 0)
             {
@@ -98,11 +107,13 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
             }
 
             coInitialized = true;
+            AppLog.Info($"audio monitor CoInitializeEx succeeded hr=0x{hr:X8}");
 
             lock (_sync)
             {
                 if (!_disposed)
                 {
+                    AppLog.Info("audio monitor attaching to default render endpoint");
                     AttachToDefaultRenderEndpointLocked();
                 }
             }
@@ -118,9 +129,11 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
             {
                 if (workItem is null)
                 {
+                    AppLog.Info("audio monitor worker received shutdown sentinel");
                     break;
                 }
 
+                AppLog.Info("audio monitor worker executing queued action");
                 workItem();
             }
         }
@@ -128,17 +141,20 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         {
             _startupException ??= ex;
             _startupCompleted.Set();
+            AppLog.Error("audio monitor worker loop faulted", ex);
         }
         finally
         {
             lock (_sync)
             {
+                AppLog.Info("audio monitor worker tearing down");
                 TeardownLocked();
             }
 
             if (coInitialized)
             {
                 CoUninitialize();
+                AppLog.Info("audio monitor CoUninitialize completed");
             }
         }
     }
@@ -161,6 +177,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         Marshal.ThrowExceptionForHR(_sessionManager.RegisterSessionNotification(_sessionNotificationSink));
         _sessionNotificationsRegistered = true;
 
+        AppLog.Info("audio monitor registered endpoint and session notifications");
         EnumerateAndTrackSessionsLocked();
     }
 
@@ -172,6 +189,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         {
             Marshal.ThrowExceptionForHR(_sessionManager!.GetSessionEnumerator(out sessionEnumerator));
             Marshal.ThrowExceptionForHR(sessionEnumerator.GetCount(out var count));
+            AppLog.Info($"audio monitor enumerating sessions count={count}");
 
             for (var index = 0; index < count; index++)
             {
@@ -244,6 +262,8 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
             snapshot.DisplayName,
             snapshot.State);
 
+        AppLog.Info($"audio monitor tracked session instanceId={instanceId} processId={snapshot.ProcessId} state={snapshot.State} name=\"{snapshot.DisplayName}\"");
+
         return true;
     }
 
@@ -291,6 +311,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
     private void HandleSessionCreated(IAudioSessionControl newSession)
     {
+        AppLog.Info("audio monitor OnSessionCreated callback");
         EnqueueWork(() =>
         {
             lock (_sync)
@@ -303,12 +324,14 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
                 EnumerateAndTrackSessionsLocked();
             }
 
+            AppLog.Info("audio monitor OnSessionCreated processed");
             RaiseSessionsChanged();
         });
     }
 
     private void HandleSessionStateChanged(string instanceId, AudioSessionState newState)
     {
+        AppLog.Info($"audio monitor session state callback instanceId={instanceId} state={newState}");
         EnqueueWork(() =>
         {
             lock (_sync)
@@ -331,6 +354,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
     private void HandleSessionDisconnected(string instanceId)
     {
+        AppLog.Info($"audio monitor session disconnected callback instanceId={instanceId}");
         EnqueueWork(() =>
         {
             lock (_sync)
@@ -349,6 +373,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
     private void HandleDefaultEndpointChanged(EDataFlow dataFlow, ERole role)
     {
+        AppLog.Info($"audio monitor default endpoint changed flow={dataFlow} role={role}");
         if (dataFlow != EDataFlow.Render || role != ERole.Console)
         {
             return;
@@ -374,6 +399,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
     private void RemoveTrackedSessionLocked(string instanceId, TrackedSession trackedSession)
     {
         _trackedSessions.Remove(instanceId);
+        AppLog.Info($"audio monitor removing session instanceId={instanceId} processId={trackedSession.ProcessId} name=\"{trackedSession.DisplayName}\"");
 
         try
         {
@@ -392,6 +418,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
     private void TeardownLocked()
     {
+        AppLog.Info($"audio monitor teardown start trackedSessions={_trackedSessions.Count}");
         foreach (var trackedSession in _trackedSessions.Values.ToList())
         {
             RemoveTrackedSessionLocked(trackedSession.InstanceId, trackedSession);
@@ -431,10 +458,12 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         _sessionManager = null;
         _defaultDevice = null;
         _deviceEnumerator = null;
+        AppLog.Info("audio monitor teardown complete");
     }
 
     private void RaiseSessionsChanged()
     {
+        AppLog.Info("audio monitor raising SessionsChanged");
         SessionsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -456,9 +485,11 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         try
         {
             _workQueue.Add(action);
+            AppLog.Info($"audio monitor queued action pending={_workQueue.Count}");
         }
         catch (InvalidOperationException)
         {
+            AppLog.Warn("audio monitor queue rejected action during shutdown");
         }
     }
 
