@@ -4,12 +4,10 @@ namespace SoundTracker.App;
 
 internal static class Program
 {
-    private const string AppVersion = "0.2.1";
-
     [STAThread]
     private static void Main()
     {
-        AppLog.Info($"application starting version={AppVersion} log={AppLog.LogPath}");
+        AppLog.Info($"application starting version={AppMetadata.DisplayVersion} log={AppLog.LogPath}");
         Application.ThreadException += (_, args) => AppLog.Error("ui thread exception", args.Exception);
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
             AppLog.Error("unhandled exception", args.ExceptionObject as Exception);

@@ -8,7 +8,7 @@ internal static class TooltipFormatter
     {
         if (sessions.Count == 0)
         {
-            return "Sound Tracker: idle";
+            return $"{AppMetadata.TooltipPrefix}: idle";
         }
 
         var summary = string.Join(", ", sessions.Take(3));
@@ -17,7 +17,7 @@ internal static class TooltipFormatter
             summary = $"{summary} +{sessions.Count - 3}";
         }
 
-        return Truncate($"Active audio: {summary}");
+        return Truncate($"{AppMetadata.TooltipPrefix}: {summary}");
     }
 
     public static string BuildMenuLabel(IReadOnlyList<string> sessions)

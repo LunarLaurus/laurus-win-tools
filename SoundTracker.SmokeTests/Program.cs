@@ -113,7 +113,7 @@ internal static class Program
 
     private static void TooltipFormatter_IdleState()
     {
-        Assert.Equal("Sound Tracker: idle", TooltipFormatter.Build(Array.Empty<string>()));
+        Assert.Equal("SoundTracker 0.2.2: idle", TooltipFormatter.Build(Array.Empty<string>()));
         Assert.Equal("No active audio sessions", TooltipFormatter.BuildMenuLabel(Array.Empty<string>()));
     }
 
@@ -128,7 +128,7 @@ internal static class Program
         };
 
         var tooltip = TooltipFormatter.Build(sessions);
-        Assert.True(tooltip.StartsWith("Active audio: "), "Tooltip should use the active-audio prefix.");
+        Assert.True(tooltip.StartsWith("SoundTracker 0.2.2: "), "Tooltip should include the application version.");
         Assert.True(tooltip.Length <= 63, "Tooltip must fit NotifyIcon text limits.");
         Assert.True(tooltip.EndsWith("...") || tooltip.Contains("+1"), "Tooltip should summarize overflow.");
     }
@@ -191,7 +191,7 @@ internal static class Program
         using var source = new FakeAudioSessionSource("vlc.exe", "spotify.exe");
         using var context = new TrayApplicationContext(source, ownsAudioSessionSource: false, showNotifyIcon: false);
 
-        Assert.Equal("Active audio: vlc.exe, spotify.exe", context.CurrentTooltipText);
+        Assert.Equal("SoundTracker 0.2.2: vlc.exe, spotify.exe", context.CurrentTooltipText);
         Assert.Equal("vlc.exe, spotify.exe", context.CurrentStatusText);
     }
 
@@ -203,7 +203,7 @@ internal static class Program
         source.SetSessions("spotify.exe", "vlc.exe", "zebra.exe", "chrome.exe");
         source.RaiseChanged();
 
-        Assert.Equal("Active audio: spotify.exe, vlc.exe, zebra.exe +1", context.CurrentTooltipText);
+        Assert.Equal("SoundTracker 0.2.2: spotify.exe, vlc.exe, zebra.exe +1", context.CurrentTooltipText);
         Assert.Equal("spotify.exe, vlc.exe, zebra.exe, chrome.exe", context.CurrentStatusText);
     }
 

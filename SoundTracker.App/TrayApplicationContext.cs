@@ -55,7 +55,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             ContextMenuStrip = menu,
             Icon = SystemIcons.Information,
-            Text = "Sound Tracker: starting",
+            Text = $"{AppMetadata.TooltipPrefix}: starting",
             Visible = showNotifyIcon,
         };
         _notifyIcon.MouseClick += (_, args) =>
