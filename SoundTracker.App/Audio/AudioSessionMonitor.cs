@@ -217,17 +217,20 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
     private void HandleSessionCreated(IAudioSessionControl newSession)
     {
-        lock (_sync)
+        ThreadPool.QueueUserWorkItem(_ =>
         {
-            if (_disposed)
+            lock (_sync)
             {
-                return;
+                if (_disposed || _sessionManager is null)
+                {
+                    return;
+                }
+
+                EnumerateAndTrackSessionsLocked();
             }
 
-            TryTrackSessionLocked(newSession);
-        }
-
-        RaiseSessionsChanged();
+            RaiseSessionsChanged();
+        });
     }
 
     private void HandleSessionStateChanged(string instanceId, AudioSessionState newState)

@@ -1,14 +1,22 @@
 using SoundTracker.App;
 using SoundTracker.App.Audio;
 using SoundTracker.App.Processes;
+using System.Diagnostics;
+using System.Media;
+using System.Text;
 
 namespace SoundTracker.SmokeTests;
 
 internal static class Program
 {
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
+        if (args.Length > 0)
+        {
+            return RunChildMode(args);
+        }
+
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
@@ -20,6 +28,7 @@ internal static class Program
             ("ProcessNameResolver current process", ProcessNameResolver_CurrentProcess),
             ("AudioSessionMonitor lifecycle", AudioSessionMonitor_Lifecycle),
             ("AudioSessionMonitor disposed guard", AudioSessionMonitor_DisposedGuard),
+            ("AudioSessionMonitor live playback callbacks", AudioSessionMonitor_LivePlaybackCallbacks),
             ("TrayApplicationContext initial refresh", TrayApplicationContext_InitialRefresh),
             ("TrayApplicationContext event-driven refresh", TrayApplicationContext_EventDrivenRefresh),
             ("TrayApplicationContext error fallback", TrayApplicationContext_ErrorFallback),
@@ -55,6 +64,51 @@ internal static class Program
         }
 
         return 1;
+    }
+
+    private static int RunChildMode(string[] args)
+    {
+        return args[0] switch
+        {
+            "--play-test-wave" => PlayTestWave(args),
+            "--probe-live-playback-callbacks" => ProbeLivePlaybackCallbacks(),
+            _ => 2,
+        };
+    }
+
+    private static int PlayTestWave(string[] args)
+    {
+        var durationMs = args.Length > 1 && int.TryParse(args[1], out var parsedDuration)
+            ? parsedDuration
+            : 3000;
+
+        var wavePath = Path.Combine(Path.GetTempPath(), $"sound-tracker-smoke-{Guid.NewGuid():N}.wav");
+
+        try
+        {
+            WriteSineWaveFile(wavePath, durationMs, sampleRate: 44100, frequencyHz: 440.0, amplitude: 0.25);
+            Thread.Sleep(500);
+
+            using var player = new SoundPlayer(wavePath);
+            player.Load();
+            player.PlaySync();
+
+            Thread.Sleep(500);
+            return 0;
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(wavePath))
+                {
+                    File.Delete(wavePath);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 
     private static void TooltipFormatter_IdleState()
@@ -121,6 +175,15 @@ internal static class Program
         Assert.Throws<ObjectDisposedException>(
             () => monitor.GetActiveSessionNames(),
             "Disposed monitor should reject further reads.");
+    }
+
+    private static void AudioSessionMonitor_LivePlaybackCallbacks()
+    {
+        using var probe = StartLivePlaybackProbe();
+        probe.WaitForExit(30000);
+
+        Assert.True(probe.HasExited, "Live playback callback probe should finish within 30 seconds.");
+        Assert.Equal(0, probe.ExitCode);
     }
 
     private static void TrayApplicationContext_InitialRefresh()
@@ -203,6 +266,132 @@ internal static class Program
         public void SetSessions(params string[] sessions)
         {
             _sessions = sessions;
+        }
+    }
+
+    private static Process StartPlaybackChild(int durationMs)
+    {
+        var exePath = Environment.ProcessPath ?? throw new InvalidOperationException("Current process path is unavailable.");
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = exePath,
+            Arguments = $"--play-test-wave {durationMs}",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden,
+        };
+
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start playback child process.");
+    }
+
+    private static Process StartLivePlaybackProbe()
+    {
+        var exePath = Environment.ProcessPath ?? throw new InvalidOperationException("Current process path is unavailable.");
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = exePath,
+            Arguments = "--probe-live-playback-callbacks",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden,
+        };
+
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start live playback callback probe.");
+    }
+
+    private static bool WaitUntil(TimeSpan timeout, Func<bool> condition)
+    {
+        var deadline = Stopwatch.StartNew();
+        while (deadline.Elapsed < timeout)
+        {
+            if (condition())
+            {
+                return true;
+            }
+
+            Thread.Sleep(100);
+        }
+
+        return condition();
+    }
+
+    private static void WriteSineWaveFile(string path, int durationMs, int sampleRate, double frequencyHz, double amplitude)
+    {
+        var totalSamples = (int)((long)sampleRate * durationMs / 1000);
+        var bytesPerSample = 2;
+        var channelCount = 1;
+        var dataLength = totalSamples * bytesPerSample * channelCount;
+
+        using var stream = File.Create(path);
+        using var writer = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: false);
+
+        writer.Write(Encoding.ASCII.GetBytes("RIFF"));
+        writer.Write(36 + dataLength);
+        writer.Write(Encoding.ASCII.GetBytes("WAVE"));
+        writer.Write(Encoding.ASCII.GetBytes("fmt "));
+        writer.Write(16);
+        writer.Write((short)1);
+        writer.Write((short)channelCount);
+        writer.Write(sampleRate);
+        writer.Write(sampleRate * bytesPerSample * channelCount);
+        writer.Write((short)(bytesPerSample * channelCount));
+        writer.Write((short)(bytesPerSample * 8));
+        writer.Write(Encoding.ASCII.GetBytes("data"));
+        writer.Write(dataLength);
+
+        for (var sampleIndex = 0; sampleIndex < totalSamples; sampleIndex++)
+        {
+            var sample = Math.Sin(2 * Math.PI * frequencyHz * sampleIndex / sampleRate);
+            var scaled = (short)(sample * short.MaxValue * amplitude);
+            writer.Write(scaled);
+        }
+    }
+
+    private static int ProbeLivePlaybackCallbacks()
+    {
+        var monitor = new AudioSessionMonitor();
+        var changeCount = 0;
+
+        void HandleSessionsChanged(object? sender, EventArgs e) => Interlocked.Increment(ref changeCount);
+
+        monitor.SessionsChanged += HandleSessionsChanged;
+
+        try
+        {
+            using var child = StartPlaybackChild(3000);
+
+            var sawStartEvent = WaitUntil(
+                timeout: TimeSpan.FromSeconds(12),
+                condition: () => Volatile.Read(ref changeCount) > 0);
+            if (!sawStartEvent)
+            {
+                Console.Error.WriteLine("Live callback probe did not observe a playback-start callback.");
+                return 1;
+            }
+
+            child.WaitForExit(15000);
+            if (!child.HasExited || child.ExitCode != 0)
+            {
+                Console.Error.WriteLine("Live callback probe playback child did not exit cleanly.");
+                return 1;
+            }
+
+            var sawStopEvent = WaitUntil(
+                timeout: TimeSpan.FromSeconds(12),
+                condition: () => Volatile.Read(ref changeCount) > 1);
+            if (!sawStopEvent)
+            {
+                Console.Error.WriteLine("Live callback probe did not observe a playback-stop callback.");
+                return 1;
+            }
+
+            return 0;
+        }
+        finally
+        {
+            monitor.SessionsChanged -= HandleSessionsChanged;
         }
     }
 
