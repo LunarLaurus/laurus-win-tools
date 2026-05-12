@@ -7,7 +7,7 @@ The previous Rust implementation has been archived under [`archive/rust-legacy/`
 ## Build
 
 ```powershell
-dotnet build SoundTracker.sln -c Release
+.\build.ps1
 ```
 
 ## Run
@@ -19,6 +19,11 @@ dotnet run --project .\SoundTracker.App\SoundTracker.App.csproj
 ## Smoke Tests
 
 ```powershell
-dotnet build SoundTracker.sln -c Release
-.\SoundTracker.SmokeTests\bin\Release\net8.0-windows10.0.19041.0\SoundTracker.SmokeTests.exe
+.\build.ps1
+```
+
+If the app or smoke runner is still open from a previous run:
+
+```powershell
+.\build.ps1 -StopRunningProcesses
 ```
