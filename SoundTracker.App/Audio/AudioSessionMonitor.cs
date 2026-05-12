@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Collections.Concurrent;
 using SoundTracker.App.Processes;
 
 namespace SoundTracker.App.Audio;
@@ -6,10 +7,13 @@ namespace SoundTracker.App.Audio;
 internal sealed class AudioSessionMonitor : IAudioSessionSource
 {
     private readonly object _sync = new();
+    private readonly BlockingCollection<Action?> _workQueue = new();
     private readonly ProcessNameResolver _processNameResolver = new();
     private readonly Dictionary<string, TrackedSession> _trackedSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly EndpointNotificationClient _endpointNotificationClient;
     private readonly AudioSessionNotificationSink _sessionNotificationSink;
+    private readonly ManualResetEventSlim _startupCompleted = new(false);
+    private readonly Thread _workerThread;
 
     private IMMDeviceEnumerator? _deviceEnumerator;
     private IMMDevice? _defaultDevice;
@@ -17,12 +21,25 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
     private bool _endpointNotificationsRegistered;
     private bool _sessionNotificationsRegistered;
     private bool _disposed;
+    private Exception? _startupException;
 
     public AudioSessionMonitor()
     {
         _endpointNotificationClient = new EndpointNotificationClient(HandleDefaultEndpointChanged);
         _sessionNotificationSink = new AudioSessionNotificationSink(HandleSessionCreated);
-        Initialize();
+        _workerThread = new Thread(WorkerLoop)
+        {
+            IsBackground = true,
+            Name = "SoundTracker.AudioSessionMonitor",
+        };
+        _workerThread.SetApartmentState(ApartmentState.MTA);
+        _workerThread.Start();
+
+        _startupCompleted.Wait();
+        if (_startupException is not null)
+        {
+            throw new InvalidOperationException("Failed to initialize the audio session monitor.", _startupException);
+        }
     }
 
     public event EventHandler? SessionsChanged;
@@ -44,6 +61,8 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
     public void Dispose()
     {
+        var shouldStop = false;
+
         lock (_sync)
         {
             if (_disposed)
@@ -51,22 +70,77 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
                 return;
             }
 
-            TeardownLocked();
             _disposed = true;
+            shouldStop = true;
+        }
+
+        if (shouldStop)
+        {
+            _workQueue.Add(null);
+            _workerThread.Join();
+            _workQueue.Dispose();
+            _startupCompleted.Dispose();
         }
 
         GC.SuppressFinalize(this);
     }
 
-    private void Initialize()
+    private void WorkerLoop()
     {
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            AttachToDefaultRenderEndpointLocked();
-        }
+        var coInitialized = false;
 
-        RaiseSessionsChanged();
+        try
+        {
+            var hr = CoInitializeEx(IntPtr.Zero, COINIT_MULTITHREADED);
+            if (hr < 0)
+            {
+                Marshal.ThrowExceptionForHR(hr);
+            }
+
+            coInitialized = true;
+
+            lock (_sync)
+            {
+                if (!_disposed)
+                {
+                    AttachToDefaultRenderEndpointLocked();
+                }
+            }
+
+            _startupCompleted.Set();
+
+            if (!_disposed)
+            {
+                RaiseSessionsChanged();
+            }
+
+            foreach (var workItem in _workQueue.GetConsumingEnumerable())
+            {
+                if (workItem is null)
+                {
+                    break;
+                }
+
+                workItem();
+            }
+        }
+        catch (Exception ex)
+        {
+            _startupException ??= ex;
+            _startupCompleted.Set();
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                TeardownLocked();
+            }
+
+            if (coInitialized)
+            {
+                CoUninitialize();
+            }
+        }
     }
 
     private void AttachToDefaultRenderEndpointLocked()
@@ -217,7 +291,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
     private void HandleSessionCreated(IAudioSessionControl newSession)
     {
-        ThreadPool.QueueUserWorkItem(_ =>
+        EnqueueWork(() =>
         {
             lock (_sync)
             {
@@ -235,36 +309,42 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
     private void HandleSessionStateChanged(string instanceId, AudioSessionState newState)
     {
-        lock (_sync)
+        EnqueueWork(() =>
         {
-            if (_disposed || !_trackedSessions.TryGetValue(instanceId, out var trackedSession))
+            lock (_sync)
             {
-                return;
+                if (_disposed || !_trackedSessions.TryGetValue(instanceId, out var trackedSession))
+                {
+                    return;
+                }
+
+                trackedSession.State = newState;
+                if (newState == AudioSessionState.Expired)
+                {
+                    RemoveTrackedSessionLocked(instanceId, trackedSession);
+                }
             }
 
-            trackedSession.State = newState;
-            if (newState == AudioSessionState.Expired)
-            {
-                RemoveTrackedSessionLocked(instanceId, trackedSession);
-            }
-        }
-
-        RaiseSessionsChanged();
+            RaiseSessionsChanged();
+        });
     }
 
     private void HandleSessionDisconnected(string instanceId)
     {
-        lock (_sync)
+        EnqueueWork(() =>
         {
-            if (_disposed || !_trackedSessions.TryGetValue(instanceId, out var trackedSession))
+            lock (_sync)
             {
-                return;
+                if (_disposed || !_trackedSessions.TryGetValue(instanceId, out var trackedSession))
+                {
+                    return;
+                }
+
+                RemoveTrackedSessionLocked(instanceId, trackedSession);
             }
 
-            RemoveTrackedSessionLocked(instanceId, trackedSession);
-        }
-
-        RaiseSessionsChanged();
+            RaiseSessionsChanged();
+        });
     }
 
     private void HandleDefaultEndpointChanged(EDataFlow dataFlow, ERole role)
@@ -274,18 +354,21 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
             return;
         }
 
-        lock (_sync)
+        EnqueueWork(() =>
         {
-            if (_disposed)
+            lock (_sync)
             {
-                return;
+                if (_disposed)
+                {
+                    return;
+                }
+
+                TeardownLocked();
+                AttachToDefaultRenderEndpointLocked();
             }
 
-            TeardownLocked();
-            AttachToDefaultRenderEndpointLocked();
-        }
-
-        RaiseSessionsChanged();
+            RaiseSessionsChanged();
+        });
     }
 
     private void RemoveTrackedSessionLocked(string instanceId, TrackedSession trackedSession)
@@ -360,11 +443,38 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         ObjectDisposedException.ThrowIf(_disposed, this);
     }
 
+    private void EnqueueWork(Action action)
+    {
+        lock (_sync)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            _workQueue.Add(action);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
     private static IMMDeviceEnumerator CreateDeviceEnumerator()
     {
         return (IMMDeviceEnumerator)Activator.CreateInstance(
             Type.GetTypeFromCLSID(CoreAudioInterop.MMDeviceEnumeratorClsid)!)!;
     }
+
+    [DllImport("ole32.dll")]
+    private static extern int CoInitializeEx(IntPtr reserved, uint coInit);
+
+    [DllImport("ole32.dll")]
+    private static extern void CoUninitialize();
+
+    private const uint COINIT_MULTITHREADED = 0x0;
 
     private static void ReleaseComObject(object? instance)
     {
