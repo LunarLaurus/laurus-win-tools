@@ -2,19 +2,13 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
-    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWindowsForms>true</UseWindowsForms>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyName>BatteryTray</AssemblyName>
     <RootNamespace>BatteryTray</RootNamespace>
-    <Version>1.9.0</Version>
+    <Product>BatteryTray</Product>
     <Description>Configurable Windows taskbar battery indicator</Description>
-    <LangVersion>latest</LangVersion>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
   <ItemGroup>

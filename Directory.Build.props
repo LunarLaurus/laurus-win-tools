@@ -1,12 +1,46 @@
 <Project>
   <!--
-    RELEASE_VERSION is injected by CI (e.g. "1.2.3" stripped from the git tag).
-    Local builds keep whatever <Version> is set in the individual .csproj.
+    Fleet-wide MSBuild defaults for every csproj in this repo.
+    Per-project files only carry their unique fields (AssemblyName,
+    RootNamespace, ApplicationIcon / Manifest, package and project
+    references, InternalsVisibleTo) — everything common lives here.
   -->
+
+  <!-- Versioning. CI sets RELEASE_VERSION from the git tag; local
+       builds get LOCAL_VERSION so About and UpdateChecker see a
+       sensible value. Bump LOCAL_VERSION when you cut a release. -->
+  <PropertyGroup>
+    <LOCAL_VERSION>1.1.1</LOCAL_VERSION>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(RELEASE_VERSION)' != ''">
     <Version>$(RELEASE_VERSION)</Version>
     <AssemblyVersion>$(RELEASE_VERSION)</AssemblyVersion>
     <FileVersion>$(RELEASE_VERSION)</FileVersion>
     <InformationalVersion>$(RELEASE_VERSION)</InformationalVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(RELEASE_VERSION)' == ''">
+    <Version>$(LOCAL_VERSION)</Version>
+    <AssemblyVersion>$(LOCAL_VERSION)</AssemblyVersion>
+    <FileVersion>$(LOCAL_VERSION)</FileVersion>
+    <InformationalVersion>$(LOCAL_VERSION)</InformationalVersion>
+  </PropertyGroup>
+
+  <!-- Target framework + Windows version baseline. SupportedOSPlatformVersion
+       is the minimum Windows build we promise to run on; TargetFramework is
+       the SDK we compile against (newer APIs are available but guarded by
+       [SupportedOSPlatform] checks). -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <!-- C# defaults. Nullable on, implicit usings on, latest language. -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 </Project>

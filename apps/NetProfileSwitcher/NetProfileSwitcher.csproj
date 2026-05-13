@@ -1,21 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
-    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWindowsForms>true</UseWindowsForms>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>NetProfileSwitcher</AssemblyName>
     <RootNamespace>NetProfileSwitcher</RootNamespace>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Version>1.0.0</Version>
+    <Product>NetProfileSwitcher</Product>
+    <Description>Tray-resident switcher for Windows network adapter profiles</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\shared\WindowsAppCore\WindowsAppCore.csproj" />
     <ProjectReference Include="..\..\shared\WindowsTrayCore\WindowsTrayCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>NetProfileSwitcher.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>
