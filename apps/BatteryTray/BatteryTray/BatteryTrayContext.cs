@@ -1,12 +1,14 @@
 using System.Diagnostics;
 using System.Windows.Forms;
 using WindowsAppCore;
+using WindowsTrayCore;
 
 namespace BatteryTray;
 
 public sealed class BatteryTrayContext : ApplicationContext
 {
     private readonly NotifyIcon _notifyIcon;
+    private readonly UiDispatcher _ui;
     private readonly System.Windows.Forms.Timer _safetyTimer;
     private readonly BatteryMonitor _monitor = new();
     private readonly Notifier _notifier;
@@ -39,6 +41,7 @@ public sealed class BatteryTrayContext : ApplicationContext
         _settings = settings;
         _activation = activation;
         _startup = startup;
+        _ui = new UiDispatcher();
 
         _notifyIcon = new NotifyIcon
         {
@@ -72,21 +75,18 @@ public sealed class BatteryTrayContext : ApplicationContext
         {
             try
             {
-                if (_notifyIcon.ContextMenuStrip is { IsDisposed: false } menu)
+                _ui.Post(() =>
                 {
-                    menu.BeginInvoke(new Action(() =>
-                    {
-                        _monitor.InvalidateCache();
-                        Refresh();
-                    }));
-                }
+                    _monitor.InvalidateCache();
+                    Refresh();
+                });
             }
             catch (Exception ex) { CrashLogger.Write("Saver→UI marshal", ex); }
         });
 
         _activation.ActivationRequested += (_, _) =>
         {
-            try { _notifyIcon.ContextMenuStrip?.BeginInvoke(new Action(OpenSettings)); }
+            try { _ui.Post(OpenSettings); }
             catch (Exception ex) { CrashLogger.Write("Activation→OpenSettings", ex); }
         };
 
@@ -373,6 +373,7 @@ public sealed class BatteryTrayContext : ApplicationContext
             if (_currentIcon is not null) IconRenderer.Free(_currentIcon);
             _settingsForm?.Dispose();
             _batteryInfoForm?.Dispose();
+            _ui.Dispose();
         }
         base.Dispose(disposing);
     }
