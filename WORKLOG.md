@@ -131,6 +131,23 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 ---
 
+## 2026-05-13
+
+**Did:** Phase 6 — `WindowsTrayCore` shared library + per-app theme fixes complete.
+- `shared\WindowsTrayCore`: `TrayTheme` (singleton + Changed event), `UiDispatcher`, `TrayTooltip`, `TrayIconManager`, `ITrayIconProvider`, `IUserNotifier`, `BalloonNotifier`, `ToastNotifier`, `TrayShell`
+- `shared\WindowsTrayCore.Tests`: 32 tests across all new types — all pass
+- NetProfileSwitcher: `Theme.cs` static readonly Color fields → properties delegating to `TrayTheme.Current`; `MainForm` subscribes `TrayTheme.Current.Changed` and calls `ApplyTheme()` to re-colour at runtime
+- `apps\NetProfileSwitcher.Tests`: new project, 6 tests covering delegation and derived colours (Surface2/AccentDim)
+- SoundTracker: `RecentActivityForm` hardcoded light BackColor replaced with `TrayTheme.Current.Background`; subscribes to `TrayTheme.Current.Changed` for runtime updates
+- 3 new tests added to `SoundTracker.Tests`; 6 total pass
+- `WindowsTrayCore/Properties/AssemblyInfo.cs` extended with `InternalsVisibleTo` for both new test projects
+
+**Committed:** see git log (WindowsTrayCore library, NPS fix, SoundTracker fix in separate commits); latest ca575b6 (NPS), 179bb37 (ST)
+
+**Next:** Phase 7 — Icon providers per app, replace manual GDI management, dirty-flag in SoundTracker
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -197,17 +214,17 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Wire `UnhandledExceptionWatcher` into all four apps
 - [x] Commit
 
-### Phase 6 — `WindowsTrayCore` + theme *(blocked on Phase 5)*
+### Phase 6 — `WindowsTrayCore` + theme *(complete)*
 
-- [ ] Create `shared\WindowsTrayCore\WindowsTrayCore.csproj`
-- [ ] Implement `TrayTheme` (singleton, registry detection, Changed event)
-- [ ] Implement `UiDispatcher`
-- [ ] Implement `TrayIconManager` + `ITrayIconProvider`
-- [ ] Implement `TrayShell` (see concrete API in vision doc)
-- [ ] Implement `IUserNotifier`, `BalloonNotifier`, `ToastNotifier`
-- [ ] Fix NetProfileSwitcher hardcoded dark theme
-- [ ] Fix SoundTracker RecentActivityForm ignoring theme
-- [ ] Commit per logical unit
+- [x] Create `shared\WindowsTrayCore\WindowsTrayCore.csproj`
+- [x] Implement `TrayTheme` (singleton, registry detection, Changed event)
+- [x] Implement `UiDispatcher`
+- [x] Implement `TrayIconManager` + `ITrayIconProvider`
+- [x] Implement `TrayShell` (see concrete API in vision doc)
+- [x] Implement `IUserNotifier`, `BalloonNotifier`, `ToastNotifier`
+- [x] Fix NetProfileSwitcher hardcoded dark theme
+- [x] Fix SoundTracker RecentActivityForm ignoring theme
+- [x] Commit per logical unit
 
 ### Phase 7 — Icon providers *(blocked on Phase 6)*
 
