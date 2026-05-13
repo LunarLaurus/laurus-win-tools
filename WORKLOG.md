@@ -37,6 +37,20 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 ---
 
+## 2026-05-13
+
+**Did:** Phase 1 — conventions docs complete.
+- `docs\conventions\app-data.md` — APPDATA vs LOCALAPPDATA rules, AppPaths resolution, test override, quarantine path
+- `docs\conventions\startup.md` — backend selection table, IStartupRegistration interface, RunKey vs ScheduledTask detail, startup flags
+- `docs\conventions\tray-shell.md` — TrayShell ownership model, host-agnostic design, per-app mapping, full lifecycle
+- `docs\conventions\json-and-logging.md` — JsonSettingsStore file-safety, serialiser policy, JSONL envelope, AppLog internals, CrashSink separation, startup wiring order
+
+**Committed:** 7364739
+
+**Next:** Phase 2 — `WindowsAppCore` skeleton + logging
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -60,14 +74,14 @@ No code changes. Directory moves only.
 - [x] Initial commit with detailed message — no AI attribution
 - [x] Update this worklog entry with commit hash
 
-### Phase 1 — Conventions docs *(blocked on Phase 0)*
+### Phase 1 — Conventions docs *(complete)*
 
 Write under `docs\conventions\` before any code extraction:
-- [ ] `app-data.md` — `%APPDATA%` vs `%LOCALAPPDATA%` rules
-- [ ] `startup.md` — startup registration policy per app
-- [ ] `tray-shell.md` — NotifyIcon ownership, click policy, shutdown
-- [ ] `json-and-logging.md` — settings format, log format, rotation policy
-- [ ] Commit
+- [x] `app-data.md` — `%APPDATA%` vs `%LOCALAPPDATA%` rules
+- [x] `startup.md` — startup registration policy per app
+- [x] `tray-shell.md` — NotifyIcon ownership, click policy, shutdown
+- [x] `json-and-logging.md` — settings format, log format, rotation policy
+- [x] Commit
 
 ### Phase 2 — `WindowsAppCore` skeleton + logging *(blocked on Phase 1)*
 
