@@ -83,6 +83,22 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 ---
 
+## 2026-05-13
+
+**Did:** Phase 3 — `JsonSettingsStore<T>` + settings migration complete.
+- `ISettingsMigration` interface and `JsonSettingsStore<T>` in `shared\WindowsAppCore`
+- 36 tests in `JsonSettingsStoreTests`: happy path, corrupt quarantine, migration chain, atomic write, normalize delegate
+- NetProfileSwitcher: replaced hand-rolled ConfigStore; added `MigrateConfigFileName()` for config.json→settings.json rename
+- ProgramHider: replaced bespoke SettingsStore; TFM bumped to versioned windows form; PROGRAMHIDER_DATA replaces old env var
+- BatteryTray: extracted v1→v2→v3 migration classes; fixed wrong project reference depth; migration tests rewritten to test classes directly
+- SoundTracker: new `SoundTrackerConfig` + `SoundTracker.Tests` project; wired into Program.cs
+
+**Committed:** fbe460b (library), 2399349 (NPS), 8fb18c2 (ProgramHider), 3e4201f (BatteryTray), a5a9352 (SoundTracker)
+
+**Next:** Phase 4 — Single instance + startup (`SingleInstanceActivation`, `IStartupRegistration`)
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -127,13 +143,13 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Migrate NetProfileSwitcher first (add logging — currently has zero)
 - [x] Commit per logical unit
 
-### Phase 3 — Settings *(blocked on Phase 2)*
+### Phase 3 — Settings *(complete)*
 
-- [ ] Implement `JsonSettingsStore<T>` (atomic write, quarantine, migration framework)
-- [ ] Implement `ISettingsMigration`
-- [ ] Tests: happy path, corrupt file, migration chain, power-loss atomic write
-- [ ] Migrate: NetProfileSwitcher → SoundTracker → ProgramHider → BatteryTray
-- [ ] Commit per app migration
+- [x] Implement `JsonSettingsStore<T>` (atomic write, quarantine, migration framework)
+- [x] Implement `ISettingsMigration`
+- [x] Tests: happy path, corrupt file, migration chain, power-loss atomic write
+- [x] Migrate: NetProfileSwitcher → SoundTracker → ProgramHider → BatteryTray
+- [x] Commit per app migration
 
 ### Phase 4 — Single instance + startup *(blocked on Phase 3)*
 
