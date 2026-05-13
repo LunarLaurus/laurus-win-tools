@@ -10,6 +10,9 @@ internal static class Program
         if (!SingleInstanceActivation.TryClaim("ProgramHider", dispatchToUi: null, out var activation))
             return;
 
+        using var log = new AppLog("ProgramHider", Application.ProductVersion);
+        UnhandledExceptionWatcher.Install(log, "ProgramHider");
+
         var startupOptions = StartupOptions.Parse(args);
         if (startupOptions.DelaySeconds > 0)
             Thread.Sleep(TimeSpan.FromSeconds(startupOptions.DelaySeconds));
