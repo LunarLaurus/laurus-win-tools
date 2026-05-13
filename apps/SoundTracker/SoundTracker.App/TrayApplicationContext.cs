@@ -119,6 +119,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
             AppLog.Info("tray menu refresh clicked");
             RefreshSessions();
         });
+        var settingsItem = new ToolStripMenuItem("Settings…", null, (_, _) =>
+        {
+            AppLog.Info("tray menu settings clicked");
+            OpenSettings();
+        });
         var exitItem = new ToolStripMenuItem("Exit", null, (_, _) =>
         {
             AppLog.Info("tray menu exit clicked");
@@ -133,6 +138,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(recentActivityItem);
         menu.Items.Add(_runAtStartupItem);
         menu.Items.Add(refreshItem);
+        menu.Items.Add(settingsItem);
 
         _notifyIcon = TrayIcon.ForApp("SoundTracker");
         _notifyIcon.Icon = SystemIcons.Information;
@@ -227,6 +233,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         base.ExitThreadCore();
         AppLog.Info("tray context exited");
+    }
+
+    private void OpenSettings()
+    {
+        var config = SoundTrackerConfig.Load();
+        using var dlg = new SettingsForm(config, _startup);
+        if (dlg.ShowDialog() == DialogResult.OK)
+        {
+            _runAtStartupItem.Checked = _startup.IsRegistered;
+        }
     }
 
     private void HandleRunAtStartupClick(object? sender, EventArgs e)
