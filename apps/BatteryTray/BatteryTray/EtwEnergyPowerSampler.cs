@@ -46,7 +46,7 @@ public sealed class EtwEnergyPowerSampler : IProcessPowerSampler
     private TraceEventSession? _session;
     private volatile ProcessPowerSample[] _latest = Array.Empty<ProcessPowerSample>();
     private volatile bool _hasSampled;
-    private volatile bool _isHealthy;
+    private volatile bool _isHealthy = true;
     private volatile bool _sessionStarted;
     private string _statusMessage = "Initializing…";
     private DateTime _startedAtUtc;
