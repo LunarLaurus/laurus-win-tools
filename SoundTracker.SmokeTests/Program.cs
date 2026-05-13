@@ -207,15 +207,16 @@ internal static class Program
             capture.TooltipText.StartsWith("SoundTracker 0.3.0: ", StringComparison.Ordinal),
             "Tray tooltip should include the current application version.");
         Assert.True(
-            capture.TooltipText.Contains("started", StringComparison.OrdinalIgnoreCase) ||
-            capture.TooltipText.Contains("stopped", StringComparison.OrdinalIgnoreCase) ||
-            capture.TooltipText.Contains("active", StringComparison.OrdinalIgnoreCase),
-            "Tray tooltip should summarize real activity history.");
+            capture.TooltipText.Contains("active", StringComparison.OrdinalIgnoreCase) ||
+            capture.TooltipText.Contains("stopped", StringComparison.OrdinalIgnoreCase),
+            "Tray tooltip should summarize active and/or recent history.");
         Assert.True(
-            capture.StatusText.Contains("started", StringComparison.OrdinalIgnoreCase) ||
-            capture.StatusText.Contains("stopped", StringComparison.OrdinalIgnoreCase) ||
             capture.StatusText.Contains("Active now:", StringComparison.OrdinalIgnoreCase),
-            "Tray status should reflect real activity history.");
+            "Tray active status should reflect current activity.");
+        Assert.True(
+            capture.RecentStatusText.Contains("Recent:", StringComparison.OrdinalIgnoreCase) ||
+            capture.RecentStatusText.Contains("Recent activity", StringComparison.OrdinalIgnoreCase),
+            "Tray recent status should reflect history.");
     }
 
     private static Process StartPlaybackChild(int durationMs)
@@ -396,7 +397,9 @@ internal static class Program
             .ToList();
 
         using var recentActivityForm = new RecentActivityForm();
-        recentActivityForm.RefreshEntries(capturedActivities);
+        recentActivityForm.RefreshEntries(
+            activeSessions: Array.Empty<string>(),
+            activities: capturedActivities);
         recentActivityForm.Show();
         Application.DoEvents();
 
@@ -414,6 +417,7 @@ internal static class Program
             ScreenshotPath: screenshotPath,
             TooltipText: context.CurrentTooltipText,
             StatusText: context.CurrentStatusText,
+            RecentStatusText: context.CurrentRecentStatusText,
             CapturedActivities: capturedActivities,
             RenderedRows: renderedRows);
         return _playbackCapture;
@@ -426,6 +430,7 @@ internal static class Program
         string ScreenshotPath,
         string TooltipText,
         string StatusText,
+        string RecentStatusText,
         IReadOnlyList<AudioActivityEvent> CapturedActivities,
         IReadOnlyList<string> RenderedRows);
 

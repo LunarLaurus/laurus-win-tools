@@ -13,7 +13,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly bool _ownsAudioSessionSource;
     private readonly bool _ownsActivityTimeline;
     private readonly RecentActivityForm _recentActivityForm;
-    private readonly ToolStripMenuItem _statusItem;
+    private readonly ToolStripMenuItem _activeStatusItem;
+    private readonly ToolStripMenuItem _recentStatusItem;
     private readonly NotifyIcon _notifyIcon;
     private readonly Control _uiDispatcher;
 
@@ -58,7 +59,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AppLog.Info($"ui dispatcher handle created=0x{_uiDispatcher.Handle.ToInt64():X}");
 
         var menu = new ContextMenuStrip();
-        _statusItem = new ToolStripMenuItem("Checking audio sessions...")
+        _activeStatusItem = new ToolStripMenuItem("Checking audio sessions...")
+        {
+            Enabled = false,
+        };
+        _recentStatusItem = new ToolStripMenuItem("Checking recent activity...")
         {
             Enabled = false,
         };
@@ -78,7 +83,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             ExitThread();
         });
 
-        menu.Items.Add(_statusItem);
+        menu.Items.Add(_activeStatusItem);
+        menu.Items.Add(_recentStatusItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(recentActivityItem);
         menu.Items.Add(refreshItem);
@@ -112,7 +118,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     internal string CurrentTooltipText => _notifyIcon.Text;
 
-    internal string CurrentStatusText => _statusItem.Text ?? string.Empty;
+    internal string CurrentStatusText => _activeStatusItem.Text ?? string.Empty;
+
+    internal string CurrentRecentStatusText => _recentStatusItem.Text ?? string.Empty;
 
     internal void ShutdownForTests()
     {
@@ -183,15 +191,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
             var sessions = _audioSessionSource.GetActiveSessionNames();
             var recentActivities = _activityTimeline.GetRecentEvents(100);
             _notifyIcon.Text = TooltipFormatter.Build(sessions, recentActivities);
-            _statusItem.Text = TooltipFormatter.BuildMenuLabel(sessions, recentActivities);
-            _recentActivityForm.RefreshEntries(recentActivities);
+            _activeStatusItem.Text = TooltipFormatter.BuildActiveMenuLabel(sessions);
+            _recentStatusItem.Text = TooltipFormatter.BuildRecentMenuLabel(recentActivities);
+            _recentActivityForm.RefreshEntries(sessions, recentActivities);
             AppLog.Info($"refresh sessions success count={sessions.Count} historyCount={recentActivities.Count} tooltip=\"{_notifyIcon.Text}\" elapsedMs={started.ElapsedMilliseconds}");
         }
         catch (Exception ex)
         {
             Debug.WriteLine(ex);
             _notifyIcon.Text = "Sound Tracker: unavailable";
-            _statusItem.Text = "Audio session query failed";
+            _activeStatusItem.Text = "Audio session query failed";
+            _recentStatusItem.Text = "Recent activity unavailable";
             AppLog.Error($"refresh sessions failed elapsedMs={started.ElapsedMilliseconds}", ex);
         }
     }
@@ -199,7 +209,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void ShowRecentActivityWindow()
     {
         AppLog.Info("show recent activity window");
-        _recentActivityForm.RefreshEntries(_activityTimeline.GetRecentEvents(100));
+        var sessions = _audioSessionSource.GetActiveSessionNames();
+        _recentActivityForm.RefreshEntries(sessions, _activityTimeline.GetRecentEvents(100));
         if (!_recentActivityForm.Visible)
         {
             _recentActivityForm.Show();

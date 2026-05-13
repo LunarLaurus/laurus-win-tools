@@ -10,6 +10,7 @@ internal static class TooltipFormatter
         IReadOnlyList<string> activeSessions,
         IReadOnlyList<AudioActivityEvent> recentActivities)
     {
+        var recentSummary = BuildRecentSummary(recentActivities, DateTimeOffset.UtcNow);
         if (activeSessions.Count > 0)
         {
             var summary = string.Join(", ", activeSessions.Take(2));
@@ -18,21 +19,23 @@ internal static class TooltipFormatter
                 summary = $"{summary} +{activeSessions.Count - 2}";
             }
 
-            return Truncate($"{AppMetadata.TooltipPrefix}: active {summary}");
+            if (recentSummary is null)
+            {
+                return Truncate($"{AppMetadata.TooltipPrefix}: active {summary}");
+            }
+
+            return Truncate($"{AppMetadata.TooltipPrefix}: active {summary}; {recentSummary}");
         }
 
-        var latestActivity = GetLatestActivity(recentActivities);
-        if (latestActivity is null)
+        if (recentSummary is null)
         {
             return $"{AppMetadata.TooltipPrefix}: listening";
         }
 
-        return Truncate($"{AppMetadata.TooltipPrefix}: {BuildHistorySummary(latestActivity, DateTimeOffset.UtcNow)}");
+        return Truncate($"{AppMetadata.TooltipPrefix}: {recentSummary}");
     }
 
-    public static string BuildMenuLabel(
-        IReadOnlyList<string> activeSessions,
-        IReadOnlyList<AudioActivityEvent> recentActivities)
+    public static string BuildActiveMenuLabel(IReadOnlyList<string> activeSessions)
     {
         if (activeSessions.Count > 0)
         {
@@ -45,13 +48,18 @@ internal static class TooltipFormatter
             return $"Active now: {summary}";
         }
 
-        var latestActivity = GetLatestActivity(recentActivities);
-        if (latestActivity is null)
+        return "Active now: idle";
+    }
+
+    public static string BuildRecentMenuLabel(IReadOnlyList<AudioActivityEvent> recentActivities)
+    {
+        var recentSummary = BuildRecentSummary(recentActivities, DateTimeOffset.UtcNow);
+        if (recentSummary is null)
         {
             return "Recent activity will appear here";
         }
 
-        return BuildHistorySummary(latestActivity, DateTimeOffset.UtcNow);
+        return $"Recent: {recentSummary}";
     }
 
     public static string BuildHistoryRow(AudioActivityEvent activity)
@@ -119,6 +127,17 @@ internal static class TooltipFormatter
         return recentActivities
             .OrderByDescending(activity => activity.TimestampUtc)
             .FirstOrDefault();
+    }
+
+    private static string? BuildRecentSummary(IReadOnlyList<AudioActivityEvent> recentActivities, DateTimeOffset nowUtc)
+    {
+        var latestActivity = GetLatestActivity(recentActivities);
+        if (latestActivity is null)
+        {
+            return null;
+        }
+
+        return BuildHistorySummary(latestActivity, nowUtc);
     }
 
     private static string BuildHistorySummary(AudioActivityEvent activity, DateTimeOffset nowUtc)

@@ -5,17 +5,65 @@ namespace SoundTracker.App;
 
 internal sealed class RecentActivityForm : Form
 {
+    private readonly ListView _activeListView;
     private readonly ListView _activityListView;
 
     public RecentActivityForm()
     {
         AutoScaleMode = AutoScaleMode.Font;
         BackColor = Color.White;
-        ClientSize = new Size(980, 420);
+        ClientSize = new Size(980, 520);
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-        MinimumSize = new Size(760, 320);
+        MinimumSize = new Size(760, 420);
         StartPosition = FormStartPosition.CenterScreen;
         Text = "SoundTracker Recent Activity";
+
+        var splitContainer = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            FixedPanel = FixedPanel.Panel1,
+            Orientation = Orientation.Horizontal,
+            SplitterDistance = 150,
+        };
+
+        var activePanel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12, 12, 12, 6),
+        };
+        var recentPanel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12, 6, 12, 12),
+        };
+
+        var activeLabel = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            Font = new Font(Font, FontStyle.Bold),
+            Text = "Active Now",
+        };
+        var recentLabel = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            Font = new Font(Font, FontStyle.Bold),
+            Text = "Recent Activity",
+        };
+
+        _activeListView = new ListView
+        {
+            Dock = DockStyle.Fill,
+            FullRowSelect = true,
+            GridLines = true,
+            HideSelection = false,
+            MultiSelect = false,
+            UseCompatibleStateImageBehavior = false,
+            View = View.Details,
+        };
+        _activeListView.Columns.Add("Source", 320);
+        _activeListView.Columns.Add("State", 180);
 
         _activityListView = new ListView
         {
@@ -34,23 +82,57 @@ internal sealed class RecentActivityForm : Form
         _activityListView.Columns.Add("Duration", 90);
         _activityListView.Columns.Add("Device", 220);
 
-        Controls.Add(_activityListView);
+        activePanel.Controls.Add(_activeListView);
+        activePanel.Controls.Add(activeLabel);
+        recentPanel.Controls.Add(_activityListView);
+        recentPanel.Controls.Add(recentLabel);
+        splitContainer.Panel1.Controls.Add(activePanel);
+        splitContainer.Panel2.Controls.Add(recentPanel);
+        Controls.Add(splitContainer);
     }
 
     internal IReadOnlyList<string> SnapshotRows()
     {
-        return _activityListView.Items
+        var activeRows = _activeListView.Items
             .Cast<ListViewItem>()
-            .Select(item => string.Join(" | ", item.SubItems.Cast<ListViewItem.ListViewSubItem>().Select(subItem => subItem.Text)))
-            .ToList();
+            .Select(item => "ACTIVE | " + string.Join(" | ", item.SubItems.Cast<ListViewItem.ListViewSubItem>().Select(subItem => subItem.Text)));
+        var recentRows = _activityListView.Items
+            .Cast<ListViewItem>()
+            .Select(item => "RECENT | " + string.Join(" | ", item.SubItems.Cast<ListViewItem.ListViewSubItem>().Select(subItem => subItem.Text)));
+
+        return activeRows.Concat(recentRows).ToList();
     }
 
-    internal void RefreshEntries(IReadOnlyList<AudioActivityEvent> activities)
+    internal void RefreshEntries(
+        IReadOnlyList<string> activeSessions,
+        IReadOnlyList<AudioActivityEvent> activities)
     {
+        _activeListView.BeginUpdate();
         _activityListView.BeginUpdate();
         try
         {
+            _activeListView.Items.Clear();
             _activityListView.Items.Clear();
+
+            if (activeSessions.Count == 0)
+            {
+                _activeListView.Items.Add(new ListViewItem(new[]
+                {
+                    "No active sessions",
+                    "Idle",
+                }));
+            }
+            else
+            {
+                foreach (var activeSession in activeSessions)
+                {
+                    _activeListView.Items.Add(new ListViewItem(new[]
+                    {
+                        activeSession,
+                        "Playing now",
+                    }));
+                }
+            }
 
             if (activities.Count == 0)
             {
@@ -80,6 +162,7 @@ internal sealed class RecentActivityForm : Form
         }
         finally
         {
+            _activeListView.EndUpdate();
             _activityListView.EndUpdate();
         }
     }
