@@ -105,6 +105,17 @@ public sealed class TrayIcon : IDisposable
     private void Add()
     {
         if (_added) return;
+
+        // Always clear any prior registration for this Guid before adding.
+        // A previous process can leave the shell's GUID-to-HWND mapping
+        // dangling if it died without sending NIM_DELETE (force-kill, crash,
+        // power loss). NIM_ADD on a stale Guid is rejected by the shell and
+        // the icon never appears. NIM_DELETE on a non-existent Guid is a
+        // no-op, so this is always safe to run.
+        var cleanup = BuildBaseData();
+        cleanup.uFlags = TrayNativeMethods.NIF_GUID;
+        TrayNativeMethods.Shell_NotifyIconW(TrayNativeMethods.NIM_DELETE, ref cleanup);
+
         var data = BuildBaseData();
         data.uFlags = TrayNativeMethods.NIF_MESSAGE | TrayNativeMethods.NIF_TIP
                     | TrayNativeMethods.NIF_GUID | TrayNativeMethods.NIF_SHOWTIP;
