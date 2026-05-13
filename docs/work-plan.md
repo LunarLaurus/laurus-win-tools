@@ -1,43 +1,32 @@
 # SoundTracker Work Plan
 
-## Goal
+## Current Product State
 
-Turn SoundTracker from a live-session tooltip into a real historical audio event tracker for Windows 10. The app should answer what produced audio, when it started, when it stopped, and what happened recently even if the user was not watching live.
+SoundTracker is already a historical audio event tracker for Windows 10. The app captures session start and stop activity plus default-device changes, persists recent history to `%LOCALAPPDATA%\SoundTracker\history\audio-activity.jsonl`, and presents both `Active now` and `Recent` state through the tray menu and the Recent Activity window.
 
-## Current State
+The tray shell also tracks endpoint volume and mute state, renders a theme-aware custom tray icon, supports multiline tooltip summaries, opens the Windows mixer on single left click, and opens history on double click.
 
-- Core Audio session and endpoint callbacks are wired and smoke-tested.
-- Tray shell, diagnostics logging, and serialized build/test workflow exist.
-- The app still only presents current active sessions in the tray tooltip/menu.
-- There is no event history model, no persistence, and no recent-activity UI.
+## Current Verification State
 
-## Work Plan
+- `.\build.ps1` serializes builds and smoke runs to avoid app/test overlap.
+- The smoke suite uses real playback, real Core Audio callbacks, real JSONL writes, and real Recent Activity window rendering.
+- Current automated coverage includes lifecycle, endpoint volume, multiline tooltip content, live callback delivery, persisted history reload, and tray summary state.
 
-### 1. Event Model
+## Remaining Work
 
-- Define a durable event record with at least: timestamp, process name, process id when available, session instance id, event type (`started`, `stopped`, `device changed`), and optional duration.
-- Normalize system sounds and duplicate process sessions deliberately instead of letting them collapse accidentally.
+### 1. Tray Replacement Polish
 
-### 2. Event Capture
+- Keep refining tooltip readability within the shell text limit.
+- Improve tray icon clarity across light and dark taskbar themes and different DPI scales.
+- Verify shell interaction edge cases after Explorer restarts or default-device churn.
 
-- Extend `AudioSessionMonitor` so it emits history-worthy start/stop events, not just current-state changes.
-- Track active sessions long enough to compute stop times and durations.
-- Guard against noisy callback storms and duplicate events from the same session.
+### 2. History UX
 
-### 3. Persistence
+- Add stronger filtering or grouping in Recent Activity when many events accumulate.
+- Decide whether retention should stay JSONL-only or move to a richer local store later.
+- Consider exposing last-heard time and duration more prominently in the history view.
 
-- Add an append-friendly store in `%LOCALAPPDATA%\SoundTracker\`.
-- Start with JSONL unless there is a clear reason to jump straight to SQLite.
-- Load recent history on startup and apply a retention policy.
+### 3. Verification Gaps
 
-### 4. Presentation
-
-- Keep the tray tooltip as a compact summary only.
-- Add a proper recent-activity window from the tray menu showing latest events and last-heard times.
-- Make "what played recently" the primary user-visible experience.
-
-### 5. Verification
-
-- Extend smoke coverage for event creation, persistence, reload, and history ordering.
-- Add a real integration probe that validates history entries are written during live playback.
-- Preserve diagnostics logging, but treat it as debugging support rather than the product output.
+- Add automated coverage for dynamic icon rendering invariants where practical.
+- Keep manual checks for true Explorer tray behavior, mixer launch behavior, and disruptive hardware/device-switch scenarios that are not safe to simulate in routine smoke runs.
