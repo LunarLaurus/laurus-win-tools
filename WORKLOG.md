@@ -295,6 +295,36 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-13 16:00
+
+**Did:** Phase 16 — Full repo audit complete.
+- Audited 291 tracked files across 99 commits for prohibited references and secrets
+- Deleted `archive/DriveDredge_v1.13.1/` (27 retired-project files) and `apps/NetProfileSwitcher/docs/superpowers/` (4 obsolete planning docs)
+- Scrubbed remaining references in `WORKLOG.md` and `apps/SoundTracker/docs/dotnet8-migration.md`
+- Rewrote full git history with `git-filter-repo` (4 passes): purged deleted paths + content/message text replacements across all 99 commits
+- Force-pushed rewritten history to origin
+- 201/201 tests pass post-rewrite; all four apps build clean
+
+**Committed:** 582e5ce (HEAD scrub, later rewritten to d249d80)
+
+**Next:** Phase 17 — Publish + tag first release
+
+---
+
+## 2026-05-13 16:30
+
+**Did:** Phase 17 — Public beta preparation.
+- Repository visibility flipped to public on GitHub
+- Public REST API (`api.github.com/repos/LunarLaurus/laurus-win-tools`) reachable without auth — UpdateChecker endpoint confirmed
+- Moved private-tooling exclusion patterns from `.gitignore` (public) to `.git/info/exclude` (local-only, never committed) so public `.gitignore` shows only generic build/IDE/OS patterns
+- Tagging `v1.0.0` to trigger the release workflow
+
+**Committed:** (pending)
+
+**Next:** Verify release workflow output
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -457,10 +487,11 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Delete archived sub-project and obsolete planning docs that contained prohibited references
 - [x] Rewrite git history to purge prohibited references from all prior commits
 
-### Phase 17 — Publish + auto-update wire-up
+### Phase 17 — Publish + auto-update wire-up *(in progress)*
 
-- [ ] Make GitHub repository public
-- [ ] Verify GitHub Actions release workflow fires cleanly on first public tag
-- [ ] Confirm `UpdateChecker` can reach `api.github.com/repos/LunarLaurus/laurus-win-tools` without auth (public API)
+- [x] Make GitHub repository public
+- [x] Confirm `UpdateChecker` can reach `api.github.com/repos/LunarLaurus/laurus-win-tools` without auth (public API)
+- [x] Move private-tooling exclusion patterns to `.git/info/exclude` so public `.gitignore` is clean
 - [ ] Tag and push `v1.0.0` to trigger first public release
+- [ ] Verify GitHub Actions release workflow fires cleanly on first public tag
 - [ ] Verify all four app zips appear in GitHub Release
