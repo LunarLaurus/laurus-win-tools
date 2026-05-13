@@ -162,6 +162,20 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 ---
 
+## 2026-05-13
+
+**Did:** Phase 8 — Threading cleanup complete.
+- SoundTracker: replaced `private readonly Control _uiDispatcher` + forced-HWND pattern with `UiDispatcher _ui`; added `_shuttingDown` bool flag to guard against post-dispose dispatch; updated all `BeginInvoke`/`InvokeRequired`/`IsDisposed` call sites; removed debug log line for HWND
+- BatteryTray: added `UiDispatcher _ui`; replaced `ContextMenuStrip.BeginInvoke` in the `BatterySaverController` callback and `ActivationRequested` handler with `_ui.Post`; added `_ui.Dispose()` in `Dispose(bool)`; added `WindowsTrayCore` project reference
+- ProgramHider: replaced `private readonly SynchronizationContext _uiContext` with `UiDispatcher _ui`; replaced all four `_uiContext.Post` calls (activation, pending-startup-hide, minimize-event, foreground-event) with `_ui.Post` closures; removed `MinimizeEventPayload` and `ForegroundEventPayload` payload structs that existed solely to avoid `this` capture; added `WindowsTrayCore` project reference
+- NetProfileSwitcher: added `UiDispatcher _ui` and `CancellationTokenSource _applyCts`; replaced `BeginInvoke`/`InvokeRequired` pattern with `_ui.Post`; added `_applyCts.Token` to all three `Task.Run(NetCommands.Apply)` calls with `OperationCanceledException` handling; cleanup in `OnFormClosed`
+
+**Committed:** 22ffcc5 (SoundTracker), 9ffe4bf (BatteryTray), f3e0a6f (ProgramHider), 602cbab (NPS)
+
+**Next:** Phase 9 — `WindowsAppTesting` + test normalisation
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -248,11 +262,11 @@ Write under `docs\conventions\` before any code extraction:
 - [ ] Per-app `ITrayIconProvider` implementations and GDI management wiring — deferred to later phase
 - [ ] Commit per app
 
-### Phase 8 — Threading cleanup *(blocked on Phase 7)*
+### Phase 8 — Threading cleanup *(complete)*
 
-- [ ] Replace ad-hoc dispatch with `UiDispatcher` across all apps
-- [ ] Add `CancellationToken` propagation to all background workers
-- [ ] Commit
+- [x] Replace ad-hoc dispatch with `UiDispatcher` across all apps
+- [x] Add `CancellationToken` propagation to background apply workers (NPS)
+- [x] Commit
 
 ### Phase 9 — `WindowsAppTesting` + test normalisation *(blocked on Phase 8)*
 
