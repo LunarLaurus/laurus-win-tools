@@ -1,0 +1,329 @@
+using System.Diagnostics;
+using System.Drawing;
+using Microsoft.Win32;
+using SoundTracker.App.Audio;
+using SoundTracker.App.Diagnostics;
+using SoundTracker.App.History;
+
+namespace SoundTracker.App;
+
+internal sealed class TrayApplicationContext : ApplicationContext
+{
+    private readonly IAudioSessionSource _audioSessionSource;
+    private readonly AudioActivityTimeline _activityTimeline;
+    private readonly bool _ownsAudioSessionSource;
+    private readonly bool _ownsActivityTimeline;
+    private readonly RecentActivityForm _recentActivityForm;
+    private readonly ToolStripMenuItem _volumeStatusItem;
+    private readonly ToolStripMenuItem _activeStatusItem;
+    private readonly ToolStripMenuItem _recentStatusItem;
+    private readonly NotifyIcon _notifyIcon;
+    private readonly Control _uiDispatcher;
+    private readonly System.Windows.Forms.Timer _leftClickTimer;
+    private Icon? _currentTrayIcon;
+
+    public TrayApplicationContext()
+        : this(
+            new AudioSessionMonitor(),
+            activityTimeline: null,
+            ownsAudioSessionSource: true,
+            ownsActivityTimeline: true,
+            showNotifyIcon: true)
+    {
+    }
+
+    internal TrayApplicationContext(
+        IAudioSessionSource audioSessionSource,
+        bool ownsAudioSessionSource,
+        bool showNotifyIcon)
+        : this(
+            audioSessionSource,
+            activityTimeline: null,
+            ownsAudioSessionSource,
+            ownsActivityTimeline: true,
+            showNotifyIcon)
+    {
+    }
+
+    internal TrayApplicationContext(
+        IAudioSessionSource audioSessionSource,
+        AudioActivityTimeline? activityTimeline,
+        bool ownsAudioSessionSource,
+        bool ownsActivityTimeline,
+        bool showNotifyIcon)
+    {
+        AppLog.Info($"tray context initializing ownsAudioSessionSource={ownsAudioSessionSource} showNotifyIcon={showNotifyIcon}");
+        _audioSessionSource = audioSessionSource;
+        _activityTimeline = activityTimeline ?? new AudioActivityTimeline(_audioSessionSource);
+        _ownsAudioSessionSource = ownsAudioSessionSource;
+        _ownsActivityTimeline = ownsActivityTimeline;
+        _uiDispatcher = new Control();
+        _ = _uiDispatcher.Handle;
+        _recentActivityForm = new RecentActivityForm();
+        _leftClickTimer = new System.Windows.Forms.Timer
+        {
+            Interval = Math.Max(200, SystemInformation.DoubleClickTime),
+        };
+        _leftClickTimer.Tick += HandleLeftClickTimerTick;
+        AppLog.Info($"ui dispatcher handle created=0x{_uiDispatcher.Handle.ToInt64():X}");
+
+        var menu = new ContextMenuStrip();
+        _volumeStatusItem = new ToolStripMenuItem("Checking volume...")
+        {
+            Enabled = false,
+        };
+        _activeStatusItem = new ToolStripMenuItem("Checking audio sessions...")
+        {
+            Enabled = false,
+        };
+        _recentStatusItem = new ToolStripMenuItem("Checking recent activity...")
+        {
+            Enabled = false,
+        };
+        var recentActivityItem = new ToolStripMenuItem("Recent Activity", null, (_, _) =>
+        {
+            AppLog.Info("tray menu recent activity clicked");
+            ShowRecentActivityWindow();
+        });
+        var volumeMixerItem = new ToolStripMenuItem("Open Volume Mixer", null, (_, _) =>
+        {
+            AppLog.Info("tray menu open volume mixer clicked");
+            OpenVolumeMixer();
+        });
+        var refreshItem = new ToolStripMenuItem("Refresh", null, (_, _) =>
+        {
+            AppLog.Info("tray menu refresh clicked");
+            RefreshSessions();
+        });
+        var exitItem = new ToolStripMenuItem("Exit", null, (_, _) =>
+        {
+            AppLog.Info("tray menu exit clicked");
+            ExitThread();
+        });
+
+        menu.Items.Add(_volumeStatusItem);
+        menu.Items.Add(_activeStatusItem);
+        menu.Items.Add(_recentStatusItem);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(volumeMixerItem);
+        menu.Items.Add(recentActivityItem);
+        menu.Items.Add(refreshItem);
+        menu.Items.Add(exitItem);
+
+        _notifyIcon = new NotifyIcon
+        {
+            ContextMenuStrip = menu,
+            Icon = SystemIcons.Information,
+            Text = $"{AppMetadata.TooltipPrefix}: starting",
+            Visible = showNotifyIcon,
+        };
+        _currentTrayIcon = (Icon)SystemIcons.Information.Clone();
+        _notifyIcon.MouseClick += HandleNotifyIconMouseClick;
+        _notifyIcon.MouseDoubleClick += HandleNotifyIconMouseDoubleClick;
+        _notifyIcon.DoubleClick += (_, _) =>
+        {
+            AppLog.Info("tray icon double click handler entered");
+            _leftClickTimer.Stop();
+            ShowRecentActivityWindow();
+        };
+        AppLog.Info("notify icon created");
+
+        _audioSessionSource.SessionsChanged += HandleSessionsChanged;
+        _audioSessionSource.VolumeStateChanged += HandleVolumeStateChanged;
+        _activityTimeline.HistoryChanged += HandleHistoryChanged;
+        SystemEvents.UserPreferenceChanged += HandleUserPreferenceChanged;
+        AppLog.Info("audio session source subscribed");
+
+        RefreshSessions();
+        AppLog.Info("tray context initialized");
+    }
+
+    internal string CurrentTooltipText => _notifyIcon.Text;
+
+    internal string CurrentVolumeStatusText => _volumeStatusItem.Text ?? string.Empty;
+
+    internal string CurrentStatusText => _activeStatusItem.Text ?? string.Empty;
+
+    internal string CurrentRecentStatusText => _recentStatusItem.Text ?? string.Empty;
+
+    internal void ShutdownForTests()
+    {
+        ExitThreadCore();
+    }
+
+    protected override void ExitThreadCore()
+    {
+        AppLog.Info("tray context exiting");
+        _audioSessionSource.SessionsChanged -= HandleSessionsChanged;
+        _audioSessionSource.VolumeStateChanged -= HandleVolumeStateChanged;
+        _activityTimeline.HistoryChanged -= HandleHistoryChanged;
+        SystemEvents.UserPreferenceChanged -= HandleUserPreferenceChanged;
+        _leftClickTimer.Stop();
+        _leftClickTimer.Dispose();
+        if (_ownsActivityTimeline)
+        {
+            _activityTimeline.Dispose();
+        }
+        if (_ownsAudioSessionSource)
+        {
+            AppLog.Info("disposing owned audio session source");
+            _audioSessionSource.Dispose();
+        }
+
+        _recentActivityForm.Close();
+        _recentActivityForm.Dispose();
+        _uiDispatcher.Dispose();
+
+        _notifyIcon.Visible = false;
+        _notifyIcon.Dispose();
+        _currentTrayIcon?.Dispose();
+        _currentTrayIcon = null;
+
+        base.ExitThreadCore();
+        AppLog.Info("tray context exited");
+    }
+
+    private void HandleSessionsChanged(object? sender, EventArgs e)
+    {
+        AppLog.Info($"sessions changed callback invokeRequired={_uiDispatcher.InvokeRequired} disposed={_uiDispatcher.IsDisposed}");
+        BeginRefreshOnUiThread();
+    }
+
+    private void HandleHistoryChanged(object? sender, EventArgs e)
+    {
+        AppLog.Info($"history changed callback invokeRequired={_uiDispatcher.InvokeRequired} disposed={_uiDispatcher.IsDisposed}");
+        BeginRefreshOnUiThread();
+    }
+
+    private void HandleVolumeStateChanged(object? sender, EventArgs e)
+    {
+        AppLog.Info($"volume changed callback invokeRequired={_uiDispatcher.InvokeRequired} disposed={_uiDispatcher.IsDisposed}");
+        BeginRefreshOnUiThread();
+    }
+
+    private void HandleNotifyIconMouseClick(object? sender, MouseEventArgs args)
+    {
+        AppLog.Info($"tray icon mouse click button={args.Button} x={args.X} y={args.Y}");
+        if (args.Button != MouseButtons.Left)
+        {
+            return;
+        }
+
+        _leftClickTimer.Stop();
+        _leftClickTimer.Start();
+    }
+
+    private void HandleNotifyIconMouseDoubleClick(object? sender, MouseEventArgs args)
+    {
+        AppLog.Info($"tray icon mouse double click button={args.Button} x={args.X} y={args.Y}");
+        if (args.Button != MouseButtons.Left)
+        {
+            return;
+        }
+
+        _leftClickTimer.Stop();
+    }
+
+    private void HandleLeftClickTimerTick(object? sender, EventArgs e)
+    {
+        _leftClickTimer.Stop();
+        AppLog.Info("tray icon single left click resolved to volume mixer");
+        OpenVolumeMixer();
+    }
+
+    private void HandleUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
+    {
+        AppLog.Info($"user preference changed category={e.Category}");
+        BeginRefreshOnUiThread();
+    }
+
+    private void BeginRefreshOnUiThread()
+    {
+        if (_uiDispatcher.IsDisposed)
+        {
+            return;
+        }
+
+        if (_uiDispatcher.InvokeRequired)
+        {
+            AppLog.Info("dispatching refresh to ui thread");
+            _uiDispatcher.BeginInvoke(RefreshSessions);
+            return;
+        }
+
+        RefreshSessions();
+    }
+
+    private void RefreshSessions()
+    {
+        var started = Stopwatch.StartNew();
+        try
+        {
+            AppLog.Info("refresh sessions start");
+            var volumeSnapshot = _audioSessionSource.GetEndpointVolume();
+            var sessions = _audioSessionSource.GetActiveSessionNames();
+            var recentActivities = _activityTimeline.GetRecentEvents(100);
+            UpdateTrayIcon(volumeSnapshot);
+            _notifyIcon.Text = TooltipFormatter.BuildMultiline(volumeSnapshot, sessions, recentActivities);
+            _volumeStatusItem.Text = TooltipFormatter.BuildVolumeMenuLabel(volumeSnapshot);
+            _activeStatusItem.Text = TooltipFormatter.BuildActiveMenuLabel(sessions);
+            _recentStatusItem.Text = TooltipFormatter.BuildRecentMenuLabel(recentActivities);
+            _recentActivityForm.RefreshEntries(sessions, recentActivities);
+            AppLog.Info($"refresh sessions success volume={volumeSnapshot.Percent} muted={volumeSnapshot.IsMuted} count={sessions.Count} historyCount={recentActivities.Count} tooltip=\"{_notifyIcon.Text}\" elapsedMs={started.ElapsedMilliseconds}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+            _notifyIcon.Text = "Sound Tracker: unavailable";
+            _volumeStatusItem.Text = "Volume: unavailable";
+            _activeStatusItem.Text = "Audio session query failed";
+            _recentStatusItem.Text = "Recent activity unavailable";
+            AppLog.Error($"refresh sessions failed elapsedMs={started.ElapsedMilliseconds}", ex);
+        }
+    }
+
+    private void ShowRecentActivityWindow()
+    {
+        AppLog.Info("show recent activity window");
+        var sessions = _audioSessionSource.GetActiveSessionNames();
+        _recentActivityForm.RefreshEntries(sessions, _activityTimeline.GetRecentEvents(100));
+        if (!_recentActivityForm.Visible)
+        {
+            _recentActivityForm.Show();
+        }
+
+        if (_recentActivityForm.WindowState == FormWindowState.Minimized)
+        {
+            _recentActivityForm.WindowState = FormWindowState.Normal;
+        }
+
+        _recentActivityForm.BringToFront();
+        _recentActivityForm.Activate();
+    }
+
+    private static void OpenVolumeMixer()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "sndvol.exe",
+                UseShellExecute = true,
+            });
+            AppLog.Info("volume mixer launch requested");
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("failed to launch volume mixer", ex);
+        }
+    }
+
+    private void UpdateTrayIcon(EndpointVolumeSnapshot volumeSnapshot)
+    {
+        var nextIcon = TrayIconRenderer.Render(volumeSnapshot, AppTheme.IsLightTaskbarTheme());
+        var previousIcon = _currentTrayIcon;
+        _currentTrayIcon = nextIcon;
+        _notifyIcon.Icon = nextIcon;
+        previousIcon?.Dispose();
+    }
+}

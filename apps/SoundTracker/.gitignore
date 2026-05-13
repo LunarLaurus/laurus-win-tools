@@ -1,0 +1,6 @@
+/target
+/venv/
+/.vs/
+**/bin/
+**/obj/
+*.user
