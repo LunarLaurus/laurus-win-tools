@@ -373,9 +373,27 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 - Phase 22 (`0767ed5`): Per-app icon providers for BatteryTray and SoundTracker via TrayIconManager (migrated from NotifyIcon to TrayIcon); deleted unused TrayShell/BalloonNotifier/ToastNotifier/IUserNotifier infrastructure
 - Phase 23 (this commit): Keyboard mnemonics on Save / Cancel / Close / Save Rule across all dialogs
 
-**Committed:** ee6c992, ec15f63, bc98675, 0767ed5, (Phase 23 hash on push)
+**Committed:** ee6c992, ec15f63, bc98675, 0767ed5, 8a2761a
 
-**Next:** Open development — gather feedback on Polish + UX work
+**Next:** v1.1.0 tagged and released
+
+---
+
+## 2026-05-13 20:30
+
+**Did:** Phase 24 — GDI+ icon handling consolidation.
+- `WindowsTrayCore.IconBuilder.FromBitmap`: correct Bitmap → owning-Icon conversion (Clone + DestroyIcon dance baked in); plain `Icon.Dispose()` now safe across the codebase
+- `WindowsTrayCore.TrayIconMetrics`: DPI-aware `DisplayedSize()` and `RecommendedRenderSize()` (2× displayed for crisp downscale)
+- BatteryTray.IconRenderer migrated to IconBuilder; deleted orphan `Free` helper; uses RecommendedRenderSize. **Fixes the GDI handle leak I introduced in Phase 22** — every battery refresh was leaking an HICON because TrayIconManager called `Icon.Dispose()` but `IconRenderer.Create` returned a non-owning Icon.
+- SoundTracker.TrayIconRenderer migrated; ScaleTransform preserves the original 32-unit design space at any render size
+- NetProfileSwitcher.Icons.BuildTrayIcon was rendering at 16×16 — Windows scaled that blurry on high-DPI displays. Now renders at RecommendedRenderSize with proportional scaling.
+- 7 new tests including a 200-iteration GDI-leak guard
+- Smoke-test screenshot of the tray confirms BatteryTray + NPS render visibly cleaner
+
+**Committed:** 6547c26
+**Note:** v1.1.0 release ships with the Phase 22 leak. Tagging v1.1.1 for the fix.
+
+**Next:** Tag v1.1.1
 
 ---
 
@@ -649,3 +667,13 @@ ProgramHider already had a 703-line SettingsForm with tabs for General, Rules, S
 - [x] `AcceptButton` / `CancelButton` wired on every dialog (existing pattern; verified intact post-mnemonic edit)
 - [x] High-DPI: every app already declares PerMonitorV2 awareness via `app.manifest` (Phase 0 baseline)
 - [x] Commit
+
+### Phase 24 — GDI+ icon handling consolidation *(complete)*
+
+- [x] `WindowsTrayCore.IconBuilder.FromBitmap`: handle-safe Bitmap → Icon conversion (closes leak; replaces three copy-pasted GDI dances)
+- [x] `WindowsTrayCore.TrayIconMetrics`: DPI-aware DisplayedSize / RecommendedRenderSize
+- [x] BatteryTray.IconRenderer migrated; Free helper removed; **Phase 22 GDI leak fixed**
+- [x] SoundTracker.TrayIconRenderer migrated; renders at RecommendedRenderSize via ScaleTransform
+- [x] NetProfileSwitcher.Icons.BuildTrayIcon upgraded from 16px to DPI-aware size — no more blur on high-DPI displays
+- [x] Tests: IconBuilder roundtrip, null-arg, 200-iteration leak guard; TrayIconMetrics range and 2× ratio
+- [x] Smoke-test: tray screenshot post-install confirms visible improvement on the 720p 11" reference machine
