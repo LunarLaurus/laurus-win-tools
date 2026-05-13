@@ -11,6 +11,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly IAudioSessionSource _audioSessionSource;
     private readonly AudioActivityTimeline _activityTimeline;
     private readonly bool _ownsAudioSessionSource;
+    private readonly RecentActivityForm _recentActivityForm;
     private readonly ToolStripMenuItem _statusItem;
     private readonly NotifyIcon _notifyIcon;
     private readonly Control _uiDispatcher;
@@ -31,6 +32,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _ownsAudioSessionSource = ownsAudioSessionSource;
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
+        _recentActivityForm = new RecentActivityForm();
         AppLog.Info($"ui dispatcher handle created=0x{_uiDispatcher.Handle.ToInt64():X}");
 
         var menu = new ContextMenuStrip();
@@ -38,6 +40,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             Enabled = false,
         };
+        var recentActivityItem = new ToolStripMenuItem("Recent Activity", null, (_, _) =>
+        {
+            AppLog.Info("tray menu recent activity clicked");
+            ShowRecentActivityWindow();
+        });
         var refreshItem = new ToolStripMenuItem("Refresh", null, (_, _) =>
         {
             AppLog.Info("tray menu refresh clicked");
@@ -51,6 +58,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(recentActivityItem);
         menu.Items.Add(refreshItem);
         menu.Items.Add(exitItem);
 
@@ -68,11 +76,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _notifyIcon.DoubleClick += (_, _) =>
         {
             AppLog.Info("tray icon double click handler entered");
-            RefreshSessions();
+            ShowRecentActivityWindow();
         };
         AppLog.Info("notify icon created");
 
         _audioSessionSource.SessionsChanged += HandleSessionsChanged;
+        _activityTimeline.HistoryChanged += HandleHistoryChanged;
         AppLog.Info("audio session source subscribed");
 
         RefreshSessions();
@@ -92,6 +101,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         AppLog.Info("tray context exiting");
         _audioSessionSource.SessionsChanged -= HandleSessionsChanged;
+        _activityTimeline.HistoryChanged -= HandleHistoryChanged;
         _activityTimeline.Dispose();
         if (_ownsAudioSessionSource)
         {
@@ -99,6 +109,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _audioSessionSource.Dispose();
         }
 
+        _recentActivityForm.Close();
+        _recentActivityForm.Dispose();
         _uiDispatcher.Dispose();
 
         _notifyIcon.Visible = false;
@@ -111,6 +123,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void HandleSessionsChanged(object? sender, EventArgs e)
     {
         AppLog.Info($"sessions changed callback invokeRequired={_uiDispatcher.InvokeRequired} disposed={_uiDispatcher.IsDisposed}");
+        BeginRefreshOnUiThread();
+    }
+
+    private void HandleHistoryChanged(object? sender, EventArgs e)
+    {
+        AppLog.Info($"history changed callback invokeRequired={_uiDispatcher.InvokeRequired} disposed={_uiDispatcher.IsDisposed}");
+        BeginRefreshOnUiThread();
+    }
+
+    private void BeginRefreshOnUiThread()
+    {
         if (_uiDispatcher.IsDisposed)
         {
             return;
@@ -133,9 +156,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             AppLog.Info("refresh sessions start");
             var sessions = _audioSessionSource.GetActiveSessionNames();
-            _notifyIcon.Text = TooltipFormatter.Build(sessions);
-            _statusItem.Text = TooltipFormatter.BuildMenuLabel(sessions);
-            AppLog.Info($"refresh sessions success count={sessions.Count} tooltip=\"{_notifyIcon.Text}\" elapsedMs={started.ElapsedMilliseconds}");
+            var recentActivities = _activityTimeline.GetRecentEvents(100);
+            _notifyIcon.Text = TooltipFormatter.Build(sessions, recentActivities);
+            _statusItem.Text = TooltipFormatter.BuildMenuLabel(sessions, recentActivities);
+            _recentActivityForm.RefreshEntries(recentActivities);
+            AppLog.Info($"refresh sessions success count={sessions.Count} historyCount={recentActivities.Count} tooltip=\"{_notifyIcon.Text}\" elapsedMs={started.ElapsedMilliseconds}");
         }
         catch (Exception ex)
         {
@@ -144,5 +169,23 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _statusItem.Text = "Audio session query failed";
             AppLog.Error($"refresh sessions failed elapsedMs={started.ElapsedMilliseconds}", ex);
         }
+    }
+
+    private void ShowRecentActivityWindow()
+    {
+        AppLog.Info("show recent activity window");
+        _recentActivityForm.RefreshEntries(_activityTimeline.GetRecentEvents(100));
+        if (!_recentActivityForm.Visible)
+        {
+            _recentActivityForm.Show();
+        }
+
+        if (_recentActivityForm.WindowState == FormWindowState.Minimized)
+        {
+            _recentActivityForm.WindowState = FormWindowState.Normal;
+        }
+
+        _recentActivityForm.BringToFront();
+        _recentActivityForm.Activate();
     }
 }

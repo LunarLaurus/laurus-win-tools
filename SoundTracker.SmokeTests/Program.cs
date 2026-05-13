@@ -113,8 +113,8 @@ internal static class Program
 
     private static void TooltipFormatter_IdleState()
     {
-        Assert.Equal("SoundTracker 0.2.2: idle", TooltipFormatter.Build(Array.Empty<string>()));
-        Assert.Equal("No active audio sessions", TooltipFormatter.BuildMenuLabel(Array.Empty<string>()));
+        Assert.Equal("SoundTracker 0.2.2: listening", TooltipFormatter.Build(Array.Empty<string>(), Array.Empty<AudioActivityEvent>()));
+        Assert.Equal("Recent activity will appear here", TooltipFormatter.BuildMenuLabel(Array.Empty<string>(), Array.Empty<AudioActivityEvent>()));
     }
 
     private static void TooltipFormatter_SummaryAndTruncation()
@@ -127,19 +127,19 @@ internal static class Program
             "extremely-long-process-name-four.exe",
         };
 
-        var tooltip = TooltipFormatter.Build(sessions);
+        var tooltip = TooltipFormatter.Build(sessions, Array.Empty<AudioActivityEvent>());
         Assert.True(tooltip.StartsWith("SoundTracker 0.2.2: "), "Tooltip should include the application version.");
         Assert.True(tooltip.Length <= 63, "Tooltip must fit NotifyIcon text limits.");
-        Assert.True(tooltip.EndsWith("...") || tooltip.Contains("+1"), "Tooltip should summarize overflow.");
+        Assert.True(tooltip.Contains("active "), "Tooltip should summarize active sessions.");
     }
 
     private static void TooltipFormatter_MenuLabelOverflow()
     {
         var sessions = Enumerable.Range(1, 10).Select(i => $"app{i}.exe").ToArray();
-        var label = TooltipFormatter.BuildMenuLabel(sessions);
+        var label = TooltipFormatter.BuildMenuLabel(sessions, Array.Empty<AudioActivityEvent>());
 
-        Assert.True(label.Contains("app1.exe"), "Menu label should include leading sessions.");
-        Assert.True(label.Contains("+2 more"), "Menu label should summarize overflow items.");
+        Assert.True(label.Contains("Active now:"), "Menu label should describe active sessions.");
+        Assert.True(label.Contains("+5 more"), "Menu label should summarize overflow items.");
     }
 
     private static void ProcessNameResolver_CurrentProcess()
@@ -191,8 +191,8 @@ internal static class Program
         using var source = new FakeAudioSessionSource("vlc.exe", "spotify.exe");
         using var context = new TrayApplicationContext(source, ownsAudioSessionSource: false, showNotifyIcon: false);
 
-        Assert.Equal("SoundTracker 0.2.2: vlc.exe, spotify.exe", context.CurrentTooltipText);
-        Assert.Equal("vlc.exe, spotify.exe", context.CurrentStatusText);
+        Assert.Equal("SoundTracker 0.2.2: active vlc.exe, spotify.exe", context.CurrentTooltipText);
+        Assert.Equal("Active now: vlc.exe, spotify.exe", context.CurrentStatusText);
     }
 
     private static void TrayApplicationContext_EventDrivenRefresh()
@@ -203,8 +203,8 @@ internal static class Program
         source.SetSessions("spotify.exe", "vlc.exe", "zebra.exe", "chrome.exe");
         source.RaiseChanged();
 
-        Assert.Equal("SoundTracker 0.2.2: spotify.exe, vlc.exe, zebra.exe +1", context.CurrentTooltipText);
-        Assert.Equal("spotify.exe, vlc.exe, zebra.exe, chrome.exe", context.CurrentStatusText);
+        Assert.Equal("SoundTracker 0.2.2: active spotify.exe, vlc.exe +2", context.CurrentTooltipText);
+        Assert.Equal("Active now: spotify.exe, vlc.exe, zebra.exe, chrome.exe", context.CurrentStatusText);
     }
 
     private static void TrayApplicationContext_ErrorFallback()
