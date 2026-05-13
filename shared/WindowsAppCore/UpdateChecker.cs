@@ -13,11 +13,24 @@ public sealed class UpdateChecker
     {
         _httpClient = httpClient;
         // If the running version isn't parseable (local dev without stamping), skip checks entirely.
-        _currentVersion = Version.TryParse(currentVersion, out var v) ? v : null;
+        _currentVersion = ParseSemver(currentVersion);
         _endpoint = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases/latest";
 
         if (!_httpClient.DefaultRequestHeaders.UserAgent.Any())
             _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd($"{repoName}/updater");
+    }
+
+    // SemVer 2.0.0 strings (e.g. "1.0.0+abc123", "1.0.0-beta.1") aren't accepted by
+    // System.Version.TryParse. Strip the prerelease / build-metadata suffix so the
+    // numeric core can parse cleanly. The GitVersion-stamped AssemblyInformationalVersion
+    // always carries a +sha build-metadata suffix in CI releases.
+    internal static Version? ParseSemver(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s))
+            return null;
+
+        var core = s.Split('+', '-')[0];
+        return Version.TryParse(core, out var v) ? v : null;
     }
 
     public async Task<UpdateCheckResult> CheckAsync(CancellationToken ct = default)
@@ -36,7 +49,8 @@ public sealed class UpdateChecker
                 return UpdateCheckResult.NoUpdate;
 
             var versionStr = rawTag.TrimStart('v');
-            if (!Version.TryParse(versionStr, out var latest))
+            var latest = ParseSemver(versionStr);
+            if (latest is null)
                 return UpdateCheckResult.NoUpdate;
 
             return latest > _currentVersion
