@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Windows.Forms;
 using WindowsAppCore;
+using WindowsTrayCore;
 
 namespace ProgramHider;
 
@@ -19,7 +20,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private readonly ToolStripMenuItem _hideWindowMenu;
     private readonly HotkeyMessageWindow _messageWindow;
     private readonly JsonSettingsStore<AppSettings> _settingsStore;
-    private readonly SynchronizationContext _uiContext;
+    private readonly UiDispatcher _ui;
     private readonly NativeMethods.WinEventProc _minimizeEventCallback;
     private readonly NativeMethods.WinEventProc _foregroundEventCallback;
     private readonly nint _minimizeEventHook;
@@ -60,7 +61,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _isElevated = ElevationService.IsCurrentProcessElevated();
         _safeModeEnabled = startupOptions.SafeMode;
 
-        _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
+        _ui = new UiDispatcher();
         _appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
 
         _menu = new ContextMenuStrip();
@@ -78,7 +79,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _notifyIcon.MouseClick += OnNotifyIconMouseClick;
 
         _activation.ActivationRequested += (_, _) =>
-            _uiContext.Post(_ => ShowStatusBalloon("Program Hider", "Program Hider is already running."), null);
+            _ui.Post(() => ShowStatusBalloon("Program Hider", "Program Hider is already running."));
 
         _messageWindow = new HotkeyMessageWindow(OnHotkeyPressed);
         RegisterConfiguredHotkey();
@@ -133,11 +134,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         }
 
         if (_startupOptions.PendingHideHandle != 0)
-        {
-            _uiContext.Post(
-                static state => ((ProgramHiderContext)state!).TryHidePendingStartupWindow(),
-                this);
-        }
+            _ui.Post(TryHidePendingStartupWindow);
     }
 
     protected override void ExitThreadCore()
@@ -765,13 +762,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
-        _uiContext.Post(
-            static state =>
-            {
-                var payload = (MinimizeEventPayload)state!;
-                payload.Context.TryAutoHideMinimizedWindow(payload.Handle);
-            },
-            new MinimizeEventPayload(this, handle));
+        _ui.Post(() => TryAutoHideMinimizedWindow(handle));
     }
 
     private void OnForegroundWindowEvent(
@@ -791,13 +782,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
             return;
         }
 
-        _uiContext.Post(
-            static state =>
-            {
-                var payload = (ForegroundEventPayload)state!;
-                payload.Context.TrackForegroundWindow(payload.Handle);
-            },
-            new ForegroundEventPayload(this, handle));
+        _ui.Post(() => TrackForegroundWindow(handle));
     }
 
     private void TryAutoHideMinimizedWindow(nint handle)
@@ -919,6 +904,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _notifyIcon.Dispose();
         _menu.Dispose();
         _appIcon.Dispose();
+        _ui.Dispose();
     }
 
     private void ShowStatusBalloon(string title, string message)
@@ -1112,6 +1098,4 @@ internal sealed class ProgramHiderContext : ApplicationContext
     }
 
     private readonly record struct WindowSnapshot(nint Handle, string MenuLabel, string ProcessName);
-    private readonly record struct MinimizeEventPayload(ProgramHiderContext Context, nint Handle);
-    private readonly record struct ForegroundEventPayload(ProgramHiderContext Context, nint Handle);
 }
