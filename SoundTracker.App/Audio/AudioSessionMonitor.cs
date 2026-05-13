@@ -128,7 +128,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
                 if (!_disposed)
                 {
                     AppLog.Info("audio monitor attaching to default render endpoint");
-                    AttachToDefaultRenderEndpointLocked();
+                    TryAttachToDefaultRenderEndpointLocked(allowMissingDefaultEndpoint: true);
                 }
             }
 
@@ -173,19 +173,26 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         }
     }
 
-    private void AttachToDefaultRenderEndpointLocked()
+    private bool TryAttachToDefaultRenderEndpointLocked(bool allowMissingDefaultEndpoint)
     {
-        _deviceEnumerator = CreateDeviceEnumerator();
-        Marshal.ThrowExceptionForHR(
-            _deviceEnumerator.RegisterEndpointNotificationCallback(_endpointNotificationClient));
-        _endpointNotificationsRegistered = true;
+        EnsureDeviceEnumeratorLocked();
 
-        Marshal.ThrowExceptionForHR(
-            _deviceEnumerator.GetDefaultAudioEndpoint(EDataFlow.Render, ERole.Console, out _defaultDevice));
+        try
+        {
+            Marshal.ThrowExceptionForHR(
+                _deviceEnumerator!.GetDefaultAudioEndpoint(EDataFlow.Render, ERole.Console, out _defaultDevice));
+        }
+        catch (COMException ex) when (allowMissingDefaultEndpoint && ex.HResult == unchecked((int)0x80070490))
+        {
+            TryReleaseComObject(_defaultDevice);
+            _defaultDevice = null;
+            AppLog.Warn("audio monitor could not find a default render endpoint; waiting for the next endpoint callback");
+            return false;
+        }
 
         var sessionManagerGuid = typeof(IAudioSessionManager2).GUID;
         Marshal.ThrowExceptionForHR(
-            _defaultDevice.Activate(ref sessionManagerGuid, CLSCTX.InProcServer, IntPtr.Zero, out var managerObject));
+            _defaultDevice!.Activate(ref sessionManagerGuid, CLSCTX.InProcServer, IntPtr.Zero, out var managerObject));
         _sessionManager = (IAudioSessionManager2)managerObject;
 
         Marshal.ThrowExceptionForHR(_sessionManager.RegisterSessionNotification(_sessionNotificationSink));
@@ -193,6 +200,20 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
         AppLog.Info("audio monitor registered endpoint and session notifications");
         EnumerateAndTrackSessionsLocked(SessionDiscoveryKind.StartupSnapshot, []);
+        return true;
+    }
+
+    private void EnsureDeviceEnumeratorLocked()
+    {
+        if (_deviceEnumerator is not null)
+        {
+            return;
+        }
+
+        _deviceEnumerator = CreateDeviceEnumerator();
+        Marshal.ThrowExceptionForHR(
+            _deviceEnumerator.RegisterEndpointNotificationCallback(_endpointNotificationClient));
+        _endpointNotificationsRegistered = true;
     }
 
     private void EnumerateAndTrackSessionsLocked(
@@ -455,8 +476,8 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
                     return;
                 }
 
-                TeardownLocked();
-                AttachToDefaultRenderEndpointLocked();
+                DetachCurrentEndpointLocked();
+                _ = TryAttachToDefaultRenderEndpointLocked(allowMissingDefaultEndpoint: true);
                 recordedActivity = new AudioActivityEvent(
                     DateTimeOffset.UtcNow,
                     AudioActivityKind.DefaultDeviceChanged,
@@ -499,6 +520,30 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
     private void TeardownLocked()
     {
         AppLog.Info($"audio monitor teardown start trackedSessions={_trackedSessions.Count}");
+        DetachCurrentEndpointLocked();
+
+        if (_endpointNotificationsRegistered && _deviceEnumerator is not null)
+        {
+            try
+            {
+                _deviceEnumerator.UnregisterEndpointNotificationCallback(_endpointNotificationClient);
+            }
+            catch (COMException)
+            {
+            }
+        }
+
+        _sessionNotificationsRegistered = false;
+        _endpointNotificationsRegistered = false;
+
+        TryReleaseComObject(_deviceEnumerator);
+
+        _deviceEnumerator = null;
+        AppLog.Info("audio monitor teardown complete");
+    }
+
+    private void DetachCurrentEndpointLocked()
+    {
         foreach (var trackedSession in _trackedSessions.Values.ToList())
         {
             RemoveTrackedSessionLocked(trackedSession.InstanceId, trackedSession);
@@ -515,30 +560,17 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
             catch (COMException)
             {
             }
-        }
-
-        if (_endpointNotificationsRegistered && _deviceEnumerator is not null)
-        {
-            try
-            {
-                _deviceEnumerator.UnregisterEndpointNotificationCallback(_endpointNotificationClient);
-            }
-            catch (COMException)
+            catch (InvalidComObjectException)
             {
             }
         }
 
         _sessionNotificationsRegistered = false;
-        _endpointNotificationsRegistered = false;
 
         TryReleaseComObject(_sessionManager);
         TryReleaseComObject(_defaultDevice);
-        TryReleaseComObject(_deviceEnumerator);
-
         _sessionManager = null;
         _defaultDevice = null;
-        _deviceEnumerator = null;
-        AppLog.Info("audio monitor teardown complete");
     }
 
     private void RaiseSessionsChanged()
