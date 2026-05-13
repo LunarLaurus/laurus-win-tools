@@ -225,14 +225,14 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
                 {
                     if (releaseSessionControl)
                     {
-                        ReleaseComObject(sessionControl);
+                        TryReleaseComObject(sessionControl);
                     }
                 }
             }
         }
         finally
         {
-            ReleaseComObject(sessionEnumerator);
+            TryReleaseComObject(sessionEnumerator);
         }
     }
 
@@ -486,9 +486,13 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         {
             // The session may already be gone by the time we unsubscribe.
         }
+        catch (InvalidComObjectException)
+        {
+            // The RCW can already be separated during teardown or rapid device churn.
+        }
         finally
         {
-            ReleaseComObject(trackedSession.Control);
+            TryReleaseComObject(trackedSession.Control);
         }
     }
 
@@ -527,9 +531,9 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         _sessionNotificationsRegistered = false;
         _endpointNotificationsRegistered = false;
 
-        ReleaseComObject(_sessionManager);
-        ReleaseComObject(_defaultDevice);
-        ReleaseComObject(_deviceEnumerator);
+        TryReleaseComObject(_sessionManager);
+        TryReleaseComObject(_defaultDevice);
+        TryReleaseComObject(_deviceEnumerator);
 
         _sessionManager = null;
         _defaultDevice = null;
@@ -643,11 +647,17 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
     private const uint COINIT_MULTITHREADED = 0x0;
 
-    private static void ReleaseComObject(object? instance)
+    private static void TryReleaseComObject(object? instance)
     {
-        if (instance is not null && Marshal.IsComObject(instance))
+        try
         {
-            Marshal.FinalReleaseComObject(instance);
+            if (instance is not null && Marshal.IsComObject(instance))
+            {
+                Marshal.FinalReleaseComObject(instance);
+            }
+        }
+        catch (InvalidComObjectException)
+        {
         }
     }
 
