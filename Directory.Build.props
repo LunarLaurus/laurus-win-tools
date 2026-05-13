@@ -43,4 +43,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
+
+  <!-- Compiler discipline.
+       TreatWarningsAsErrors keeps the warning baseline at zero forever; if
+       a warning slips in, the build fails before review.
+       DebugType=embedded bakes the PDB into the .dll/.exe so crash dumps and
+       stack traces collected from users always carry line numbers without
+       shipping a side-car .pdb file. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
 </Project>

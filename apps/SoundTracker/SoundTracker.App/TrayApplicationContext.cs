@@ -150,7 +150,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _iconManager = new TrayIconManager(_notifyIcon, _iconProvider, TrayTheme.Current);
 
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(StandardMenuItems.CreateAbout("SoundTracker", updateChecker: _updateChecker));
+        menu.Items.Add(StandardMenuItems.CreateAbout("SoundTracker", updateChecker: _updateChecker, appIcon: _notifyIcon.Icon));
         menu.Items.Add(StandardMenuItems.CreateCheckForUpdates(_updateChecker, _notifyIcon, "SoundTracker"));
         menu.Items.Add(StandardMenuItems.CreateOpenLogs("SoundTracker"));
         menu.Items.Add(new ToolStripSeparator());

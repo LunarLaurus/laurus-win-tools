@@ -14,14 +14,16 @@ public static class StandardMenuItems
         string appName,
         Func<string?>? extraInfoProvider = null,
         UpdateChecker? updateChecker = null,
+        Icon? appIcon = null,
         string repoUrl = RepoInfo.Url,
+        string releasesUrl = RepoInfo.ReleasesUrl,
         string licenseSummary = RepoInfo.LicenseSummary)
     {
         var item = new ToolStripMenuItem("&About...");
         item.Click += (_, _) =>
         {
             var info = extraInfoProvider?.Invoke();
-            using var dlg = new AboutDialog(appName, info, updateChecker, repoUrl, licenseSummary);
+            using var dlg = new AboutDialog(appName, info, updateChecker, appIcon, repoUrl, releasesUrl, licenseSummary);
             dlg.ShowDialog();
         };
         return item;

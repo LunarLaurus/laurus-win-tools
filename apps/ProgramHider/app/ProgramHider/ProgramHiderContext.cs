@@ -255,7 +255,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
             _menu.Items.Add(restoreAllItem);
 
             _menu.Items.Add(new ToolStripSeparator());
-            _menu.Items.Add(StandardMenuItems.CreateAbout("ProgramHider", updateChecker: _updateChecker));
+            _menu.Items.Add(StandardMenuItems.CreateAbout("ProgramHider", updateChecker: _updateChecker, appIcon: _appIcon));
             _menu.Items.Add(StandardMenuItems.CreateCheckForUpdates(_updateChecker, _notifyIcon, "ProgramHider"));
             _menu.Items.Add(StandardMenuItems.CreateOpenLogs("ProgramHider"));
             _menu.Items.Add(new ToolStripSeparator());

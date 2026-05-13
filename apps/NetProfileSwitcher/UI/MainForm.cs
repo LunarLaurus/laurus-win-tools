@@ -455,7 +455,7 @@ public class MainForm : Form
         _trayMenu.Items.Add(mon);
 
         _trayMenu.Items.Add(new ToolStripSeparator());
-        _trayMenu.Items.Add(StandardMenuItems.CreateAbout("NetProfileSwitcher", updateChecker: _updateChecker));
+        _trayMenu.Items.Add(StandardMenuItems.CreateAbout("NetProfileSwitcher", updateChecker: _updateChecker, appIcon: _tray.Icon));
         _trayMenu.Items.Add(StandardMenuItems.CreateCheckForUpdates(_updateChecker, _tray, "NetProfileSwitcher"));
         _trayMenu.Items.Add(StandardMenuItems.CreateOpenLogs("NetProfileSwitcher"));
         _trayMenu.Items.Add(new ToolStripSeparator());

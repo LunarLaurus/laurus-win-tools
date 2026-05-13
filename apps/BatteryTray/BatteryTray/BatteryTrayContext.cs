@@ -125,7 +125,7 @@ public sealed class BatteryTrayContext : ApplicationContext
             Refresh();
         });
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(StandardMenuItems.CreateAbout("BatteryTray", BuildAboutDiagnostics, _updateChecker));
+        menu.Items.Add(StandardMenuItems.CreateAbout("BatteryTray", BuildAboutDiagnostics, _updateChecker, _notifyIcon.Icon));
         menu.Items.Add(StandardMenuItems.CreateCheckForUpdates(_updateChecker, _notifyIcon, "BatteryTray"));
         menu.Items.Add(StandardMenuItems.CreateOpenLogs("BatteryTray"));
         menu.Items.Add(new ToolStripSeparator());
