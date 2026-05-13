@@ -99,6 +99,23 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 ---
 
+## 2026-05-13
+
+**Did:** Phase 4 — Single instance + startup complete.
+- `CrossIntegrityMutex`, `ActivationSignal`, `SingleInstanceActivation`, `ElevationHelper`, `IStartupRegistration`, `RunKeyStartupRegistration`, `ScheduledTaskStartupRegistration` added to WindowsAppCore
+- `WindowsAppCore.Tests`: `WindowsFactAttribute`, `ElevationHelperTests`, `RunKeyStartupRegistrationTests`, `ScheduledTaskStartupRegistrationTests`, `SingleInstanceActivationTests` (48 tests total)
+- Library committed at d838ce3
+- ProgramHider: replaced `StartupRegistration` static class with `RunKeyStartupRegistration`; added `SingleInstanceActivation` (committed ee7e9a1)
+- NetProfileSwitcher: replaced `Services/StartupManager` with `ScheduledTaskStartupRegistration`; added `SingleInstanceActivation` (committed 5489fcd)
+- BatteryTray: deleted `CrossIntegrityMutex.cs`, `ActivationSignal.cs`, `StartupManager.cs`; replaced manual thread loop with event subscription; wired `ScheduledTaskStartupRegistration` (committed d3a4f49)
+- SoundTracker: added `RunAtStartup` to `SoundTrackerConfig`; added `RunKeyStartupRegistration` + "Run at startup" tray menu item (first startup UI for SoundTracker); added `SingleInstanceActivation` (committed 5c1f810)
+
+**Committed:** d838ce3 (library), ee7e9a1 (ProgramHider), 5489fcd (NPS), d3a4f49 (BatteryTray), 5c1f810 (SoundTracker)
+
+**Next:** Phase 5 — Wire `UnhandledExceptionWatcher` into all four apps
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -151,14 +168,14 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Migrate: NetProfileSwitcher → SoundTracker → ProgramHider → BatteryTray
 - [x] Commit per app migration
 
-### Phase 4 — Single instance + startup *(blocked on Phase 3)*
+### Phase 4 — Single instance + startup *(complete)*
 
-- [ ] Implement `SingleInstanceActivation` (wrapper over CrossIntegrityMutex + ActivationSignal)
-- [ ] Implement `IStartupRegistration`, `RunKeyStartupRegistration`, `ScheduledTaskStartupRegistration`
-- [ ] Note: `ScheduledTaskStartupRegistration` is the most complex — plan a sub-phase for BatteryTray's full StartupManager scope
-- [ ] Add to all four apps
-- [ ] Add startup registration UI to SoundTracker (currently has none)
-- [ ] Commit per app
+- [x] Implement `SingleInstanceActivation` (wrapper over CrossIntegrityMutex + ActivationSignal)
+- [x] Implement `IStartupRegistration`, `RunKeyStartupRegistration`, `ScheduledTaskStartupRegistration`
+- [x] Note: `ScheduledTaskStartupRegistration` is the most complex — plan a sub-phase for BatteryTray's full StartupManager scope
+- [x] Add to all four apps
+- [x] Add startup registration UI to SoundTracker (currently has none)
+- [x] Commit per app
 
 ### Phase 5 — Error handling, non-WinForms half *(blocked on Phase 4)*
 
