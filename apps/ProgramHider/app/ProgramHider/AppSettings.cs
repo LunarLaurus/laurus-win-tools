@@ -9,7 +9,7 @@ namespace ProgramHider;
 internal sealed class AppSettings
 {
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public HotkeySettings Hotkey { get; set; } = HotkeySettings.CreateDefault();
     public bool LaunchOnWindowsStartup { get; set; }
@@ -21,6 +21,7 @@ internal sealed class AppSettings
     public int UnlockTimeoutMinutes { get; set; } = 5;
     public bool RestoreHiddenWindowsOnSessionLock { get; set; }
     public bool RestoreHiddenWindowsOnSuspend { get; set; }
+    public bool ShownFirstRunWelcome { get; set; }
     public List<WindowRule> WindowRules { get; set; } = new();
 
     // Kept for v0.0.x settings migration.
@@ -42,6 +43,7 @@ internal sealed class AppSettings
             UnlockTimeoutMinutes = UnlockTimeoutMinutes,
             RestoreHiddenWindowsOnSessionLock = RestoreHiddenWindowsOnSessionLock,
             RestoreHiddenWindowsOnSuspend = RestoreHiddenWindowsOnSuspend,
+            ShownFirstRunWelcome = ShownFirstRunWelcome,
             WindowRules = WindowRules.Select(rule => rule.Clone()).ToList(),
             AutoHideProcessNames = AutoHideProcessNames.ToList()
         };

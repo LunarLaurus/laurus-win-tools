@@ -10,6 +10,7 @@ public sealed class SoundTrackerConfig
 
     public bool RunAtStartup { get; set; }
     public int StartupDelaySeconds { get; set; } = 0;
+    public bool ShownFirstRunWelcome { get; set; }
 
     private static readonly JsonSettingsStore<SoundTrackerConfig> Store = new("SoundTracker");
 

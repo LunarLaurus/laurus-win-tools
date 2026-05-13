@@ -28,7 +28,14 @@ public sealed class BalloonNotifier : IUserNotifier
 
     public void InstallThreadExceptionHandler()
     {
-        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        // SetUnhandledExceptionMode must be called before any control is created
+        // on the thread. In production the app does this from Main before any
+        // Form / NativeWindow exists, so we expect success. In tests the call
+        // order isn't guaranteed -- swallow the InvalidOperationException so
+        // installing the ThreadException subscription always succeeds.
+        try { Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException); }
+        catch (InvalidOperationException) { }
+
         Application.ThreadException += (_, e) =>
         {
             CrashSink.Write("ThreadException", "UI thread", e.Exception);

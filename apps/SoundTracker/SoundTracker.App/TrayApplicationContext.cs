@@ -183,6 +183,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
                         $"Version {r.LatestVersion} is available — visit GitHub to download.", ToolTipIcon.Info);
             }),
             _updateCts.Token);
+
+        var firstRunConfig = SoundTrackerConfig.Load();
+        FirstRunBalloon.ShowIfNeeded(_notifyIcon, firstRunConfig.ShownFirstRunWelcome,
+            () => { firstRunConfig.ShownFirstRunWelcome = true; firstRunConfig.Save(); },
+            "SoundTracker",
+            "Right-click the tray icon to open settings, view recent activity, or toggle startup.");
     }
 
     internal string CurrentTooltipText => _notifyIcon.Text;

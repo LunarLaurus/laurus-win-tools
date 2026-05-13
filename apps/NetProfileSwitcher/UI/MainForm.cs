@@ -91,6 +91,11 @@ public class MainForm : Form
             _ui.Post(() => _tray.ShowBalloonTip(5000, "NetProfileSwitcher update available",
                 $"Version {r.LatestVersion} is available — visit GitHub to download.", ToolTipIcon.Info)),
             _updateCts.Token);
+
+        FirstRunBalloon.ShowIfNeeded(_tray, _cfg.ShownFirstRunWelcome,
+            () => { _cfg.ShownFirstRunWelcome = true; ConfigStore.Save(_cfg); },
+            "NetProfileSwitcher",
+            "Right-click the tray icon to switch profiles, toggle SSID monitoring, or open settings.");
     }
 
     // ── Form setup ─────────────────────────────────────────────────────────

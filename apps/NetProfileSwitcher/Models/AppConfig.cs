@@ -12,4 +12,5 @@ public class AppConfig
     public bool StartMinimized { get; set; } = false;
     public bool RunOnStartup { get; set; } = false;
     public int StartupDelaySeconds { get; set; } = 0;
+    public bool ShownFirstRunWelcome { get; set; }
 }

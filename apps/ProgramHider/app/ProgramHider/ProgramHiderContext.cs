@@ -142,6 +142,11 @@ internal sealed class ProgramHiderContext : ApplicationContext
             _ui.Post(() => _notifyIcon.ShowBalloonTip(5000, "ProgramHider update available",
                 $"Version {r.LatestVersion} is available — visit GitHub to download.", ToolTipIcon.Info)),
             _updateCts.Token);
+
+        FirstRunBalloon.ShowIfNeeded(_notifyIcon, _settings.ShownFirstRunWelcome,
+            () => { _settings.ShownFirstRunWelcome = true; PersistSettings(); },
+            "ProgramHider",
+            $"Press {_settings.Hotkey.ToDisplayString()} to hide the active window. Right-click the tray icon to open settings.");
     }
 
     protected override void ExitThreadCore()
