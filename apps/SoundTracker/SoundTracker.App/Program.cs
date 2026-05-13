@@ -1,5 +1,7 @@
 using SoundTracker.App.Diagnostics;
+using CoreAppLog = WindowsAppCore.AppLog;
 using SingleInstanceActivation = WindowsAppCore.SingleInstanceActivation;
+using UnhandledExceptionWatcher = WindowsAppCore.UnhandledExceptionWatcher;
 
 namespace SoundTracker.App;
 
@@ -11,12 +13,13 @@ internal static class Program
         if (!SingleInstanceActivation.TryClaim("SoundTracker", dispatchToUi: null, out var activation))
             return;
 
+        using var coreLog = new CoreAppLog("SoundTracker", AppMetadata.DisplayVersion);
+        UnhandledExceptionWatcher.Install(coreLog, "SoundTracker");
+
         AppLog.Info($"application starting version={AppMetadata.DisplayVersion} log={AppLog.LogPath}");
         var settings = SoundTrackerConfig.Load();
         AppLog.Info($"settings loaded path={settings.SettingsFilePath}");
         Application.ThreadException += (_, args) => AppLog.Error("ui thread exception", args.Exception);
-        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
-            AppLog.Error("unhandled exception", args.ExceptionObject as Exception);
 
         try
         {
