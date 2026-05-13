@@ -63,9 +63,23 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 - `UnhandledExceptionWatcher` — wires `AppDomain.CurrentDomain.UnhandledException` to CrashSink
 - `shared\WindowsAppCore.Tests\` — 23 unit tests, all pass; tests use explicit log-dir injection (internal ctor via InternalsVisibleTo)
 
+**Committed:** 4c33ffe (library skeleton), see below for NPS migration
+
+**Next:** Phase 3 — `JsonSettingsStore<T>` + settings migration
+
+---
+
+## 2026-05-13
+
+**Did:** Phase 2 — migrate NetProfileSwitcher to use WindowsAppCore logging.
+- Added `ProjectReference` to `shared\WindowsAppCore`
+- Recovered missing `app.manifest` (requireAdministrator, PerMonitorV2 DPI)
+- Wired `AppLog` + `UnhandledExceptionWatcher` in `Program.cs`
+- Instrumented: `app.started`, `profile.applied`, `profile.apply.failed`, `profile.autoswitch`, `profile.autoswitch.failed`, `startup.registration.changed`, `startup.registration.failed`, `app.shutdown`
+
 **Committed:** TBD
 
-**Next:** Migrate NetProfileSwitcher — add `AppLog` (currently zero logging)
+**Next:** Phase 3 — `JsonSettingsStore<T>` + settings migration
 
 ---
 
@@ -110,8 +124,8 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Implement `CrashSink` (synchronous, direct write — separate from AppLog)
 - [x] Implement `UnhandledExceptionWatcher`
 - [x] Unit tests for all of the above
-- [ ] Migrate NetProfileSwitcher first (add logging — currently has zero)
-- [ ] Commit per logical unit
+- [x] Migrate NetProfileSwitcher first (add logging — currently has zero)
+- [x] Commit per logical unit
 
 ### Phase 3 — Settings *(blocked on Phase 2)*
 

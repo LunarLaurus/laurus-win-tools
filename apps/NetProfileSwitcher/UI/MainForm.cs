@@ -4,11 +4,13 @@ using System.Windows.Forms;
 using NetProfileSwitcher.Models;
 using NetProfileSwitcher.Services;
 using NetProfileSwitcher.UI.Controls;
+using WindowsAppCore;
 
 namespace NetProfileSwitcher.UI;
 
 public class MainForm : Form
 {
+    private readonly AppLog _log;
     private AppConfig _cfg;
     private readonly ToolTip _tip = new() { AutoPopDelay = 8000, InitialDelay = 300, ReshowDelay = 200 };
 
@@ -50,8 +52,9 @@ public class MainForm : Form
     // Startup
     private bool _suppressInitialShow;
 
-    public MainForm()
+    public MainForm(AppLog log)
     {
+        _log = log;
         _cfg = ConfigStore.Load();
         InitForm();
         BuildLayout();
@@ -62,6 +65,7 @@ public class MainForm : Form
         InitMonitor();
         RefreshProfileList();
         PollSsid();
+        _log.Info("app.started", new { profileCount = _cfg.Profiles.Count, adapter = _cfg.SelectedAdapter });
     }
 
     // ── Form setup ─────────────────────────────────────────────────────────
@@ -403,6 +407,10 @@ public class MainForm : Form
                     var (ok, msg) = await Task.Run(() => NetCommands.Apply(adapter, p));
                     SetTrayState(ok ? TrayState.MatchedProfile : TrayState.Error);
                     SetStatus(ok ? $"✓  {p.Name} applied" : $"✗  Error: {msg}");
+                    if (ok)
+                        _log.Info("profile.applied", new { profile = p.Name, adapter, source = "tray" });
+                    else
+                        _log.Warn("profile.apply.failed", new { profile = p.Name, adapter, error = msg });
                 }
                 finally
                 {
@@ -519,6 +527,10 @@ public class MainForm : Form
             _tray.BalloonTipText = ok ? $"Applied \"{match.Name}\"" : $"Failed: {msg}";
             _tray.BalloonTipIcon = ok ? ToolTipIcon.Info : ToolTipIcon.Error;
             _tray.ShowBalloonTip(3000);
+            if (ok)
+                _log.Info("profile.autoswitch", new { profile = match.Name, ssid, adapter });
+            else
+                _log.Warn("profile.autoswitch.failed", new { ssid, error = msg });
         }
         finally
         {
@@ -700,12 +712,14 @@ public class MainForm : Form
         {
             _cfg.RunOnStartup = _chkStartup.Checked;
             ConfigStore.Save(_cfg);
+            _log.Info("startup.registration.changed", new { enabled = _chkStartup.Checked });
         }
         else
         {
             _chkStartup.CheckedChanged -= OnStartupCheckChanged;
             _chkStartup.Checked = StartupManager.IsRegistered();
             _chkStartup.CheckedChanged += OnStartupCheckChanged;
+            _log.Warn("startup.registration.failed", new { wanted = _chkStartup.Checked, error = msg });
         }
         SetStatus(ok ? $"✓  {msg}" : $"✗  {msg}");
     }
@@ -730,8 +744,13 @@ public class MainForm : Form
             var (ok, msg) = await Task.Run(() => NetCommands.Apply(adapter, p));
             SetTrayState(ok ? TrayState.MatchedProfile : TrayState.Error);
             SetStatus(ok ? $"✓  \"{p.Name}\" applied to {adapter}" : $"✗  {msg}");
-            if (!ok)
+            if (ok)
+                _log.Info("profile.applied", new { profile = p.Name, adapter, source = "manual" });
+            else
+            {
+                _log.Warn("profile.apply.failed", new { profile = p.Name, adapter, error = msg });
                 MessageBox.Show(msg, "netsh error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
         finally
         {
@@ -795,6 +814,7 @@ public class MainForm : Form
         }
         else
         {
+            _log.Info("app.shutdown");
             _tray.Visible = false;
         }
         base.OnFormClosing(e);
