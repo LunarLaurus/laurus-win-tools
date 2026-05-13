@@ -27,8 +27,19 @@ Windows Desktop Runtime is required to run them — install it from
 [dot.net/download](https://dot.net/download) if it's not already present.
 
 `install.ps1` at the repo root automates publish + install to
-`%LOCALAPPDATA%\LaurusWinTools\<AppName>` from a source checkout; pass `-AutoRun`
-to register the apps under HKCU `Run` so they launch at logon.
+`%LOCALAPPDATA%\LaurusWinTools\<AppName>` from a source checkout:
+
+```powershell
+.\install.ps1 -AutoRun -Run    # install all four, register for logon, launch now
+.\install.ps1 -AutoRun         # install + register for logon (apps start on next sign-in)
+.\install.ps1                  # install only
+.\install.ps1 -Uninstall       # remove all four
+```
+
+`-AutoRun` writes to HKCU `Run` so the apps launch at logon (no elevation required).
+`-Run` launches each installed app immediately so you don't have to sign out
+to see them in the tray. After install, `run-all.ps1` starts any of the four
+that aren't already running — handy for relaunching without re-publishing.
 
 ## Build from source
 

@@ -18,10 +18,14 @@
     Default: %LOCALAPPDATA%\LaurusWinTools
 .PARAMETER Uninstall
     Remove the specified apps from the install directory and autorun registry.
+.PARAMETER Run
+    Launch each installed app immediately after installation (no delay).
+    Useful for first install and updates -- without this you'd need to log out
+    and back in (or launch each .exe manually) before they appear in the tray.
 .EXAMPLE
     .\install.ps1
 .EXAMPLE
-    .\install.ps1 -AutoRun
+    .\install.ps1 -AutoRun -Run
 .EXAMPLE
     .\install.ps1 -Apps BatteryTray, SoundTracker -AutoRun
 .EXAMPLE
@@ -37,6 +41,9 @@ param(
 
     [Parameter(ParameterSetName = 'Install')]
     [switch]$AutoRun,
+
+    [Parameter(ParameterSetName = 'Install')]
+    [switch]$Run,
 
     [Parameter(ParameterSetName = 'Install')]
     [Parameter(ParameterSetName = 'Uninstall')]
@@ -159,6 +166,7 @@ Write-Host "`nlaurus-win-tools installer" -ForegroundColor White
 Write-Host "Install root : $InstallRoot"
 Write-Host "Apps         : $($Apps -join ', ')"
 Write-Host "AutoRun      : $($AutoRun.IsPresent)"
+Write-Host "Run          : $($Run.IsPresent)"
 
 if (-not (Test-Path $InstallRoot)) {
     New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
@@ -199,6 +207,25 @@ foreach ($appName in $Apps) {
         $runValue = "`"$exePath`" $($def.StartupArgs)"
         Set-ItemProperty -Path $RunKeyPath -Name $appName -Value $runValue
         Write-Ok "AutoRun: $runValue"
+    }
+}
+
+if ($Run) {
+    Write-Step 'Launching installed apps'
+    foreach ($appName in $Apps) {
+        $def     = $AppDefs[$appName]
+        $exePath = Join-Path (Join-Path $InstallRoot $appName) $def.ExeName
+        if (-not (Test-Path $exePath)) {
+            Write-Info "$appName not found at $exePath -- skipping"
+            continue
+        }
+        try {
+            Start-Process $exePath -ErrorAction Stop | Out-Null
+            Write-Ok "Launched $appName"
+        }
+        catch {
+            Write-Err "Failed to launch $appName : $($_.Exception.Message)"
+        }
     }
 }
 
