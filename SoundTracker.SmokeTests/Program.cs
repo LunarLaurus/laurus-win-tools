@@ -26,6 +26,7 @@ internal static class Program
         {
             ("ProcessNameResolver current process", ProcessNameResolver_CurrentProcess),
             ("AudioSessionMonitor lifecycle", AudioSessionMonitor_Lifecycle),
+            ("AudioSessionMonitor endpoint volume snapshot", AudioSessionMonitor_EndpointVolumeSnapshot),
             ("AudioSessionMonitor disposed guard", AudioSessionMonitor_DisposedGuard),
             ("AudioSessionMonitor live playback callbacks", AudioSessionMonitor_LivePlaybackCallbacks),
             ("AudioActivityTimeline persists live playback history", AudioActivityTimeline_PersistsLivePlaybackHistory),
@@ -145,6 +146,15 @@ internal static class Program
             "Disposed monitor should reject further reads.");
     }
 
+    private static void AudioSessionMonitor_EndpointVolumeSnapshot()
+    {
+        using var monitor = new AudioSessionMonitor();
+        var snapshot = monitor.GetEndpointVolume();
+
+        Assert.True(snapshot.IsAvailable, "Endpoint volume snapshot should be available.");
+        Assert.True(snapshot.Percent >= 0 && snapshot.Percent <= 100, "Endpoint volume percent should be within 0-100.");
+    }
+
     private static void AudioSessionMonitor_LivePlaybackCallbacks()
     {
         using var probe = StartLivePlaybackProbe();
@@ -204,12 +214,15 @@ internal static class Program
         var capture = GetPlaybackCapture();
 
         Assert.True(
-            capture.TooltipText.StartsWith("SoundTracker 0.3.0: ", StringComparison.Ordinal),
+            capture.TooltipText.StartsWith("SoundTracker 0.4.0: ", StringComparison.Ordinal),
             "Tray tooltip should include the current application version.");
         Assert.True(
-            capture.TooltipText.Contains("active", StringComparison.OrdinalIgnoreCase) ||
-            capture.TooltipText.Contains("stopped", StringComparison.OrdinalIgnoreCase),
-            "Tray tooltip should summarize active and/or recent history.");
+            capture.TooltipText.Contains("vol ", StringComparison.OrdinalIgnoreCase) ||
+            capture.TooltipText.Contains("muted ", StringComparison.OrdinalIgnoreCase),
+            "Tray tooltip should include current volume summary.");
+        Assert.True(
+            capture.VolumeStatusText.Contains("Volume:", StringComparison.OrdinalIgnoreCase),
+            "Tray volume status should reflect live endpoint volume.");
         Assert.True(
             capture.StatusText.Contains("Active now:", StringComparison.OrdinalIgnoreCase),
             "Tray active status should reflect current activity.");
@@ -416,6 +429,7 @@ internal static class Program
             HistoryPath: historyPath,
             ScreenshotPath: screenshotPath,
             TooltipText: context.CurrentTooltipText,
+            VolumeStatusText: context.CurrentVolumeStatusText,
             StatusText: context.CurrentStatusText,
             RecentStatusText: context.CurrentRecentStatusText,
             CapturedActivities: capturedActivities,
@@ -429,6 +443,7 @@ internal static class Program
         string HistoryPath,
         string ScreenshotPath,
         string TooltipText,
+        string VolumeStatusText,
         string StatusText,
         string RecentStatusText,
         IReadOnlyList<AudioActivityEvent> CapturedActivities,

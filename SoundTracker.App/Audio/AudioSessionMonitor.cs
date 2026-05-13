@@ -16,22 +16,27 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
     private readonly Dictionary<string, TrackedSession> _trackedSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly EndpointNotificationClient _endpointNotificationClient;
     private readonly AudioSessionNotificationSink _sessionNotificationSink;
+    private readonly EndpointVolumeCallbackSink _endpointVolumeCallbackSink;
     private readonly ManualResetEventSlim _startupCompleted = new(false);
     private readonly Thread _workerThread;
 
     private IMMDeviceEnumerator? _deviceEnumerator;
     private IMMDevice? _defaultDevice;
+    private IAudioEndpointVolume? _endpointVolume;
     private IAudioSessionManager2? _sessionManager;
     private bool _endpointNotificationsRegistered;
+    private bool _endpointVolumeNotificationsRegistered;
     private bool _sessionNotificationsRegistered;
     private bool _disposed;
     private Exception? _startupException;
+    private EndpointVolumeSnapshot _endpointVolumeSnapshot = EndpointVolumeSnapshot.Unavailable;
 
     public AudioSessionMonitor()
     {
         AppLog.Info("audio session monitor constructing");
         _endpointNotificationClient = new EndpointNotificationClient(HandleDefaultEndpointChanged);
         _sessionNotificationSink = new AudioSessionNotificationSink(HandleSessionCreated);
+        _endpointVolumeCallbackSink = new EndpointVolumeCallbackSink(HandleEndpointVolumeNotification);
         _workerThread = new Thread(WorkerLoop)
         {
             IsBackground = true,
@@ -55,6 +60,8 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
     public event EventHandler? SessionsChanged;
 
+    public event EventHandler? VolumeStateChanged;
+
     public IReadOnlyList<string> GetActiveSessionNames()
     {
         lock (_sync)
@@ -76,6 +83,15 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         {
             ThrowIfDisposed();
             return _recentActivities.ToList();
+        }
+    }
+
+    public EndpointVolumeSnapshot GetEndpointVolume()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return _endpointVolumeSnapshot;
         }
     }
 
@@ -186,6 +202,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         {
             TryReleaseComObject(_defaultDevice);
             _defaultDevice = null;
+            _endpointVolumeSnapshot = EndpointVolumeSnapshot.Unavailable;
             AppLog.Warn("audio monitor could not find a default render endpoint; waiting for the next endpoint callback");
             return false;
         }
@@ -194,6 +211,14 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         Marshal.ThrowExceptionForHR(
             _defaultDevice!.Activate(ref sessionManagerGuid, CLSCTX.InProcServer, IntPtr.Zero, out var managerObject));
         _sessionManager = (IAudioSessionManager2)managerObject;
+
+        var endpointVolumeGuid = CoreAudioInterop.AudioEndpointVolumeGuid;
+        Marshal.ThrowExceptionForHR(
+            _defaultDevice.Activate(ref endpointVolumeGuid, CLSCTX.InProcServer, IntPtr.Zero, out var endpointVolumeObject));
+        _endpointVolume = (IAudioEndpointVolume)endpointVolumeObject;
+        Marshal.ThrowExceptionForHR(_endpointVolume.RegisterControlChangeNotify(_endpointVolumeCallbackSink));
+        _endpointVolumeNotificationsRegistered = true;
+        _endpointVolumeSnapshot = ReadEndpointVolumeSnapshot(_endpointVolume);
 
         Marshal.ThrowExceptionForHR(_sessionManager.RegisterSessionNotification(_sessionNotificationSink));
         _sessionNotificationsRegistered = true;
@@ -428,6 +453,26 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
             RaiseActivityRecorded(recordedActivity);
             RaiseSessionsChanged();
+            RaiseVolumeStateChanged();
+        });
+    }
+
+    private void HandleEndpointVolumeNotification(EndpointVolumeSnapshot snapshot)
+    {
+        AppLog.Info($"audio monitor endpoint volume callback percent={snapshot.Percent} muted={snapshot.IsMuted} available={snapshot.IsAvailable}");
+        EnqueueWork(() =>
+        {
+            lock (_sync)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _endpointVolumeSnapshot = snapshot;
+            }
+
+            RaiseVolumeStateChanged();
         });
     }
 
@@ -565,18 +610,42 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
             }
         }
 
-        _sessionNotificationsRegistered = false;
+        if (_endpointVolumeNotificationsRegistered && _endpointVolume is not null)
+        {
+            try
+            {
+                _endpointVolume.UnregisterControlChangeNotify(_endpointVolumeCallbackSink);
+            }
+            catch (COMException)
+            {
+            }
+            catch (InvalidComObjectException)
+            {
+            }
+        }
 
+        _sessionNotificationsRegistered = false;
+        _endpointVolumeNotificationsRegistered = false;
+
+        TryReleaseComObject(_endpointVolume);
         TryReleaseComObject(_sessionManager);
         TryReleaseComObject(_defaultDevice);
+        _endpointVolume = null;
         _sessionManager = null;
         _defaultDevice = null;
+        _endpointVolumeSnapshot = EndpointVolumeSnapshot.Unavailable;
     }
 
     private void RaiseSessionsChanged()
     {
         AppLog.Info("audio monitor raising SessionsChanged");
         SessionsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RaiseVolumeStateChanged()
+    {
+        AppLog.Info($"audio monitor raising VolumeStateChanged percent={_endpointVolumeSnapshot.Percent} muted={_endpointVolumeSnapshot.IsMuted} available={_endpointVolumeSnapshot.IsAvailable}");
+        VolumeStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void RaiseActivityRecorded(AudioActivityEvent? activity)
@@ -671,6 +740,15 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
             duration);
     }
 
+    private static EndpointVolumeSnapshot ReadEndpointVolumeSnapshot(IAudioEndpointVolume endpointVolume)
+    {
+        Marshal.ThrowExceptionForHR(endpointVolume.GetMasterVolumeLevelScalar(out var level));
+        Marshal.ThrowExceptionForHR(endpointVolume.GetMute(out var isMuted));
+        var percent = (int)Math.Round(level * 100, MidpointRounding.AwayFromZero);
+        percent = Math.Clamp(percent, 0, 100);
+        return new EndpointVolumeSnapshot(percent, isMuted, true);
+    }
+
     [DllImport("ole32.dll")]
     private static extern int CoInitializeEx(IntPtr reserved, uint coInit);
 
@@ -757,6 +835,27 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         public int OnDeviceStateChanged(string deviceId, uint newState) => 0;
 
         public int OnPropertyValueChanged(string deviceId, PROPERTYKEY propertyKey) => 0;
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.None)]
+    private sealed class EndpointVolumeCallbackSink : IAudioEndpointVolumeCallback
+    {
+        private readonly Action<EndpointVolumeSnapshot> _volumeChanged;
+
+        public EndpointVolumeCallbackSink(Action<EndpointVolumeSnapshot> volumeChanged)
+        {
+            _volumeChanged = volumeChanged;
+        }
+
+        public int OnNotify(IntPtr notifyData)
+        {
+            var notification = Marshal.PtrToStructure<AUDIO_VOLUME_NOTIFICATION_DATA>(notifyData);
+            var percent = (int)Math.Round(notification.fMasterVolume * 100, MidpointRounding.AwayFromZero);
+            percent = Math.Clamp(percent, 0, 100);
+            _volumeChanged(new EndpointVolumeSnapshot(percent, notification.bMuted, true));
+            return 0;
+        }
     }
 
     [ComVisible(true)]

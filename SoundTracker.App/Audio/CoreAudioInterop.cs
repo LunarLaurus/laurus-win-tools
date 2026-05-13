@@ -6,6 +6,9 @@ internal static class CoreAudioInterop
 {
     public static readonly Guid MMDeviceEnumeratorClsid =
         new("BCDE0395-E52F-467C-8E3D-C4579291692E");
+
+    public static readonly Guid AudioEndpointVolumeGuid =
+        new("5CDF2C82-841E-4546-9722-0CF74078229A");
 }
 
 internal enum EDataFlow
@@ -279,4 +282,84 @@ internal interface IAudioSessionEvents
 
     [PreserveSig]
     int OnSessionDisconnected(AudioSessionDisconnectReason disconnectReason);
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct AUDIO_VOLUME_NOTIFICATION_DATA
+{
+    public Guid guidEventContext;
+    [MarshalAs(UnmanagedType.Bool)]
+    public bool bMuted;
+    public float fMasterVolume;
+    public uint nChannels;
+    public float afChannelVolumes;
+}
+
+[ComImport]
+[Guid("5CDF2C82-841E-4546-9722-0CF74078229A")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioEndpointVolume
+{
+    [PreserveSig]
+    int RegisterControlChangeNotify(IAudioEndpointVolumeCallback notify);
+
+    [PreserveSig]
+    int UnregisterControlChangeNotify(IAudioEndpointVolumeCallback notify);
+
+    [PreserveSig]
+    int GetChannelCount(out uint channelCount);
+
+    [PreserveSig]
+    int SetMasterVolumeLevel(float levelDb, ref Guid eventContext);
+
+    [PreserveSig]
+    int SetMasterVolumeLevelScalar(float level, ref Guid eventContext);
+
+    [PreserveSig]
+    int GetMasterVolumeLevel(out float levelDb);
+
+    [PreserveSig]
+    int GetMasterVolumeLevelScalar(out float level);
+
+    [PreserveSig]
+    int SetChannelVolumeLevel(uint channelNumber, float levelDb, ref Guid eventContext);
+
+    [PreserveSig]
+    int SetChannelVolumeLevelScalar(uint channelNumber, float level, ref Guid eventContext);
+
+    [PreserveSig]
+    int GetChannelVolumeLevel(uint channelNumber, out float levelDb);
+
+    [PreserveSig]
+    int GetChannelVolumeLevelScalar(uint channelNumber, out float level);
+
+    [PreserveSig]
+    int SetMute(bool isMuted, ref Guid eventContext);
+
+    [PreserveSig]
+    int GetMute(out bool isMuted);
+
+    [PreserveSig]
+    int GetVolumeStepInfo(out uint step, out uint stepCount);
+
+    [PreserveSig]
+    int VolumeStepUp(ref Guid eventContext);
+
+    [PreserveSig]
+    int VolumeStepDown(ref Guid eventContext);
+
+    [PreserveSig]
+    int QueryHardwareSupport(out uint hardwareSupportMask);
+
+    [PreserveSig]
+    int GetVolumeRange(out float minDb, out float maxDb, out float incrementDb);
+}
+
+[ComImport]
+[Guid("657804FA-D6AD-4496-8A60-352752AF4F89")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioEndpointVolumeCallback
+{
+    [PreserveSig]
+    int OnNotify(IntPtr notifyData);
 }

@@ -13,10 +13,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly bool _ownsAudioSessionSource;
     private readonly bool _ownsActivityTimeline;
     private readonly RecentActivityForm _recentActivityForm;
+    private readonly ToolStripMenuItem _volumeStatusItem;
     private readonly ToolStripMenuItem _activeStatusItem;
     private readonly ToolStripMenuItem _recentStatusItem;
     private readonly NotifyIcon _notifyIcon;
     private readonly Control _uiDispatcher;
+    private Icon? _currentTrayIcon;
 
     public TrayApplicationContext()
         : this(
@@ -59,6 +61,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AppLog.Info($"ui dispatcher handle created=0x{_uiDispatcher.Handle.ToInt64():X}");
 
         var menu = new ContextMenuStrip();
+        _volumeStatusItem = new ToolStripMenuItem("Checking volume...")
+        {
+            Enabled = false,
+        };
         _activeStatusItem = new ToolStripMenuItem("Checking audio sessions...")
         {
             Enabled = false,
@@ -88,6 +94,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             ExitThread();
         });
 
+        menu.Items.Add(_volumeStatusItem);
         menu.Items.Add(_activeStatusItem);
         menu.Items.Add(_recentStatusItem);
         menu.Items.Add(new ToolStripSeparator());
@@ -103,6 +110,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Text = $"{AppMetadata.TooltipPrefix}: starting",
             Visible = showNotifyIcon,
         };
+        _currentTrayIcon = (Icon)SystemIcons.Information.Clone();
         _notifyIcon.MouseClick += (_, args) =>
             AppLog.Info($"tray icon mouse click button={args.Button} x={args.X} y={args.Y}");
         _notifyIcon.MouseDoubleClick += (_, args) =>
@@ -115,6 +123,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AppLog.Info("notify icon created");
 
         _audioSessionSource.SessionsChanged += HandleSessionsChanged;
+        _audioSessionSource.VolumeStateChanged += HandleVolumeStateChanged;
         _activityTimeline.HistoryChanged += HandleHistoryChanged;
         AppLog.Info("audio session source subscribed");
 
@@ -123,6 +132,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     }
 
     internal string CurrentTooltipText => _notifyIcon.Text;
+
+    internal string CurrentVolumeStatusText => _volumeStatusItem.Text ?? string.Empty;
 
     internal string CurrentStatusText => _activeStatusItem.Text ?? string.Empty;
 
@@ -137,6 +148,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         AppLog.Info("tray context exiting");
         _audioSessionSource.SessionsChanged -= HandleSessionsChanged;
+        _audioSessionSource.VolumeStateChanged -= HandleVolumeStateChanged;
         _activityTimeline.HistoryChanged -= HandleHistoryChanged;
         if (_ownsActivityTimeline)
         {
@@ -154,6 +166,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
+        _currentTrayIcon?.Dispose();
+        _currentTrayIcon = null;
 
         base.ExitThreadCore();
         AppLog.Info("tray context exited");
@@ -168,6 +182,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void HandleHistoryChanged(object? sender, EventArgs e)
     {
         AppLog.Info($"history changed callback invokeRequired={_uiDispatcher.InvokeRequired} disposed={_uiDispatcher.IsDisposed}");
+        BeginRefreshOnUiThread();
+    }
+
+    private void HandleVolumeStateChanged(object? sender, EventArgs e)
+    {
+        AppLog.Info($"volume changed callback invokeRequired={_uiDispatcher.InvokeRequired} disposed={_uiDispatcher.IsDisposed}");
         BeginRefreshOnUiThread();
     }
 
@@ -194,18 +214,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
         try
         {
             AppLog.Info("refresh sessions start");
+            var volumeSnapshot = _audioSessionSource.GetEndpointVolume();
             var sessions = _audioSessionSource.GetActiveSessionNames();
             var recentActivities = _activityTimeline.GetRecentEvents(100);
-            _notifyIcon.Text = TooltipFormatter.Build(sessions, recentActivities);
+            UpdateTrayIcon(volumeSnapshot);
+            _notifyIcon.Text = TooltipFormatter.Build(volumeSnapshot, sessions, recentActivities);
+            _volumeStatusItem.Text = TooltipFormatter.BuildVolumeMenuLabel(volumeSnapshot);
             _activeStatusItem.Text = TooltipFormatter.BuildActiveMenuLabel(sessions);
             _recentStatusItem.Text = TooltipFormatter.BuildRecentMenuLabel(recentActivities);
             _recentActivityForm.RefreshEntries(sessions, recentActivities);
-            AppLog.Info($"refresh sessions success count={sessions.Count} historyCount={recentActivities.Count} tooltip=\"{_notifyIcon.Text}\" elapsedMs={started.ElapsedMilliseconds}");
+            AppLog.Info($"refresh sessions success volume={volumeSnapshot.Percent} muted={volumeSnapshot.IsMuted} count={sessions.Count} historyCount={recentActivities.Count} tooltip=\"{_notifyIcon.Text}\" elapsedMs={started.ElapsedMilliseconds}");
         }
         catch (Exception ex)
         {
             Debug.WriteLine(ex);
             _notifyIcon.Text = "Sound Tracker: unavailable";
+            _volumeStatusItem.Text = "Volume: unavailable";
             _activeStatusItem.Text = "Audio session query failed";
             _recentStatusItem.Text = "Recent activity unavailable";
             AppLog.Error($"refresh sessions failed elapsedMs={started.ElapsedMilliseconds}", ex);
@@ -246,5 +270,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             AppLog.Error("failed to launch volume mixer", ex);
         }
+    }
+
+    private void UpdateTrayIcon(EndpointVolumeSnapshot volumeSnapshot)
+    {
+        var nextIcon = TrayIconRenderer.Render(volumeSnapshot);
+        var previousIcon = _currentTrayIcon;
+        _currentTrayIcon = nextIcon;
+        _notifyIcon.Icon = nextIcon;
+        previousIcon?.Dispose();
     }
 }

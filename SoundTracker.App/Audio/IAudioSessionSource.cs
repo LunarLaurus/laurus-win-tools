@@ -6,7 +6,11 @@ internal interface IAudioSessionSource : IDisposable
 
     event EventHandler? SessionsChanged;
 
+    event EventHandler? VolumeStateChanged;
+
     IReadOnlyList<string> GetActiveSessionNames();
 
     IReadOnlyList<AudioActivityEvent> GetRecentActivities();
+
+    EndpointVolumeSnapshot GetEndpointVolume();
 }
