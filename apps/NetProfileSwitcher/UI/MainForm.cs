@@ -18,7 +18,7 @@ public class MainForm : Form
     private readonly ToolTip _tip = new() { AutoPopDelay = 8000, InitialDelay = 300, ReshowDelay = 200 };
 
     // Tray
-    private NotifyIcon _tray = null!;
+    private TrayIcon _tray = null!;
     private ContextMenuStrip _trayMenu = null!;
 
     // Monitor
@@ -404,13 +404,11 @@ public class MainForm : Form
         };
         _trayMenu.Opening += (_, _) => RebuildTrayMenu();
 
-        _tray = new NotifyIcon
-        {
-            Text = $"NetProfileSwitcher {Application.ProductVersion}",
-            Icon = Icons.GetTrayIcon(TrayState.Idle),
-            ContextMenuStrip = _trayMenu,
-            Visible = true,
-        };
+        _tray = TrayIcon.ForApp("NetProfileSwitcher");
+        _tray.Text = $"NetProfileSwitcher {Application.ProductVersion}";
+        _tray.Icon = Icons.GetTrayIcon(TrayState.Idle);
+        _tray.ContextMenuStrip = _trayMenu;
+        _tray.Visible = true;
         _tray.DoubleClick += (_, _) => { Show(); WindowState = FormWindowState.Normal; Activate(); };
     }
 

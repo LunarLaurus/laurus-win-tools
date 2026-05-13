@@ -15,7 +15,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
 {
     private const int HotkeyId = 0x1000;
 
-    private readonly NotifyIcon _notifyIcon;
+    private readonly TrayIcon _notifyIcon;
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _hideWindowMenu;
     private readonly HotkeyMessageWindow _messageWindow;
@@ -73,13 +73,11 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
         _hideWindowMenu = new ToolStripMenuItem("Hide window");
 
-        _notifyIcon = new NotifyIcon
-        {
-            Text = BuildTrayText(),
-            Icon = _appIcon,
-            ContextMenuStrip = _menu,
-            Visible = true
-        };
+        _notifyIcon = TrayIcon.ForApp("ProgramHider");
+        _notifyIcon.Text = BuildTrayText();
+        _notifyIcon.Icon = _appIcon;
+        _notifyIcon.ContextMenuStrip = _menu;
+        _notifyIcon.Visible = true;
         _notifyIcon.MouseClick += OnNotifyIconMouseClick;
 
         _activation.ActivationRequested += (_, _) =>

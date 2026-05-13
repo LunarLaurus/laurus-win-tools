@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Windows.Forms;
 using Microsoft.Toolkit.Uwp.Notifications;
+using WindowsTrayCore;
 
 namespace BatteryTray;
 
@@ -8,10 +9,10 @@ public enum NotificationLevel { Info, Warning, Error }
 
 public sealed class Notifier : IDisposable
 {
-    private readonly NotifyIcon _fallbackHost;
+    private readonly TrayIcon _fallbackHost;
     private readonly bool _toastsAvailable;
 
-    public Notifier(NotifyIcon fallbackHost)
+    public Notifier(TrayIcon fallbackHost)
     {
         _fallbackHost = fallbackHost;
 

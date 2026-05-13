@@ -7,7 +7,7 @@ namespace BatteryTray;
 
 public sealed class BatteryTrayContext : ApplicationContext
 {
-    private readonly NotifyIcon _notifyIcon;
+    private readonly TrayIcon _notifyIcon;
     private readonly UiDispatcher _ui;
     private readonly System.Windows.Forms.Timer _safetyTimer;
     private readonly BatteryMonitor _monitor = new();
@@ -48,12 +48,10 @@ public sealed class BatteryTrayContext : ApplicationContext
         _ui = new UiDispatcher();
         _updateChecker = new UpdateChecker(_updateHttpClient, Application.ProductVersion, RepoInfo.Owner, RepoInfo.Name);
 
-        _notifyIcon = new NotifyIcon
-        {
-            Visible = true,
-            Text = $"BatteryTray {Application.ProductVersion}",
-        };
+        _notifyIcon = TrayIcon.ForApp("BatteryTray");
+        _notifyIcon.Text = $"BatteryTray {Application.ProductVersion}";
         _notifyIcon.ContextMenuStrip = BuildMenu();
+        _notifyIcon.Visible = true;
         _notifyIcon.DoubleClick += (_, _) => OpenSettings();
 
         _notifier = new Notifier(_notifyIcon);

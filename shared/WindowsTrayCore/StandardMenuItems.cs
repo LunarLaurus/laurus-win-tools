@@ -29,7 +29,7 @@ public static class StandardMenuItems
 
     public static ToolStripMenuItem CreateCheckForUpdates(
         UpdateChecker updateChecker,
-        NotifyIcon notifyIcon,
+        TrayIcon trayIcon,
         string appName)
     {
         var item = new ToolStripMenuItem("Check for &updates");
@@ -41,13 +41,13 @@ public static class StandardMenuItems
                 var result = await updateChecker.CheckAsync();
                 if (result.IsUpdateAvailable)
                 {
-                    notifyIcon.ShowBalloonTip(5000, $"{appName} update available",
+                    trayIcon.ShowBalloonTip(5000, $"{appName} update available",
                         $"Version {result.LatestVersion} is available — visit GitHub to download.",
                         ToolTipIcon.Info);
                 }
                 else
                 {
-                    notifyIcon.ShowBalloonTip(3000, appName,
+                    trayIcon.ShowBalloonTip(3000, appName,
                         "You're on the latest version.",
                         ToolTipIcon.Info);
                 }

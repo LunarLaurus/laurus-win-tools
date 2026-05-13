@@ -23,7 +23,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _activeStatusItem;
     private readonly ToolStripMenuItem _recentStatusItem;
     private readonly ToolStripMenuItem _runAtStartupItem;
-    private readonly NotifyIcon _notifyIcon;
+    private readonly TrayIcon _notifyIcon;
     private readonly UiDispatcher _ui;
     private readonly System.Windows.Forms.Timer _leftClickTimer;
     private readonly SingleInstanceActivation? _activation;
@@ -134,12 +134,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(_runAtStartupItem);
         menu.Items.Add(refreshItem);
 
-        _notifyIcon = new NotifyIcon
-        {
-            Icon = SystemIcons.Information,
-            Text = $"{AppMetadata.TooltipPrefix}: starting",
-            Visible = showNotifyIcon,
-        };
+        _notifyIcon = TrayIcon.ForApp("SoundTracker");
+        _notifyIcon.Icon = SystemIcons.Information;
+        _notifyIcon.Text = $"{AppMetadata.TooltipPrefix}: starting";
+        _notifyIcon.Visible = showNotifyIcon;
 
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(StandardMenuItems.CreateAbout("SoundTracker", updateChecker: _updateChecker));

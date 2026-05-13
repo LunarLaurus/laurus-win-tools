@@ -121,10 +121,27 @@ function Assert-DesktopRuntime {
 function Stop-AppIfRunning([string]$ExeName) {
     $procName = [System.IO.Path]::GetFileNameWithoutExtension($ExeName)
     $procs = Get-Process -Name $procName -ErrorAction SilentlyContinue
-    if ($procs) {
-        $procs | Stop-Process -Force -ErrorAction SilentlyContinue
-        Write-Info "Stopped running instance of $procName"
+    if (-not $procs) { return }
+
+    $procs | Stop-Process -Force -ErrorAction SilentlyContinue
+    Write-Info "Stopped running instance of $procName"
+
+    # Stop-Process returns immediately but Windows holds the .exe / .dll file
+    # handles for a short tail after the process exits. Wait until they're
+    # all gone before letting the caller delete the install dir.
+    $deadline = (Get-Date).AddSeconds(10)
+    while ((Get-Process -Name $procName -ErrorAction SilentlyContinue) -and ((Get-Date) -lt $deadline)) {
+        Start-Sleep -Milliseconds 200
     }
+    if (Get-Process -Name $procName -ErrorAction SilentlyContinue) {
+        Write-Info "Process $procName did not exit within 10s -- it may be elevated. Skipping install for this app."
+        return $false
+    }
+
+    # Even after the PID is gone, the kernel may briefly hold the file handle.
+    # A 250ms pause clears the common cases without slowing the happy path.
+    Start-Sleep -Milliseconds 250
+    return $true
 }
 
 # ---------------------------------------------------------------------------
@@ -190,7 +207,11 @@ foreach ($appName in $Apps) {
     }
 
     # Stop any running instance before overwriting
-    Stop-AppIfRunning $def.ExeName
+    $stopped = Stop-AppIfRunning $def.ExeName
+    if ($stopped -eq $false) {
+        Write-Err "$appName is still running and could not be stopped. Quit it manually and re-run."
+        continue
+    }
 
     # Swap into install directory
     if (Test-Path $installDir) {

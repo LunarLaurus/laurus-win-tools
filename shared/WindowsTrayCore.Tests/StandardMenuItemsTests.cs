@@ -22,10 +22,10 @@ public class StandardMenuItemsTests
     [WindowsFact]
     public void CreateCheckForUpdates_HasExpectedText()
     {
-        using var notifyIcon = new NotifyIcon();
+        using var trayIcon = TrayIcon.ForApp("CreateCheckForUpdates_Test");
         var http = new HttpClient();
         var checker = new WindowsAppCore.UpdateChecker(http, "1.0.0", "owner", "repo");
-        using var item = StandardMenuItems.CreateCheckForUpdates(checker, notifyIcon, "MyApp");
+        using var item = StandardMenuItems.CreateCheckForUpdates(checker, trayIcon, "MyApp");
         item.Text.Should().Be("Check for &updates");
     }
 
