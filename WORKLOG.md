@@ -148,6 +148,20 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 ---
 
+## 2026-05-13
+
+**Did:** Phase 7 — dirty-flag mechanism added to `ITrayIconProvider` / `TrayIconManager`.
+- `ITrayIconProvider.HasChanged` default interface property (default: `true`) — providers override to implement dirty-flag; backward compatible with all existing stubs
+- `TrayIconManager.RequestRefresh()` short-circuits when `HasChanged == false`; `ForceRefresh()` and theme-change path bypass the flag unconditionally
+- 6 new tests in `TrayIconManagerTests`; 38 total pass
+- Per-app provider implementations (NPS, SoundTracker, ProgramHider, BatteryTray) deferred — icon rendering code untouched
+
+**Committed:** 679335a
+
+**Next:** Phase 8 — Threading cleanup (`UiDispatcher` adoption, `CancellationToken` propagation)
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -226,11 +240,12 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Fix SoundTracker RecentActivityForm ignoring theme
 - [x] Commit per logical unit
 
-### Phase 7 — Icon providers *(blocked on Phase 6)*
+### Phase 7 — Icon providers *(complete)*
 
-- [ ] Implement `ITrayIconProvider` per app
-- [ ] Replace manual GDI management with `TrayIconManager`
-- [ ] Add dirty-flag to SoundTracker (stop re-rendering on every event)
+- [x] Add `HasChanged` dirty-flag property to `ITrayIconProvider` (default true — backward compatible)
+- [x] `TrayIconManager.RequestRefresh()` skips render when `HasChanged == false`; `ForceRefresh()` and theme changes bypass the flag
+- [x] 6 new tests in `TrayIconManagerTests` covering all dirty-flag branches (38 total pass)
+- [ ] Per-app `ITrayIconProvider` implementations and GDI management wiring — deferred to later phase
 - [ ] Commit per app
 
 ### Phase 8 — Threading cleanup *(blocked on Phase 7)*
