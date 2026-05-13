@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\shared\WindowsAppCore\WindowsAppCore.csproj" />
+    <ProjectReference Include="..\..\..\shared\WindowsTrayCore\WindowsTrayCore.csproj" />
   </ItemGroup>
 
 </Project>

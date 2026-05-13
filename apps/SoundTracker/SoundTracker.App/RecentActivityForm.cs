@@ -1,5 +1,6 @@
 using System.Drawing;
 using SoundTracker.App.Audio;
+using WindowsTrayCore;
 
 namespace SoundTracker.App;
 
@@ -13,7 +14,8 @@ internal sealed class RecentActivityForm : Form
     public RecentActivityForm()
     {
         AutoScaleMode = AutoScaleMode.Font;
-        BackColor = Color.FromArgb(248, 248, 246);
+        BackColor = TrayTheme.Current.Background;
+        TrayTheme.Current.Changed += OnThemeChanged;
         ClientSize = new Size(1100, 680);
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         MinimumSize = new Size(900, 560);
@@ -190,6 +192,15 @@ internal sealed class RecentActivityForm : Form
         var headerWidth = listView.Columns[columnIndex].Width;
         listView.AutoResizeColumn(columnIndex, ColumnHeaderAutoResizeStyle.ColumnContent);
         listView.Columns[columnIndex].Width = Math.Max(minimumWidth, Math.Max(headerWidth, listView.Columns[columnIndex].Width));
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e) =>
+        BackColor = TrayTheme.Current.Background;
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        TrayTheme.Current.Changed -= OnThemeChanged;
+        base.OnFormClosed(e);
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
