@@ -21,6 +21,9 @@ internal static class Program
         if (!SingleInstanceActivation.TryClaim("BatteryTray", dispatchToUi: null, out var activation))
             return 0;
 
+        using var log = new AppLog("BatteryTray", Application.ProductVersion);
+        UnhandledExceptionWatcher.Install(log, "BatteryTray");
+
         ApplicationConfiguration.Initialize();
 
         var settings = AppSettings.Load();

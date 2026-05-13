@@ -23,11 +23,7 @@ internal static class CrashLogger
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) => Write("UI thread", e.Exception);
 
-        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-        {
-            if (e.ExceptionObject is Exception ex) Write("AppDomain", ex);
-            else Write("AppDomain", new Exception($"Non-exception: {e.ExceptionObject}"));
-        };
+        // AppDomain.UnhandledException is wired by WindowsAppCore.UnhandledExceptionWatcher (see Program.cs).
 
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
