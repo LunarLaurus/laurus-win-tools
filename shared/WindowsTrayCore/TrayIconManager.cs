@@ -35,10 +35,15 @@ public sealed class TrayIconManager : IDisposable
     }
 
     /// <summary>
-    /// Equivalent to <see cref="ForceRefresh"/> at this layer. Per-provider dirty-key
-    /// optimisation is added in Phase 7 when app icon providers are introduced.
+    /// Renders a new icon only when <see cref="ITrayIconProvider.HasChanged"/> is <c>true</c>.
+    /// Use this for routine domain-state updates. Theme changes always call
+    /// <see cref="ForceRefresh"/> directly to bypass the dirty-flag.
     /// </summary>
-    public void RequestRefresh() => ForceRefresh();
+    public void RequestRefresh()
+    {
+        if (_provider.HasChanged)
+            ForceRefresh();
+    }
 
     public void Dispose()
     {
