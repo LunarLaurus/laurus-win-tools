@@ -116,6 +116,21 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 ---
 
+## 2026-05-13
+
+**Did:** Phase 5 — Wire `UnhandledExceptionWatcher` into all four apps complete.
+- Added missing `UnhandledExceptionWatcherTests` to `shared\WindowsAppCore.Tests` (Phase 2 gap; 50 tests total)
+- ProgramHider: created `WindowsAppCore.AppLog` instance + `UnhandledExceptionWatcher.Install` in Program.cs (previously had zero crash handling)
+- SoundTracker: replaced manual `AppDomain.CurrentDomain.UnhandledException` handler with `UnhandledExceptionWatcher.Install`; type-aliased `CoreAppLog` to avoid collision with `SoundTracker.App.Diagnostics.AppLog`; `Application.ThreadException` kept for Phase 6
+- BatteryTray: removed `AppDomain.UnhandledException` from `CrashLogger.Install()` (now owned by `UnhandledExceptionWatcher`); added `WindowsAppCore.AppLog` + `UnhandledExceptionWatcher.Install` in Program.cs; `CrashLogger.Write()` and `GetLogPath()` unchanged
+- NetProfileSwitcher: already wired in Phase 2 — no change
+
+**Committed:** 590e20d (library tests), e16141c (ProgramHider), 6cfbfe5 (SoundTracker), dcce8af (BatteryTray)
+
+**Next:** Phase 6 — `WindowsTrayCore` + theme
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -177,10 +192,10 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Add startup registration UI to SoundTracker (currently has none)
 - [x] Commit per app
 
-### Phase 5 — Error handling, non-WinForms half *(blocked on Phase 4)*
+### Phase 5 — Error handling, non-WinForms half *(complete)*
 
-- [ ] Wire `UnhandledExceptionWatcher` into all four apps
-- [ ] Commit
+- [x] Wire `UnhandledExceptionWatcher` into all four apps
+- [x] Commit
 
 ### Phase 6 — `WindowsTrayCore` + theme *(blocked on Phase 5)*
 
