@@ -1,6 +1,7 @@
 using SoundTracker.App.Diagnostics;
 using CoreAppLog = WindowsAppCore.AppLog;
 using SingleInstanceActivation = WindowsAppCore.SingleInstanceActivation;
+using StartupOptions = WindowsAppCore.StartupOptions;
 using UnhandledExceptionWatcher = WindowsAppCore.UnhandledExceptionWatcher;
 
 namespace SoundTracker.App;
@@ -8,13 +9,17 @@ namespace SoundTracker.App;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         if (!SingleInstanceActivation.TryClaim("SoundTracker", dispatchToUi: null, out var activation))
             return;
 
         using var coreLog = new CoreAppLog("SoundTracker", AppMetadata.DisplayVersion);
         UnhandledExceptionWatcher.Install(coreLog, "SoundTracker");
+
+        var startupOptions = StartupOptions.Parse(args);
+        if (startupOptions.DelaySeconds > 0)
+            Thread.Sleep(TimeSpan.FromSeconds(startupOptions.DelaySeconds));
 
         AppLog.Info($"application starting version={AppMetadata.DisplayVersion} log={AppLog.LogPath}");
         var settings = SoundTrackerConfig.Load();

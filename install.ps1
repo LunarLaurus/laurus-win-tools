@@ -5,7 +5,7 @@
     Builds selected apps in Release mode, copies them to the install directory,
     and optionally registers them to start with Windows.
 
-    Requires .NET 8 SDK. Apps run against the .NET 8 Windows Desktop Runtime
+    Requires .NET 8 SDK to build. Apps run against the .NET 8 Windows Desktop Runtime
     (framework-dependent; no .NET bundled in the install).
 .PARAMETER Apps
     One or more app names to install. Defaults to all four.
@@ -59,12 +59,12 @@ $AppDefs = @{
     BatteryTray = @{
         Project     = 'apps\BatteryTray\BatteryTray\BatteryTray.csproj'
         ExeName     = 'BatteryTray.exe'
-        StartupArgs = ''
+        StartupArgs = '--startup --delay=5'
     }
     NetProfileSwitcher = @{
         Project     = 'apps\NetProfileSwitcher\NetProfileSwitcher.csproj'
         ExeName     = 'NetProfileSwitcher.exe'
-        StartupArgs = ''
+        StartupArgs = '--startup --delay=5'
     }
     ProgramHider = @{
         Project     = 'apps\ProgramHider\app\ProgramHider\ProgramHider.csproj'
@@ -74,7 +74,7 @@ $AppDefs = @{
     SoundTracker = @{
         Project     = 'apps\SoundTracker\SoundTracker.App\SoundTracker.App.csproj'
         ExeName     = 'SoundTracker.exe'
-        StartupArgs = ''
+        StartupArgs = '--startup --delay=5'
     }
 }
 
@@ -88,15 +88,36 @@ function Write-Err([string]$Msg)  { Write-Host "    [fail] $Msg"    -ForegroundC
 
 function Assert-Dotnet {
     if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-        Write-Err '.NET SDK not found on PATH. Download from https://dot.net'
+        Write-Err '.NET SDK not found on PATH. Required to build from source.'
+        Write-Err 'Download from https://dot.net/download'
         exit 1
     }
     $sdkVersion = dotnet --version 2>$null
     if ($sdkVersion -notmatch '^8\.') {
-        Write-Err ".NET 8 SDK required (found: $sdkVersion). Download from https://dot.net"
+        Write-Err ".NET 8 SDK required to build (found: $sdkVersion)."
+        Write-Err 'Download from https://dot.net/download'
         exit 1
     }
     Write-Info ".NET SDK $sdkVersion"
+}
+
+function Assert-DesktopRuntime {
+    $runtimes = & dotnet --list-runtimes 2>$null
+    $found = $runtimes | Where-Object { $_ -match 'Microsoft\.WindowsDesktop\.App 8\.' }
+    if (-not $found) {
+        Write-Info 'Warning: .NET 8 Windows Desktop Runtime not detected on this machine.'
+        Write-Info 'Installed apps will not run without it.'
+        Write-Info 'Download from https://dot.net/download (choose "Desktop Runtime")'
+    }
+}
+
+function Stop-AppIfRunning([string]$ExeName) {
+    $procName = [System.IO.Path]::GetFileNameWithoutExtension($ExeName)
+    $procs = Get-Process -Name $procName -ErrorAction SilentlyContinue
+    if ($procs) {
+        $procs | Stop-Process -Force -ErrorAction SilentlyContinue
+        Write-Info "Stopped running instance of $procName"
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -105,7 +126,10 @@ function Assert-Dotnet {
 if ($Uninstall) {
     foreach ($appName in $Apps) {
         Write-Step "Uninstalling $appName"
+        $def        = $AppDefs[$appName]
         $installDir = Join-Path $InstallRoot $appName
+
+        Stop-AppIfRunning $def.ExeName
 
         if (Test-Path $installDir) {
             Remove-Item $installDir -Recurse -Force
@@ -129,6 +153,7 @@ if ($Uninstall) {
 # Install
 # ---------------------------------------------------------------------------
 Assert-Dotnet
+Assert-DesktopRuntime
 
 Write-Host "`nlaurus-win-tools installer" -ForegroundColor White
 Write-Host "Install root : $InstallRoot"
@@ -156,6 +181,9 @@ foreach ($appName in $Apps) {
         exit 1
     }
 
+    # Stop any running instance before overwriting
+    Stop-AppIfRunning $def.ExeName
+
     # Swap into install directory
     if (Test-Path $installDir) {
         Remove-Item $installDir -Recurse -Force
@@ -168,12 +196,7 @@ foreach ($appName in $Apps) {
     # AutoRun -- writes to HKCU Run key, no elevation required
     if ($AutoRun) {
         $exePath = Join-Path $installDir $def.ExeName
-        if ($def.StartupArgs) {
-            $runValue = "`"$exePath`" $($def.StartupArgs)"
-        }
-        else {
-            $runValue = "`"$exePath`""
-        }
+        $runValue = "`"$exePath`" $($def.StartupArgs)"
         Set-ItemProperty -Path $RunKeyPath -Name $appName -Value $runValue
         Write-Ok "AutoRun: $runValue"
     }

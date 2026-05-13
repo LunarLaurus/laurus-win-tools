@@ -1,7 +1,9 @@
 namespace ProgramHider;
 
-// Parses command-line switches used for startup launches and elevation retry
-// handoff between Program Hider instances.
+using CoreStartupOptions = WindowsAppCore.StartupOptions;
+
+// Extends the common --startup / --delay= flags with ProgramHider-specific
+// switches used for elevation retry handoff between instances.
 internal sealed class StartupOptions
 {
     public bool IsStartupLaunch { get; init; }
@@ -11,44 +13,27 @@ internal sealed class StartupOptions
 
     public static StartupOptions Parse(string[] args)
     {
-        var options = new StartupOptions();
-        var delaySeconds = 0;
-        var isStartupLaunch = false;
-        var safeMode = false;
+        var core = CoreStartupOptions.Parse(args);
+        bool safeMode = false;
         nint pendingHideHandle = 0;
 
         foreach (var arg in args)
         {
-            if (string.Equals(arg, "--startup", StringComparison.OrdinalIgnoreCase))
-            {
-                isStartupLaunch = true;
-                continue;
-            }
-
-            if (string.Equals(arg, "--safe-mode", StringComparison.OrdinalIgnoreCase))
+            if (arg.Equals("--safe-mode", StringComparison.OrdinalIgnoreCase))
             {
                 safeMode = true;
-                continue;
             }
-
-            if (arg.StartsWith("--delay=", StringComparison.OrdinalIgnoreCase) &&
-                int.TryParse(arg["--delay=".Length..], out var parsedDelay))
+            else if (arg.StartsWith("--rehide=", StringComparison.OrdinalIgnoreCase) &&
+                     ElevationService.TryParseHandle(arg["--rehide=".Length..], out var h))
             {
-                delaySeconds = Math.Clamp(parsedDelay, 0, 300);
-                continue;
-            }
-
-            if (arg.StartsWith("--rehide=", StringComparison.OrdinalIgnoreCase) &&
-                ElevationService.TryParseHandle(arg["--rehide=".Length..], out var parsedHandle))
-            {
-                pendingHideHandle = parsedHandle;
+                pendingHideHandle = h;
             }
         }
 
         return new StartupOptions
         {
-            IsStartupLaunch = isStartupLaunch,
-            DelaySeconds = delaySeconds,
+            IsStartupLaunch = core.IsStartupLaunch,
+            DelaySeconds = core.DelaySeconds,
             SafeMode = safeMode,
             PendingHideHandle = pendingHideHandle
         };

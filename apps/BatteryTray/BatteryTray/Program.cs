@@ -24,6 +24,10 @@ internal static class Program
         using var log = new AppLog("BatteryTray", Application.ProductVersion);
         UnhandledExceptionWatcher.Install(log, "BatteryTray");
 
+        var startupOptions = StartupOptions.Parse(args);
+        if (startupOptions.DelaySeconds > 0)
+            Thread.Sleep(TimeSpan.FromSeconds(startupOptions.DelaySeconds));
+
         ApplicationConfiguration.Initialize();
 
         var settings = AppSettings.Load();
