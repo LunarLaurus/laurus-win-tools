@@ -24,13 +24,16 @@ internal static class Program
         using var log = new AppLog("BatteryTray", Application.ProductVersion);
         UnhandledExceptionWatcher.Install(log, "BatteryTray");
 
+        var settings = AppSettings.Load();
+
         var startupOptions = StartupOptions.Parse(args);
-        if (startupOptions.DelaySeconds > 0)
-            Thread.Sleep(TimeSpan.FromSeconds(startupOptions.DelaySeconds));
+        int delaySeconds = startupOptions.DelaySeconds > 0
+            ? startupOptions.DelaySeconds
+            : settings.StartupDelaySeconds;
+        if (delaySeconds > 0)
+            Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
 
         ApplicationConfiguration.Initialize();
-
-        var settings = AppSettings.Load();
         using (activation!)
         using (var context = new BatteryTrayContext(settings, activation!, startup))
         {

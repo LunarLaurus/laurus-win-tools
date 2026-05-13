@@ -9,6 +9,7 @@ public sealed class SoundTrackerConfig
     public const int CurrentSchemaVersion = 1;
 
     public bool RunAtStartup { get; set; }
+    public int StartupDelaySeconds { get; set; } = 0;
 
     private static readonly JsonSettingsStore<SoundTrackerConfig> Store = new("SoundTracker");
 

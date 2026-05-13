@@ -1,4 +1,6 @@
 using System.Windows.Forms;
+using NetProfileSwitcher.Models;
+using NetProfileSwitcher.Services;
 using NetProfileSwitcher.UI;
 using WindowsAppCore;
 using StartupOptions = WindowsAppCore.StartupOptions;
@@ -16,9 +18,14 @@ static class Program
         using var log = new AppLog("NetProfileSwitcher", Application.ProductVersion);
         UnhandledExceptionWatcher.Install(log, "NetProfileSwitcher");
 
+        var cfg = ConfigStore.Load();
+
         var startupOptions = StartupOptions.Parse(args);
-        if (startupOptions.DelaySeconds > 0)
-            Thread.Sleep(TimeSpan.FromSeconds(startupOptions.DelaySeconds));
+        int delaySeconds = startupOptions.DelaySeconds > 0
+            ? startupOptions.DelaySeconds
+            : cfg.StartupDelaySeconds;
+        if (delaySeconds > 0)
+            Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);

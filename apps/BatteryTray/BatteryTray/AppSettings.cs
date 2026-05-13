@@ -46,6 +46,7 @@ public sealed class AppSettings
     // ---- System ----
     public bool RunAtStartup { get; set; }
     public bool ShownFirstRunWelcome { get; set; }
+    public int StartupDelaySeconds { get; set; } = 0;
 
     // ---- Power plan auto-switch ----
     public bool   PowerPlanAutoSwitchEnabled { get; set; }

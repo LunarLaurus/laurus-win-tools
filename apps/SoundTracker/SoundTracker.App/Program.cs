@@ -17,12 +17,16 @@ internal static class Program
         using var coreLog = new CoreAppLog("SoundTracker", AppMetadata.DisplayVersion);
         UnhandledExceptionWatcher.Install(coreLog, "SoundTracker");
 
+        var settings = SoundTrackerConfig.Load();
+
         var startupOptions = StartupOptions.Parse(args);
-        if (startupOptions.DelaySeconds > 0)
-            Thread.Sleep(TimeSpan.FromSeconds(startupOptions.DelaySeconds));
+        int delaySeconds = startupOptions.DelaySeconds > 0
+            ? startupOptions.DelaySeconds
+            : settings.StartupDelaySeconds;
+        if (delaySeconds > 0)
+            Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
 
         AppLog.Info($"application starting version={AppMetadata.DisplayVersion} log={AppLog.LogPath}");
-        var settings = SoundTrackerConfig.Load();
         AppLog.Info($"settings loaded path={settings.SettingsFilePath}");
         Application.ThreadException += (_, args) => AppLog.Error("ui thread exception", args.Exception);
 

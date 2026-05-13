@@ -8,6 +8,9 @@ namespace ProgramHider;
 // structured window rules.
 internal sealed class AppSettings
 {
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
+    public const int CurrentSchemaVersion = 1;
+
     public HotkeySettings Hotkey { get; set; } = HotkeySettings.CreateDefault();
     public bool LaunchOnWindowsStartup { get; set; }
     public int StartupDelaySeconds { get; set; }
