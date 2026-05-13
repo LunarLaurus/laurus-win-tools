@@ -3,85 +3,50 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
 using System.Globalization;
-using System.Runtime.InteropServices;
+using WindowsTrayCore;
 
 namespace BatteryTray;
 
 public static class IconRenderer
 {
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool DestroyIcon(IntPtr hIcon);
-
-    [DllImport("user32.dll")]
-    private static extern int GetDpiForSystem();
-
     public static Icon Create(BatteryState state, AppSettings settings)
     {
-        int size = settings.DpiAwareIcon ? PickIconSize() : 32;
+        int size = settings.DpiAwareIcon
+            ? TrayIconMetrics.RecommendedRenderSize()
+            : 32;
 
-        var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
-        try
+        using var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bmp))
         {
-            using (var g = Graphics.FromImage(bmp))
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.Clear(Color.Transparent);
+
+            var bg = SelectBackgroundColor(state, settings);
+            var fg = ResolveTextColor(settings);
+
+            if (settings.Style == IconStyle.Bar)
             {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.Clear(Color.Transparent);
-
-                var bg = SelectBackgroundColor(state, settings);
-                var fg = ResolveTextColor(settings);
-
-                if (settings.Style == IconStyle.Bar)
-                {
-                    DrawBatteryShape(g, size, state, bg, fg, settings);
-                }
-                else
-                {
-                    DrawRoundedFill(g, size, bg);
-                    DrawPercentText(g, size, state, fg);
-                    if (state.IsCharging) DrawChargingDot(g, size);
-                    if (settings.Style == IconStyle.Both) DrawCornerBar(g, size, state, fg);
-                }
-
-                // Battery-saver leaf overlay sits on top of everything else, top-left
-                // corner, where it doesn't occlude the percentage number.
-                if (state.BatterySaverActive && settings.ShowBatterySaverIndicator)
-                {
-                    DrawBatterySaverLeaf(g, size);
-                }
+                DrawBatteryShape(g, size, state, bg, fg, settings);
+            }
+            else
+            {
+                DrawRoundedFill(g, size, bg);
+                DrawPercentText(g, size, state, fg);
+                if (state.IsCharging) DrawChargingDot(g, size);
+                if (settings.Style == IconStyle.Both) DrawCornerBar(g, size, state, fg);
             }
 
-            return Icon.FromHandle(bmp.GetHicon());
-        }
-        finally
-        {
-            bmp.Dispose();
-        }
-    }
-
-    public static void Free(Icon icon)
-    {
-        var handle = icon.Handle;
-        icon.Dispose();
-        DestroyIcon(handle);
-    }
-
-    private static int PickIconSize()
-    {
-        try
-        {
-            var dpi = GetDpiForSystem();
-            return dpi switch
+            // Battery-saver leaf overlay sits on top of everything else, top-left
+            // corner, where it doesn't occlude the percentage number.
+            if (state.BatterySaverActive && settings.ShowBatterySaverIndicator)
             {
-                <= 96  => 32,
-                <= 120 => 40,
-                <= 144 => 48,
-                _      => 64,
-            };
+                DrawBatterySaverLeaf(g, size);
+            }
         }
-        catch { return 32; }
+
+        return IconBuilder.FromBitmap(bmp);
     }
 
     private static Color SelectBackgroundColor(BatteryState state, AppSettings settings)

@@ -1,6 +1,6 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
+using WindowsTrayCore;
 
 namespace NetProfileSwitcher.UI;
 
@@ -20,7 +20,10 @@ public static class Icons
 
     private static Icon BuildAppIcon()
     {
-        using var bmp = new Bitmap(32, 32);
+        // The window-frame app icon is large (Form.Icon / taskbar thumbnail),
+        // so a fixed 32 is plenty regardless of DPI.
+        const int size = 32;
+        using var bmp = new Bitmap(size, size);
         using var g = Graphics.FromImage(bmp);
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.Clear(Theme.Bg);
@@ -35,15 +38,24 @@ public static class Icons
         g.FillRectangle(hilite, 13, 16, 6, 2);
         g.FillRectangle(hilite, 21, 9,  6, 2);
 
-        return IconFromBitmap(bmp);
+        return IconBuilder.FromBitmap(bmp);
     }
 
     private static Icon BuildTrayIcon(TrayState state)
     {
-        using var bmp = new Bitmap(16, 16);
+        // Render at DPI-aware size — the old 16x16 baseline scaled up
+        // blurry on high-DPI displays. The bar layout was originally
+        // designed for a 16-unit canvas; scale all coordinates uniformly.
+        int size = TrayIconMetrics.RecommendedRenderSize();
+        const int designUnit = 16;
+        float scale = size / (float)designUnit;
+
+        using var bmp = new Bitmap(size, size);
         using var g = Graphics.FromImage(bmp);
         g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
         g.Clear(Theme.Bg);
+        g.ScaleTransform(scale, scale);
 
         Color barColor = state switch
         {
@@ -64,21 +76,8 @@ public static class Icons
         else if (state == TrayState.Error)
             DrawErrorOverlay(g);
 
-        return IconFromBitmap(bmp);
+        return IconBuilder.FromBitmap(bmp);
     }
-
-    // GetHicon allocates a GDI HICON that Icon.FromHandle does not own.
-    // Clone copies the icon bits into managed memory so we can immediately
-    // release the GDI handle without affecting the returned Icon.
-    private static Icon IconFromBitmap(Bitmap bmp)
-    {
-        var hicon = bmp.GetHicon();
-        try   { return (Icon)Icon.FromHandle(hicon).Clone(); }
-        finally { DestroyIcon(hicon); }
-    }
-
-    [DllImport("user32.dll")]
-    private static extern bool DestroyIcon(IntPtr handle);
 
     private static void DrawLightningOverlay(Graphics g)
     {

@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
 using SoundTracker.App.Audio;
+using WindowsTrayCore;
 
 namespace SoundTracker.App;
 
@@ -9,10 +9,17 @@ internal static class TrayIconRenderer
 {
     public static Icon Render(EndpointVolumeSnapshot snapshot, bool isLightTaskbarTheme)
     {
-        using var bitmap = new Bitmap(32, 32);
+        var size = TrayIconMetrics.RecommendedRenderSize();
+        using var bitmap = new Bitmap(size, size);
         using var graphics = Graphics.FromImage(bitmap);
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
         graphics.Clear(Color.Transparent);
+
+        // Original layout was designed on a 32px canvas; scale into the
+        // current render size so every coordinate stays proportional.
+        var scale = size / 32f;
+        graphics.ScaleTransform(scale, scale);
 
         DrawBadgeBackground(graphics, snapshot, isLightTaskbarTheme);
         DrawSpeaker(graphics, snapshot, isLightTaskbarTheme);
@@ -22,16 +29,7 @@ internal static class TrayIconRenderer
             DrawMuteOverlay(graphics, isLightTaskbarTheme);
         }
 
-        var handle = bitmap.GetHicon();
-        try
-        {
-            using var tempIcon = Icon.FromHandle(handle);
-            return (Icon)tempIcon.Clone();
-        }
-        finally
-        {
-            DestroyIcon(handle);
-        }
+        return IconBuilder.FromBitmap(bitmap);
     }
 
     private static void DrawBadgeBackground(Graphics graphics, EndpointVolumeSnapshot snapshot, bool isLightTaskbarTheme)
@@ -129,7 +127,4 @@ internal static class TrayIconRenderer
         };
         graphics.DrawLine(pen, 18, 9, 27, 22);
     }
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool DestroyIcon(IntPtr hIcon);
 }
