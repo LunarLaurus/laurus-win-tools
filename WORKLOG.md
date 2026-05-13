@@ -324,6 +324,26 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 **Committed:** 358b82b (tidy), 8836a45 (README + LICENSE)
 **Release:** https://github.com/LunarLaurus/laurus-win-tools/releases/tag/v1.0.0
 
+**Next:** Smoke-test release zips
+
+---
+
+## 2026-05-13 17:15
+
+**Did:** Smoke-tested release zips; discovered + fixed UpdateChecker SemVer bug.
+- Downloaded all four `v1.0.0` zips; verified each app launches and exits cleanly
+- Confirmed BatteryTray stamped `ProductVersion = 1.0.0+358b82bb...` (GitVersion semver + commit SHA)
+- Caught: `System.Version.TryParse("1.0.0+sha")` returns false → `_currentVersion` was null in production → CheckAsync returned `NoUpdate` unconditionally → auto-update was silently disabled in v1.0.0
+- Fix: added `UpdateChecker.ParseSemver` helper that strips prerelease (`-`) and build-metadata (`+`) suffixes before `Version.TryParse`; applied to both the constructor's `currentVersion` and the remote `tag_name`
+- 4 new functional tests + 8-row `[Theory]` covering edge cases; 85/85 pass
+- Tagged `v1.0.1`; release workflow completed in ~2 min with stamped binaries (`1.0.1+2ec42b8...`)
+- Smoke-tested v1.0.1 BatteryTray: launches cleanly, version reads correctly
+
+**Committed:** 2ec42b8 (fix)
+**Release:** https://github.com/LunarLaurus/laurus-win-tools/releases/tag/v1.0.1
+
+**Caveat:** v1.0.0 users will need to upgrade manually once; v1.0.1+ installs auto-update going forward.
+
 **Next:** Open development — gather first-beta feedback
 
 ---
