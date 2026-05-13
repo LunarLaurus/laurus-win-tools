@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using Microsoft.Win32;
 using SoundTracker.App.Audio;
 using SoundTracker.App.Diagnostics;
 using SoundTracker.App.History;
@@ -18,6 +19,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _recentStatusItem;
     private readonly NotifyIcon _notifyIcon;
     private readonly Control _uiDispatcher;
+    private readonly System.Windows.Forms.Timer _leftClickTimer;
     private Icon? _currentTrayIcon;
 
     public TrayApplicationContext()
@@ -58,6 +60,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
         _recentActivityForm = new RecentActivityForm();
+        _leftClickTimer = new System.Windows.Forms.Timer
+        {
+            Interval = Math.Max(200, SystemInformation.DoubleClickTime),
+        };
+        _leftClickTimer.Tick += HandleLeftClickTimerTick;
         AppLog.Info($"ui dispatcher handle created=0x{_uiDispatcher.Handle.ToInt64():X}");
 
         var menu = new ContextMenuStrip();
@@ -111,13 +118,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Visible = showNotifyIcon,
         };
         _currentTrayIcon = (Icon)SystemIcons.Information.Clone();
-        _notifyIcon.MouseClick += (_, args) =>
-            AppLog.Info($"tray icon mouse click button={args.Button} x={args.X} y={args.Y}");
-        _notifyIcon.MouseDoubleClick += (_, args) =>
-            AppLog.Info($"tray icon mouse double click button={args.Button} x={args.X} y={args.Y}");
+        _notifyIcon.MouseClick += HandleNotifyIconMouseClick;
+        _notifyIcon.MouseDoubleClick += HandleNotifyIconMouseDoubleClick;
         _notifyIcon.DoubleClick += (_, _) =>
         {
             AppLog.Info("tray icon double click handler entered");
+            _leftClickTimer.Stop();
             ShowRecentActivityWindow();
         };
         AppLog.Info("notify icon created");
@@ -125,6 +131,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _audioSessionSource.SessionsChanged += HandleSessionsChanged;
         _audioSessionSource.VolumeStateChanged += HandleVolumeStateChanged;
         _activityTimeline.HistoryChanged += HandleHistoryChanged;
+        SystemEvents.UserPreferenceChanged += HandleUserPreferenceChanged;
         AppLog.Info("audio session source subscribed");
 
         RefreshSessions();
@@ -150,6 +157,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _audioSessionSource.SessionsChanged -= HandleSessionsChanged;
         _audioSessionSource.VolumeStateChanged -= HandleVolumeStateChanged;
         _activityTimeline.HistoryChanged -= HandleHistoryChanged;
+        SystemEvents.UserPreferenceChanged -= HandleUserPreferenceChanged;
+        _leftClickTimer.Stop();
+        _leftClickTimer.Dispose();
         if (_ownsActivityTimeline)
         {
             _activityTimeline.Dispose();
@@ -191,6 +201,42 @@ internal sealed class TrayApplicationContext : ApplicationContext
         BeginRefreshOnUiThread();
     }
 
+    private void HandleNotifyIconMouseClick(object? sender, MouseEventArgs args)
+    {
+        AppLog.Info($"tray icon mouse click button={args.Button} x={args.X} y={args.Y}");
+        if (args.Button != MouseButtons.Left)
+        {
+            return;
+        }
+
+        _leftClickTimer.Stop();
+        _leftClickTimer.Start();
+    }
+
+    private void HandleNotifyIconMouseDoubleClick(object? sender, MouseEventArgs args)
+    {
+        AppLog.Info($"tray icon mouse double click button={args.Button} x={args.X} y={args.Y}");
+        if (args.Button != MouseButtons.Left)
+        {
+            return;
+        }
+
+        _leftClickTimer.Stop();
+    }
+
+    private void HandleLeftClickTimerTick(object? sender, EventArgs e)
+    {
+        _leftClickTimer.Stop();
+        AppLog.Info("tray icon single left click resolved to volume mixer");
+        OpenVolumeMixer();
+    }
+
+    private void HandleUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
+    {
+        AppLog.Info($"user preference changed category={e.Category}");
+        BeginRefreshOnUiThread();
+    }
+
     private void BeginRefreshOnUiThread()
     {
         if (_uiDispatcher.IsDisposed)
@@ -218,7 +264,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             var sessions = _audioSessionSource.GetActiveSessionNames();
             var recentActivities = _activityTimeline.GetRecentEvents(100);
             UpdateTrayIcon(volumeSnapshot);
-            _notifyIcon.Text = TooltipFormatter.Build(volumeSnapshot, sessions, recentActivities);
+            _notifyIcon.Text = TooltipFormatter.BuildMultiline(volumeSnapshot, sessions, recentActivities);
             _volumeStatusItem.Text = TooltipFormatter.BuildVolumeMenuLabel(volumeSnapshot);
             _activeStatusItem.Text = TooltipFormatter.BuildActiveMenuLabel(sessions);
             _recentStatusItem.Text = TooltipFormatter.BuildRecentMenuLabel(recentActivities);
@@ -274,7 +320,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void UpdateTrayIcon(EndpointVolumeSnapshot volumeSnapshot)
     {
-        var nextIcon = TrayIconRenderer.Render(volumeSnapshot);
+        var nextIcon = TrayIconRenderer.Render(volumeSnapshot, AppTheme.IsLightTaskbarTheme());
         var previousIcon = _currentTrayIcon;
         _currentTrayIcon = nextIcon;
         _notifyIcon.Icon = nextIcon;

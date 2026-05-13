@@ -27,6 +27,7 @@ internal static class Program
             ("ProcessNameResolver current process", ProcessNameResolver_CurrentProcess),
             ("AudioSessionMonitor lifecycle", AudioSessionMonitor_Lifecycle),
             ("AudioSessionMonitor endpoint volume snapshot", AudioSessionMonitor_EndpointVolumeSnapshot),
+            ("TooltipFormatter multiline tooltip", TooltipFormatter_MultilineTooltip),
             ("AudioSessionMonitor disposed guard", AudioSessionMonitor_DisposedGuard),
             ("AudioSessionMonitor live playback callbacks", AudioSessionMonitor_LivePlaybackCallbacks),
             ("AudioActivityTimeline persists live playback history", AudioActivityTimeline_PersistsLivePlaybackHistory),
@@ -155,6 +156,17 @@ internal static class Program
         Assert.True(snapshot.Percent >= 0 && snapshot.Percent <= 100, "Endpoint volume percent should be within 0-100.");
     }
 
+    private static void TooltipFormatter_MultilineTooltip()
+    {
+        var text = TooltipFormatter.BuildMultiline(
+            new EndpointVolumeSnapshot(42, IsMuted: false, IsAvailable: true),
+            new[] { "firefox.exe" },
+            Array.Empty<AudioActivityEvent>());
+
+        Assert.True(text.Contains(Environment.NewLine), "Tray tooltip should use multiple lines.");
+        Assert.True(text.StartsWith("SoundTracker 0.4.1"), "Tooltip should include the current version.");
+    }
+
     private static void AudioSessionMonitor_LivePlaybackCallbacks()
     {
         using var probe = StartLivePlaybackProbe();
@@ -214,11 +226,14 @@ internal static class Program
         var capture = GetPlaybackCapture();
 
         Assert.True(
-            capture.TooltipText.StartsWith("SoundTracker 0.4.0: ", StringComparison.Ordinal),
+            capture.TooltipText.StartsWith("SoundTracker 0.4.1", StringComparison.Ordinal),
             "Tray tooltip should include the current application version.");
         Assert.True(
-            capture.TooltipText.Contains("vol ", StringComparison.OrdinalIgnoreCase) ||
-            capture.TooltipText.Contains("muted ", StringComparison.OrdinalIgnoreCase),
+            capture.TooltipText.Contains(Environment.NewLine),
+            "Tray tooltip should be multiline.");
+        Assert.True(
+            capture.TooltipText.Contains("Volume", StringComparison.OrdinalIgnoreCase) ||
+            capture.TooltipText.Contains("Muted", StringComparison.OrdinalIgnoreCase),
             "Tray tooltip should include current volume summary.");
         Assert.True(
             capture.VolumeStatusText.Contains("Volume:", StringComparison.OrdinalIgnoreCase),

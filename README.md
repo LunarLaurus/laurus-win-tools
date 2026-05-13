@@ -2,7 +2,7 @@
 
 SoundTracker is a Windows 10 tray app built on `.NET 8` and `WinForms`. It records historical audio activity instead of only showing a live session snapshot: when a session starts, stops, or when the default render device changes, the app keeps that event in memory and appends it to `%LOCALAPPDATA%\SoundTracker\history\audio-activity.jsonl`.
 
-The tray icon also tracks the default endpoint master volume and mute state, so the app can act as a usable replacement for the standard Windows speaker icon when the shell mixer is unreliable.
+The tray icon also tracks the default endpoint master volume and mute state, uses a theme-aware dynamically drawn icon, and can act as a usable replacement for the standard Windows speaker icon when the shell mixer is unreliable.
 
 The previous Rust implementation has been archived under [`archive/rust-legacy/`](archive/rust-legacy) so the migration history remains in-repo without competing with the active app layout.
 

@@ -6,30 +6,28 @@ internal static class TooltipFormatter
 {
     private const int NotifyIconTextLimit = 63;
 
-    public static string Build(
+    public static string BuildMultiline(
         EndpointVolumeSnapshot volumeSnapshot,
         IReadOnlyList<string> activeSessions,
         IReadOnlyList<AudioActivityEvent> recentActivities)
     {
-        var parts = new List<string>
-        {
-            BuildVolumeSummary(volumeSnapshot),
-        };
+        var lines = new List<string> { AppMetadata.TooltipPrefix };
+        lines.Add(BuildVolumeSummary(volumeSnapshot));
 
         if (activeSessions.Count > 0)
         {
-            parts.Add(BuildActiveTooltipSummary(activeSessions));
+            lines.Add(BuildActiveTooltipSummary(activeSessions));
         }
         else
         {
             var recentSummary = BuildRecentTooltipSummary(recentActivities, DateTimeOffset.UtcNow);
             if (recentSummary is not null)
             {
-                parts.Add(recentSummary);
+                lines.Add(recentSummary);
             }
         }
 
-        return Truncate($"{AppMetadata.TooltipPrefix}: {string.Join(" | ", parts)}");
+        return Truncate(string.Join(Environment.NewLine, lines));
     }
 
     public static string BuildActiveMenuLabel(IReadOnlyList<string> activeSessions)
@@ -142,22 +140,22 @@ internal static class TooltipFormatter
     {
         if (activeSessions.Count == 1)
         {
-            return $"1 active {CompactSource(activeSessions[0])}";
+            return $"Active: {CompactSource(activeSessions[0])}";
         }
 
-        return $"{activeSessions.Count} active";
+        return $"Active: {activeSessions.Count} apps";
     }
 
     private static string BuildVolumeSummary(EndpointVolumeSnapshot snapshot)
     {
         if (!snapshot.IsAvailable)
         {
-            return "vol unavailable";
+            return "Volume unavailable";
         }
 
         return snapshot.IsMuted
-            ? $"muted {snapshot.Percent}%"
-            : $"vol {snapshot.Percent}%";
+            ? $"Muted {snapshot.Percent}%"
+            : $"Volume {snapshot.Percent}%";
     }
 
     private static string? BuildRecentTooltipSummary(IReadOnlyList<AudioActivityEvent> recentActivities, DateTimeOffset nowUtc)
@@ -173,11 +171,11 @@ internal static class TooltipFormatter
 
         return latestActivity.Kind switch
         {
-            AudioActivityKind.ObservedActive => $"last heard {source} {age}",
-            AudioActivityKind.Started => $"last start {source} {age}",
-            AudioActivityKind.Stopped => $"last stop {source} {age}",
-            AudioActivityKind.DefaultDeviceChanged => $"device change {age}",
-            _ => $"{source} {age}",
+            AudioActivityKind.ObservedActive => $"Recent: heard {source} {age}",
+            AudioActivityKind.Started => $"Recent: start {source} {age}",
+            AudioActivityKind.Stopped => $"Recent: stop {source} {age}",
+            AudioActivityKind.DefaultDeviceChanged => $"Recent: device {age}",
+            _ => $"Recent: {source} {age}",
         };
     }
 
