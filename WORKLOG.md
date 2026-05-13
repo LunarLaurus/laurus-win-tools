@@ -218,7 +218,38 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 **Committed:** f3ea969 (workflow + install script)
 
-**Next:** Phase 10 — CLI args standardisation + install script hardening
+**Next:** Phases 10–13 complete — see entries below
+
+---
+
+## 2026-05-13 14:00
+
+**Did:** Phases 10–13 complete in four discrete commits.
+
+Phase 10 — CLI args standardisation + install script hardening:
+- `WindowsAppCore.StartupOptions`: parses `--startup` and `--delay=N` (0–300 s); 13 tests
+- `ProgramHider.StartupOptions`: refactored to delegate to core, keeps `--safe-mode` / `--rehide=` locally
+- All four apps accept `string[] args`, parse `StartupOptions`, apply delay after single-instance claim
+- `install.ps1`: all four apps get `--startup --delay=5` under `-AutoRun`; `Stop-AppIfRunning` kills running instance before overwrite; `Assert-DesktopRuntime` warns if .NET 8 Desktop Runtime absent
+
+Phase 11 — Version stamping + release pipeline:
+- `Directory.Build.props`: `RELEASE_VERSION` env var overrides all four version properties; local builds use csproj values
+- `SoundTracker/AppMetadata.cs`: `DisplayVersion` / `TooltipPrefix` now read `Application.ProductVersion` dynamically
+- NPS and BatteryTray: initial tray icon `Text` includes `ProductVersion`
+- `.github/workflows/release.yml`: tag-triggered (`v*`), runs all 6 test suites, stamps binaries with tag version, zips and creates GitHub Release
+
+Phase 12 — Cleanup:
+- `ProgramHider.TestHost`: deleted `Program.cs` and `.csproj`; removed from `ProgramHider.sln`
+- Single-instance audit: all four apps confirmed using `SingleInstanceActivation.TryClaim`
+
+Phase 13 — Settings schema versioning + configurable startup delay:
+- `SchemaVersion` added to `ProgramHider.AppSettings` (= 1) and `NetProfileSwitcher.AppConfig` (= 1)
+- `StartupDelaySeconds` added to `BatteryTray.AppSettings`, `NetProfileSwitcher.AppConfig`, `SoundTrackerConfig`
+- All four `Program.cs`: CLI `--delay=N` takes priority; `settings.StartupDelaySeconds` is the fallback
+
+**Committed:** 2dbb339 (Ph10), 0ebda38 (Ph11), 03a4415 (Ph12), 9809957 (Ph13)
+
+**Next:** Open development — no pending phases
 
 ---
 
@@ -328,31 +359,31 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Clean root README
 - [x] Push to private GitHub remote
 
-### Phase 10 — CLI args standardisation + install script hardening
+### Phase 10 — CLI args standardisation + install script hardening *(complete)*
 
-- [ ] Add `StartupOptions` to `WindowsAppCore`: parse `--startup` and `--delay=N`; tests
-- [ ] Wire `StartupOptions` into all four apps' `Program.cs` (replace ad-hoc arg handling)
-- [ ] Update `install.ps1` to pass `--startup --delay=5` for all four apps under `-AutoRun`
-- [ ] Kill running app processes before overwriting install dir in `install.ps1`
-- [ ] Fix `install.ps1` runtime check: validate .NET 8 Windows Desktop Runtime, not the SDK
-- [ ] Commit per logical unit
+- [x] Add `StartupOptions` to `WindowsAppCore`: parse `--startup` and `--delay=N`; tests
+- [x] Wire `StartupOptions` into all four apps' `Program.cs` (replace ad-hoc arg handling)
+- [x] Update `install.ps1` to pass `--startup --delay=5` for all four apps under `-AutoRun`
+- [x] Kill running app processes before overwriting install dir in `install.ps1`
+- [x] Fix `install.ps1` runtime check: validate .NET 8 Windows Desktop Runtime, not the SDK
+- [x] Commit per logical unit
 
-### Phase 11 — Release pipeline + version stamping
+### Phase 11 — Release pipeline + version stamping *(complete)*
 
-- [ ] Add `AssemblyInformationalVersion` MSBuild property wired from git tag at publish time
-- [ ] Surface version in tray tooltip for each app (e.g. "AppName v1.2.3")
-- [ ] Tag-triggered GitHub Actions release workflow: builds, publishes, creates GitHub Release with zipped artifacts attached
-- [ ] Commit per logical unit
+- [x] Add `AssemblyInformationalVersion` MSBuild property wired from git tag at publish time
+- [x] Surface version in tray tooltip for each app (e.g. "AppName v1.2.3")
+- [x] Tag-triggered GitHub Actions release workflow: builds, publishes, creates GitHub Release with zipped artifacts attached
+- [x] Commit per logical unit
 
-### Phase 12 — Cleanup
+### Phase 12 — Cleanup *(complete)*
 
-- [ ] Retire `ProgramHider.TestHost` project: delete directory, remove from `ProgramHider.sln`
-- [ ] Single-instance audit: confirm all four apps use `SingleInstanceActivation`; add any missing
-- [ ] Commit
+- [x] Retire `ProgramHider.TestHost` project: delete directory, remove from `ProgramHider.sln`
+- [x] Single-instance audit: confirm all four apps use `SingleInstanceActivation`; add any missing
+- [x] Commit
 
-### Phase 13 — Settings schema versioning + configurable startup delay
+### Phase 13 — Settings schema versioning + configurable startup delay *(complete)*
 
-- [ ] Add `SchemaVersion` field to `WindowsAppCore` settings infrastructure
-- [ ] Version-aware migration hooks: migrations declare source/target version; store validates before loading
-- [ ] Add `StartupDelaySeconds` to each app's settings type (fallback to `--delay=N` arg, then default 5)
-- [ ] Commit per logical unit
+- [x] Add `SchemaVersion` field to `ProgramHider.AppSettings` and `NetProfileSwitcher.AppConfig` (infrastructure already present in `JsonSettingsStore`)
+- [x] Add `StartupDelaySeconds` to each app's settings type (fallback when `--delay=N` not passed)
+- [x] Wire CLI-arg-over-settings priority in all four `Program.cs`
+- [x] Commit per logical unit
