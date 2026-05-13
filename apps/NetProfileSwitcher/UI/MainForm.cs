@@ -11,6 +11,8 @@ namespace NetProfileSwitcher.UI;
 public class MainForm : Form
 {
     private readonly AppLog _log;
+    private readonly ScheduledTaskStartupRegistration _startup;
+    private readonly SingleInstanceActivation _activation;
     private AppConfig _cfg;
     private readonly ToolTip _tip = new() { AutoPopDelay = 8000, InitialDelay = 300, ReshowDelay = 200 };
 
@@ -52,14 +54,20 @@ public class MainForm : Form
     // Startup
     private bool _suppressInitialShow;
 
-    public MainForm(AppLog log)
+    public MainForm(AppLog log, SingleInstanceActivation activation)
     {
         _log = log;
+        _activation = activation;
+        _startup = new ScheduledTaskStartupRegistration(
+            "NetProfileSwitcher",
+            Environment.ProcessPath ?? Application.ExecutablePath,
+            "Network Profile Switcher");
         _cfg = ConfigStore.Load();
         InitForm();
         BuildLayout();
         InitTray();
-        _chkStartup.Checked = StartupManager.IsRegistered();
+        _activation.ActivationRequested += (_, _) => BeginInvoke((Action)BringToForeground);
+        _chkStartup.Checked = _startup.IsRegistered;
         _chkStartup.CheckedChanged += OnStartupCheckChanged;
         _suppressInitialShow = _cfg.StartMinimized;
         InitMonitor();
@@ -703,10 +711,14 @@ public class MainForm : Form
 
     private void OnStartupCheckChanged(object? sender, EventArgs e)
     {
-        string exePath = Application.ExecutablePath;
-        var (ok, msg) = _chkStartup.Checked
-            ? StartupManager.Register(exePath)
-            : StartupManager.Unregister();
+        var result = _chkStartup.Checked ? _startup.Register() : _startup.Unregister();
+        bool ok = result == StartupRegistrationResult.Success;
+        string msg = result switch
+        {
+            StartupRegistrationResult.Success => _chkStartup.Checked ? "Startup task registered." : "Startup task removed.",
+            StartupRegistrationResult.UserCancelled => "UAC prompt was cancelled.",
+            _ => "Failed to update startup configuration."
+        };
 
         if (ok)
         {
@@ -717,7 +729,7 @@ public class MainForm : Form
         else
         {
             _chkStartup.CheckedChanged -= OnStartupCheckChanged;
-            _chkStartup.Checked = StartupManager.IsRegistered();
+            _chkStartup.Checked = _startup.IsRegistered;
             _chkStartup.CheckedChanged += OnStartupCheckChanged;
             _log.Warn("startup.registration.failed", new { wanted = _chkStartup.Checked, error = msg });
         }
@@ -760,6 +772,13 @@ public class MainForm : Form
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private void BringToForeground()
+    {
+        Show();
+        WindowState = FormWindowState.Normal;
+        Activate();
+    }
 
     private void SetStatus(string msg)
     {

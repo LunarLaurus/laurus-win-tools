@@ -9,11 +9,15 @@ static class Program
     [STAThread]
     static void Main()
     {
+        if (!SingleInstanceActivation.TryClaim("NetProfileSwitcher", dispatchToUi: null, out var activation))
+            return;
+
         using var log = new AppLog("NetProfileSwitcher", Application.ProductVersion);
         UnhandledExceptionWatcher.Install(log, "NetProfileSwitcher");
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new MainForm(log));
+        using (activation!)
+            Application.Run(new MainForm(log, activation!));
     }
 }
