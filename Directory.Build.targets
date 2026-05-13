@@ -1,0 +1,25 @@
+<Project>
+  <!--
+    Imported after each csproj's PropertyGroup is read, so $(OutputType)
+    is set by the time we check it. Library and test projects build
+    normally. The four tray apps (OutputType=WinExe) publish as one .exe
+    each, with all dependencies bundled inside. Native libraries
+    (e.g. BatteryTray's TraceEvent bits) are extracted to
+    %TEMP%\.net\<exe>\<hash>\ on first run and cached there.
+    SelfContained=false keeps every app framework-dependent on the
+    user's installed .NET 8 Desktop Runtime.
+  -->
+  <PropertyGroup Condition="'$(OutputType)' == 'WinExe'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <!-- By default the publish step copies .pdb / .xml / .config sidecars
+         alongside every referenced DLL. With DebugType=embedded the symbols
+         already live in the assemblies that get bundled, so the loose .pdb
+         files are pure noise in the publish output. Restrict the allowed
+         set to a sentinel string that no real extension uses. -->
+    <AllowedReferenceRelatedFileExtensions>.no-sidecar-files</AllowedReferenceRelatedFileExtensions>
+  </PropertyGroup>
+</Project>

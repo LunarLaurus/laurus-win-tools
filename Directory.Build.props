@@ -10,7 +10,7 @@
        builds get LOCAL_VERSION so About and UpdateChecker see a
        sensible value. Bump LOCAL_VERSION when you cut a release. -->
   <PropertyGroup>
-    <LOCAL_VERSION>1.1.1</LOCAL_VERSION>
+    <LOCAL_VERSION>1.2.0</LOCAL_VERSION>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(RELEASE_VERSION)' != ''">
@@ -54,4 +54,5 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <DebugType>embedded</DebugType>
   </PropertyGroup>
+
 </Project>
