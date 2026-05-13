@@ -7,88 +7,81 @@ internal sealed class RecentActivityForm : Form
 {
     private readonly ListView _activeListView;
     private readonly ListView _activityListView;
+    private readonly GroupBox _activeGroup;
+    private readonly GroupBox _recentGroup;
 
     public RecentActivityForm()
     {
         AutoScaleMode = AutoScaleMode.Font;
-        BackColor = Color.White;
-        ClientSize = new Size(980, 520);
+        BackColor = Color.FromArgb(248, 248, 246);
+        ClientSize = new Size(1100, 680);
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-        MinimumSize = new Size(760, 420);
+        MinimumSize = new Size(900, 560);
         StartPosition = FormStartPosition.CenterScreen;
         Text = "SoundTracker Recent Activity";
 
-        var splitContainer = new SplitContainer
+        var layout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            FixedPanel = FixedPanel.Panel1,
-            Orientation = Orientation.Horizontal,
-            SplitterDistance = 150,
+            Padding = new Padding(14),
+            ColumnCount = 1,
+            RowCount = 2,
         };
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 190F));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        var activePanel = new Panel
+        _activeGroup = new GroupBox
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(12, 12, 12, 6),
-        };
-        var recentPanel = new Panel
-        {
-            Dock = DockStyle.Fill,
-            Padding = new Padding(12, 6, 12, 12),
-        };
-
-        var activeLabel = new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.Top,
-            Font = new Font(Font, FontStyle.Bold),
+            Padding = new Padding(12),
             Text = "Active Now",
         };
-        var recentLabel = new Label
+        _recentGroup = new GroupBox
         {
-            AutoSize = true,
-            Dock = DockStyle.Top,
-            Font = new Font(Font, FontStyle.Bold),
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12),
             Text = "Recent Activity",
         };
 
         _activeListView = new ListView
         {
+            BorderStyle = BorderStyle.None,
             Dock = DockStyle.Fill,
             FullRowSelect = true,
             GridLines = true,
+            HeaderStyle = ColumnHeaderStyle.Nonclickable,
             HideSelection = false,
             MultiSelect = false,
             UseCompatibleStateImageBehavior = false,
             View = View.Details,
         };
-        _activeListView.Columns.Add("Source", 320);
-        _activeListView.Columns.Add("State", 180);
+        _activeListView.Columns.Add("Source", 420);
+        _activeListView.Columns.Add("State", 160);
 
         _activityListView = new ListView
         {
+            BorderStyle = BorderStyle.None,
             Dock = DockStyle.Fill,
             FullRowSelect = true,
             GridLines = true,
+            HeaderStyle = ColumnHeaderStyle.Nonclickable,
             HideSelection = false,
             MultiSelect = false,
             UseCompatibleStateImageBehavior = false,
             View = View.Details,
         };
-        _activityListView.Columns.Add("Time", 170);
-        _activityListView.Columns.Add("Age", 90);
-        _activityListView.Columns.Add("Event", 130);
-        _activityListView.Columns.Add("Source", 240);
+        _activityListView.Columns.Add("Time", 165);
+        _activityListView.Columns.Add("Age", 85);
+        _activityListView.Columns.Add("Event", 120);
+        _activityListView.Columns.Add("Source", 250);
         _activityListView.Columns.Add("Duration", 90);
-        _activityListView.Columns.Add("Device", 220);
+        _activityListView.Columns.Add("Device", 280);
 
-        activePanel.Controls.Add(_activeListView);
-        activePanel.Controls.Add(activeLabel);
-        recentPanel.Controls.Add(_activityListView);
-        recentPanel.Controls.Add(recentLabel);
-        splitContainer.Panel1.Controls.Add(activePanel);
-        splitContainer.Panel2.Controls.Add(recentPanel);
-        Controls.Add(splitContainer);
+        _activeGroup.Controls.Add(_activeListView);
+        _recentGroup.Controls.Add(_activityListView);
+        layout.Controls.Add(_activeGroup, 0, 0);
+        layout.Controls.Add(_recentGroup, 0, 1);
+        Controls.Add(layout);
     }
 
     internal IReadOnlyList<string> SnapshotRows()
@@ -134,6 +127,8 @@ internal sealed class RecentActivityForm : Form
                 }
             }
 
+            _activeGroup.Text = $"Active Now ({activeSessions.Count})";
+
             if (activities.Count == 0)
             {
                 _activityListView.Items.Add(new ListViewItem(new[]
@@ -145,6 +140,8 @@ internal sealed class RecentActivityForm : Form
                     string.Empty,
                     string.Empty,
                 }));
+                _recentGroup.Text = "Recent Activity (0)";
+                ResizeColumns();
                 return;
             }
 
@@ -159,12 +156,40 @@ internal sealed class RecentActivityForm : Form
                 item.SubItems.Add(activity.DeviceId ?? string.Empty);
                 _activityListView.Items.Add(item);
             }
+
+            _recentGroup.Text = $"Recent Activity ({activities.Count})";
+            ResizeColumns();
         }
         finally
         {
             _activeListView.EndUpdate();
             _activityListView.EndUpdate();
         }
+    }
+
+    private void ResizeColumns()
+    {
+        ResizeColumn(_activeListView, 0, 380);
+        ResizeColumn(_activeListView, 1, 140);
+        ResizeColumn(_activityListView, 0, 150);
+        ResizeColumn(_activityListView, 1, 80);
+        ResizeColumn(_activityListView, 2, 110);
+        ResizeColumn(_activityListView, 3, 220);
+        ResizeColumn(_activityListView, 4, 90);
+        ResizeColumn(_activityListView, 5, 240);
+    }
+
+    private static void ResizeColumn(ListView listView, int columnIndex, int minimumWidth)
+    {
+        if (listView.Columns.Count <= columnIndex)
+        {
+            return;
+        }
+
+        listView.AutoResizeColumn(columnIndex, ColumnHeaderAutoResizeStyle.HeaderSize);
+        var headerWidth = listView.Columns[columnIndex].Width;
+        listView.AutoResizeColumn(columnIndex, ColumnHeaderAutoResizeStyle.ColumnContent);
+        listView.Columns[columnIndex].Width = Math.Max(minimumWidth, Math.Max(headerWidth, listView.Columns[columnIndex].Width));
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)

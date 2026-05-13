@@ -10,21 +10,18 @@ internal static class TooltipFormatter
         IReadOnlyList<string> activeSessions,
         IReadOnlyList<AudioActivityEvent> recentActivities)
     {
-        var recentSummary = BuildRecentSummary(recentActivities, DateTimeOffset.UtcNow);
+        var nowUtc = DateTimeOffset.UtcNow;
+        var recentSummary = BuildRecentTooltipSummary(recentActivities, nowUtc);
         if (activeSessions.Count > 0)
         {
-            var summary = string.Join(", ", activeSessions.Take(2));
-            if (activeSessions.Count > 2)
-            {
-                summary = $"{summary} +{activeSessions.Count - 2}";
-            }
+            var activeSummary = BuildActiveTooltipSummary(activeSessions);
 
             if (recentSummary is null)
             {
-                return Truncate($"{AppMetadata.TooltipPrefix}: active {summary}");
+                return Truncate($"{AppMetadata.TooltipPrefix}: {activeSummary}");
             }
 
-            return Truncate($"{AppMetadata.TooltipPrefix}: active {summary}; {recentSummary}");
+            return Truncate($"{AppMetadata.TooltipPrefix}: {activeSummary} | {recentSummary}");
         }
 
         if (recentSummary is null)
@@ -53,7 +50,7 @@ internal static class TooltipFormatter
 
     public static string BuildRecentMenuLabel(IReadOnlyList<AudioActivityEvent> recentActivities)
     {
-        var recentSummary = BuildRecentSummary(recentActivities, DateTimeOffset.UtcNow);
+        var recentSummary = BuildRecentMenuSummary(recentActivities, DateTimeOffset.UtcNow);
         if (recentSummary is null)
         {
             return "Recent activity will appear here";
@@ -129,7 +126,38 @@ internal static class TooltipFormatter
             .FirstOrDefault();
     }
 
-    private static string? BuildRecentSummary(IReadOnlyList<AudioActivityEvent> recentActivities, DateTimeOffset nowUtc)
+    private static string BuildActiveTooltipSummary(IReadOnlyList<string> activeSessions)
+    {
+        if (activeSessions.Count == 1)
+        {
+            return $"1 active {CompactSource(activeSessions[0])}";
+        }
+
+        return $"{activeSessions.Count} active";
+    }
+
+    private static string? BuildRecentTooltipSummary(IReadOnlyList<AudioActivityEvent> recentActivities, DateTimeOffset nowUtc)
+    {
+        var latestActivity = GetLatestActivity(recentActivities);
+        if (latestActivity is null)
+        {
+            return null;
+        }
+
+        var age = BuildCompactAge(latestActivity.TimestampUtc, nowUtc);
+        var source = CompactSource(latestActivity.Description);
+
+        return latestActivity.Kind switch
+        {
+            AudioActivityKind.ObservedActive => $"last heard {source} {age}",
+            AudioActivityKind.Started => $"last start {source} {age}",
+            AudioActivityKind.Stopped => $"last stop {source} {age}",
+            AudioActivityKind.DefaultDeviceChanged => $"device change {age}",
+            _ => $"{source} {age}",
+        };
+    }
+
+    private static string? BuildRecentMenuSummary(IReadOnlyList<AudioActivityEvent> recentActivities, DateTimeOffset nowUtc)
     {
         var latestActivity = GetLatestActivity(recentActivities);
         if (latestActivity is null)
@@ -138,6 +166,48 @@ internal static class TooltipFormatter
         }
 
         return BuildHistorySummary(latestActivity, nowUtc);
+    }
+
+    private static string CompactSource(string description)
+    {
+        var value = description.Trim();
+        if (value.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            value = value[..^4];
+        }
+
+        if (value.Length <= 16)
+        {
+            return value;
+        }
+
+        return value[..13] + "...";
+    }
+
+    private static string BuildCompactAge(DateTimeOffset timestampUtc, DateTimeOffset nowUtc)
+    {
+        var age = nowUtc - timestampUtc;
+        if (age < TimeSpan.Zero)
+        {
+            age = TimeSpan.Zero;
+        }
+
+        if (age < TimeSpan.FromMinutes(1))
+        {
+            return $"{Math.Max(0, (int)age.TotalSeconds)}s";
+        }
+
+        if (age < TimeSpan.FromHours(1))
+        {
+            return $"{(int)age.TotalMinutes}m";
+        }
+
+        if (age < TimeSpan.FromDays(1))
+        {
+            return $"{(int)age.TotalHours}h";
+        }
+
+        return $"{(int)age.TotalDays}d";
     }
 
     private static string BuildHistorySummary(AudioActivityEvent activity, DateTimeOffset nowUtc)

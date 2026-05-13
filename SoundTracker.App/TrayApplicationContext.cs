@@ -72,6 +72,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
             AppLog.Info("tray menu recent activity clicked");
             ShowRecentActivityWindow();
         });
+        var volumeMixerItem = new ToolStripMenuItem("Open Volume Mixer", null, (_, _) =>
+        {
+            AppLog.Info("tray menu open volume mixer clicked");
+            OpenVolumeMixer();
+        });
         var refreshItem = new ToolStripMenuItem("Refresh", null, (_, _) =>
         {
             AppLog.Info("tray menu refresh clicked");
@@ -86,6 +91,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(_activeStatusItem);
         menu.Items.Add(_recentStatusItem);
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(volumeMixerItem);
         menu.Items.Add(recentActivityItem);
         menu.Items.Add(refreshItem);
         menu.Items.Add(exitItem);
@@ -223,5 +229,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _recentActivityForm.BringToFront();
         _recentActivityForm.Activate();
+    }
+
+    private static void OpenVolumeMixer()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "sndvol.exe",
+                UseShellExecute = true,
+            });
+            AppLog.Info("volume mixer launch requested");
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("failed to launch volume mixer", ex);
+        }
     }
 }
