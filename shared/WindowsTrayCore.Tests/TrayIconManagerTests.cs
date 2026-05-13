@@ -52,7 +52,7 @@ public class TrayIconManagerTests
     {
         var provider = new CountingProvider();
         var theme = new TrayTheme(isLight: false);
-        using var icon = new NotifyIcon();
+        using var icon = TrayIcon.ForApp("TrayIconManagerTest_" + System.Guid.NewGuid().ToString("N").Substring(0, 8));
         using var mgr = new TrayIconManager(icon, provider, theme);
 
         mgr.ForceRefresh();
@@ -66,7 +66,7 @@ public class TrayIconManagerTests
     {
         var provider = new CountingProvider();
         var theme = new TrayTheme(isLight: false);
-        using var icon = new NotifyIcon();
+        using var icon = TrayIcon.ForApp("TrayIconManagerTest_" + System.Guid.NewGuid().ToString("N").Substring(0, 8));
         using var mgr = new TrayIconManager(icon, provider, theme);
 
         mgr.ForceRefresh();
@@ -80,7 +80,7 @@ public class TrayIconManagerTests
     {
         var provider = new CountingProvider();
         var theme = new TrayTheme(isLight: false);
-        using var icon = new NotifyIcon();
+        using var icon = TrayIcon.ForApp("TrayIconManagerTest_" + System.Guid.NewGuid().ToString("N").Substring(0, 8));
         using var mgr = new TrayIconManager(icon, provider, theme);
 
         theme.SimulatePreferenceChanged(isLight: true);
@@ -93,7 +93,7 @@ public class TrayIconManagerTests
     {
         var provider = new CountingProvider();
         var theme = new TrayTheme(isLight: false);
-        using var icon = new NotifyIcon();
+        using var icon = TrayIcon.ForApp("TrayIconManagerTest_" + System.Guid.NewGuid().ToString("N").Substring(0, 8));
         var mgr = new TrayIconManager(icon, provider, theme);
         mgr.Dispose();
 
@@ -109,7 +109,7 @@ public class TrayIconManagerTests
     {
         var provider = new DirtyFlagProvider();  // starts dirty
         var theme = new TrayTheme(isLight: false);
-        using var icon = new NotifyIcon();
+        using var icon = TrayIcon.ForApp("TrayIconManagerTest_" + System.Guid.NewGuid().ToString("N").Substring(0, 8));
         using var mgr = new TrayIconManager(icon, provider, theme);
 
         mgr.RequestRefresh();
@@ -122,7 +122,7 @@ public class TrayIconManagerTests
     {
         var provider = new AlwaysCleanProvider();
         var theme = new TrayTheme(isLight: false);
-        using var icon = new NotifyIcon();
+        using var icon = TrayIcon.ForApp("TrayIconManagerTest_" + System.Guid.NewGuid().ToString("N").Substring(0, 8));
         using var mgr = new TrayIconManager(icon, provider, theme);
 
         mgr.RequestRefresh();
@@ -135,7 +135,7 @@ public class TrayIconManagerTests
     {
         var provider = new DirtyFlagProvider();  // starts dirty; Render resets to clean
         var theme = new TrayTheme(isLight: false);
-        using var icon = new NotifyIcon();
+        using var icon = TrayIcon.ForApp("TrayIconManagerTest_" + System.Guid.NewGuid().ToString("N").Substring(0, 8));
         using var mgr = new TrayIconManager(icon, provider, theme);
 
         mgr.RequestRefresh();   // dirty → renders, resets to clean
@@ -149,7 +149,7 @@ public class TrayIconManagerTests
     {
         var provider = new DirtyFlagProvider();
         var theme = new TrayTheme(isLight: false);
-        using var icon = new NotifyIcon();
+        using var icon = TrayIcon.ForApp("TrayIconManagerTest_" + System.Guid.NewGuid().ToString("N").Substring(0, 8));
         using var mgr = new TrayIconManager(icon, provider, theme);
 
         mgr.RequestRefresh();   // renders, resets to clean
@@ -164,7 +164,7 @@ public class TrayIconManagerTests
     {
         var provider = new AlwaysCleanProvider();  // HasChanged always false
         var theme = new TrayTheme(isLight: false);
-        using var icon = new NotifyIcon();
+        using var icon = TrayIcon.ForApp("TrayIconManagerTest_" + System.Guid.NewGuid().ToString("N").Substring(0, 8));
         using var mgr = new TrayIconManager(icon, provider, theme);
 
         mgr.ForceRefresh();
@@ -178,7 +178,7 @@ public class TrayIconManagerTests
         // Theme change uses ForceRefresh internally — dirty-flag must not block it.
         var provider = new AlwaysCleanProvider();
         var theme = new TrayTheme(isLight: false);
-        using var icon = new NotifyIcon();
+        using var icon = TrayIcon.ForApp("TrayIconManagerTest_" + System.Guid.NewGuid().ToString("N").Substring(0, 8));
         using var mgr = new TrayIconManager(icon, provider, theme);
 
         theme.SimulatePreferenceChanged(isLight: true);

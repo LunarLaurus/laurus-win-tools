@@ -28,7 +28,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly System.Windows.Forms.Timer _leftClickTimer;
     private readonly SingleInstanceActivation? _activation;
     private readonly RunKeyStartupRegistration _startup;
-    private Icon? _currentTrayIcon;
+    private readonly AudioIconProvider _iconProvider;
+    private readonly TrayIconManager _iconManager;
     private bool _shuttingDown;
     private readonly CancellationTokenSource _updateCts = new();
     private readonly HttpClient _updateHttpClient = new();
@@ -145,6 +146,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _notifyIcon.Text = $"{AppMetadata.TooltipPrefix}: starting";
         _notifyIcon.Visible = showNotifyIcon;
 
+        _iconProvider = new AudioIconProvider();
+        _iconManager = new TrayIconManager(_notifyIcon, _iconProvider, TrayTheme.Current);
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(StandardMenuItems.CreateAbout("SoundTracker", updateChecker: _updateChecker));
         menu.Items.Add(StandardMenuItems.CreateCheckForUpdates(_updateChecker, _notifyIcon, "SoundTracker"));
@@ -152,7 +156,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(exitItem);
         _notifyIcon.ContextMenuStrip = menu;
-        _currentTrayIcon = (Icon)SystemIcons.Information.Clone();
         _notifyIcon.MouseClick += HandleNotifyIconMouseClick;
         _notifyIcon.MouseDoubleClick += HandleNotifyIconMouseDoubleClick;
         _notifyIcon.DoubleClick += (_, _) =>
@@ -232,10 +235,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _updateHttpClient.Dispose();
         _ui.Dispose();
 
+        _iconManager.Dispose();
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
-        _currentTrayIcon?.Dispose();
-        _currentTrayIcon = null;
 
         base.ExitThreadCore();
         AppLog.Info("tray context exited");
@@ -404,10 +406,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void UpdateTrayIcon(EndpointVolumeSnapshot volumeSnapshot)
     {
-        var nextIcon = TrayIconRenderer.Render(volumeSnapshot, AppTheme.IsLightTaskbarTheme());
-        var previousIcon = _currentTrayIcon;
-        _currentTrayIcon = nextIcon;
-        _notifyIcon.Icon = nextIcon;
-        previousIcon?.Dispose();
+        _iconProvider.Update(volumeSnapshot);
+        _iconManager.RequestRefresh();
     }
 }

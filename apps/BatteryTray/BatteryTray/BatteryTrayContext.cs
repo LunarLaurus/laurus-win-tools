@@ -20,7 +20,6 @@ public sealed class BatteryTrayContext : ApplicationContext
     private readonly ProcessPowerCoordinator _powerCoordinator = new();
 
     private AppSettings _settings;
-    private Icon? _currentIcon;
     private SettingsForm? _settingsForm;
     private BatteryInfoForm? _batteryInfoForm;
 
@@ -32,7 +31,8 @@ public sealed class BatteryTrayContext : ApplicationContext
     private PowerLineStatusSource _lastPowerSource = PowerLineStatusSource.Unknown;
     private bool _monitorOn = true;
 
-    private BatteryRenderKey? _lastRenderKey;
+    private readonly BatteryIconProvider _iconProvider;
+    private readonly TrayIconManager _iconManager;
 
     private readonly CancellationTokenSource _updateCts = new();
     private readonly HttpClient _updateHttpClient = new();
@@ -52,6 +52,9 @@ public sealed class BatteryTrayContext : ApplicationContext
         _notifyIcon.Text = $"BatteryTray {Application.ProductVersion}";
         _notifyIcon.ContextMenuStrip = BuildMenu();
         _notifyIcon.Visible = true;
+
+        _iconProvider = new BatteryIconProvider(() => _settings);
+        _iconManager = new TrayIconManager(_notifyIcon, _iconProvider, TrayTheme.Current);
         _notifyIcon.DoubleClick += (_, _) => OpenSettings();
 
         _notifier = new Notifier(_notifyIcon);
@@ -145,15 +148,8 @@ public sealed class BatteryTrayContext : ApplicationContext
 
     private void UpdateIcon(BatteryState state)
     {
-        var key = BatteryRenderKey.From(state, _settings);
-        if (_lastRenderKey == key) return;
-        _lastRenderKey = key;
-
-        var newIcon = IconRenderer.Create(state, _settings);
-        var old = _currentIcon;
-        _notifyIcon.Icon = newIcon;
-        _currentIcon = newIcon;
-        if (old is not null) IconRenderer.Free(old);
+        _iconProvider.Update(state);
+        _iconManager.RequestRefresh();
     }
 
     private void UpdateTooltip(BatteryState state)
@@ -298,7 +294,8 @@ public sealed class BatteryTrayContext : ApplicationContext
         var startupChanged = _settings.RunAtStartup != updated.RunAtStartup;
         _settings = updated;
         _safetyTimer.Interval = ClampInterval(_settings.UpdateIntervalSeconds) * 1000;
-        _lastRenderKey = null;
+        // Force the next refresh — settings affect the icon render key.
+        _iconManager.ForceRefresh();
 
         if (startupChanged)
         {
@@ -379,9 +376,9 @@ public sealed class BatteryTrayContext : ApplicationContext
             _updateCts.Dispose();
             _updateHttpClient.Dispose();
             _notifier.Dispose();
+            _iconManager.Dispose();
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
-            if (_currentIcon is not null) IconRenderer.Free(_currentIcon);
             _settingsForm?.Dispose();
             _batteryInfoForm?.Dispose();
             _ui.Dispose();
@@ -389,15 +386,16 @@ public sealed class BatteryTrayContext : ApplicationContext
         base.Dispose(disposing);
     }
 
-    private readonly record struct BatteryRenderKey(
-        int Percent, bool Charging, bool OnAc, bool HasBattery, bool Saver,
-        IconStyle Style, IconTheme Theme,
-        bool Smooth, bool Dpi, bool ShowSaver,
-        string Cs, string Cn, string Cl, string Cc, string Ct)
-    {
-        public static BatteryRenderKey From(BatteryState s, AppSettings a) => new(
-            s.Percent, s.IsCharging, s.IsOnAcPower, s.HasBattery, s.BatterySaverActive,
-            a.Style, a.Theme, a.SmoothColorTransitions, a.DpiAwareIcon, a.ShowBatterySaverIndicator,
-            a.ColorCharging, a.ColorNormal, a.ColorLow, a.ColorCritical, a.ColorText);
-    }
+}
+
+internal readonly record struct BatteryRenderKey(
+    int Percent, bool Charging, bool OnAc, bool HasBattery, bool Saver,
+    IconStyle Style, IconTheme Theme,
+    bool Smooth, bool Dpi, bool ShowSaver,
+    string Cs, string Cn, string Cl, string Cc, string Ct)
+{
+    public static BatteryRenderKey From(BatteryState s, AppSettings a) => new(
+        s.Percent, s.IsCharging, s.IsOnAcPower, s.HasBattery, s.BatterySaverActive,
+        a.Style, a.Theme, a.SmoothColorTransitions, a.DpiAwareIcon, a.ShowBatterySaverIndicator,
+        a.ColorCharging, a.ColorNormal, a.ColorLow, a.ColorCritical, a.ColorText);
 }

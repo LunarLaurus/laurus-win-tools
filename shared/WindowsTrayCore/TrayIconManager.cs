@@ -3,17 +3,17 @@ using System.Drawing;
 namespace WindowsTrayCore;
 
 /// <summary>
-/// Owns the icon lifecycle for a <see cref="NotifyIcon"/>: renders via the provider,
+/// Owns the icon lifecycle for a <see cref="TrayIcon"/>: renders via the provider,
 /// disposes previous GDI resources, and re-renders automatically on theme change.
 /// </summary>
 public sealed class TrayIconManager : IDisposable
 {
-    private readonly NotifyIcon _icon;
+    private readonly TrayIcon _icon;
     private readonly ITrayIconProvider _provider;
     private readonly TrayTheme _theme;
     private Icon? _current;
 
-    public TrayIconManager(NotifyIcon icon, ITrayIconProvider provider, TrayTheme theme)
+    public TrayIconManager(TrayIcon icon, ITrayIconProvider provider, TrayTheme theme)
     {
         _icon = icon;
         _provider = provider;
@@ -22,7 +22,7 @@ public sealed class TrayIconManager : IDisposable
     }
 
     /// <summary>
-    /// Renders a new icon from the provider and assigns it to the <see cref="NotifyIcon"/>.
+    /// Renders a new icon from the provider and assigns it to the <see cref="TrayIcon"/>.
     /// Disposes the previously held icon.
     /// </summary>
     public void ForceRefresh()
