@@ -344,7 +344,23 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 **Caveat:** v1.0.0 users will need to upgrade manually once; v1.0.1+ installs auto-update going forward.
 
-**Next:** Open development — gather first-beta feedback
+**Next:** Phases 18–23 — Polish + UX
+
+---
+
+## 2026-05-13 17:45
+
+**Did:** Scoped Polish + UX work into six phases (18–23) and added them to the phase checklist.
+- Phase 18: shared About / Check-for-updates / Open-logs menu block — highest visibility, smallest surface
+- Phase 19: SoundTracker settings dialog (currently no UI; JSON-only)
+- Phase 20: ProgramHider settings dialog (largest surface — hotkey, rules editor, PIN config)
+- Phase 21: First-run welcomes for the three apps that lack them
+- Phase 22: Per-app icon providers (Phase 7's deferred wiring)
+- Phase 23: Accessibility pass — AccessibleName, tab order, keyboard shortcuts, High-DPI
+
+**Committed:** (worklog only — code starts with Phase 18)
+
+**Next:** Phase 18 — standard tray-menu block
 
 ---
 
@@ -519,3 +535,67 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Tag and push `v1.0.0` to trigger first public release
 - [x] Verify GitHub Actions release workflow fires cleanly on first public tag (2.7 min, success)
 - [x] Verify all four app zips appear in GitHub Release
+- [x] Smoke-test release zips; ship `v1.0.1` to fix SemVer-suffix parsing in UpdateChecker
+- [x] Add `-Run` flag to `install.ps1` and standalone `run-all.ps1` for post-install launching
+
+### Phase 18 — Standard tray-menu block: About / Check for updates / Open logs
+
+Add a shared helper that appends three standard items to each app's tray context menu. Small surface, high visibility — gives users version info, a manual update poke, and one-click access to log files for support.
+
+- [ ] `WindowsTrayCore.StandardMenuItems`: static helpers that build the three `ToolStripMenuItem`s
+- [ ] `WindowsTrayCore.AboutDialog`: simple form — app name, version, repo URL link, license summary, "Check for updates" button
+- [ ] "Check for updates" wiring: triggers `UpdateChecker.CheckAsync` once and shows result via balloon (update available with version, or "you're on the latest")
+- [ ] "Open logs" wiring: launches Explorer at `%LOCALAPPDATA%\<AppName>\logs`
+- [ ] Add the block to BatteryTray / NetProfileSwitcher / ProgramHider / SoundTracker context menus, placed above the existing Quit/Exit
+- [ ] Tests: `AboutDialog` constructs cleanly, `StandardMenuItems` shape, "Check for updates" callback fires once
+- [ ] Commit per logical unit
+
+### Phase 19 — SoundTracker settings dialog
+
+SoundTracker currently has no settings UI — `RunAtStartup` is a menu toggle, everything else is hand-edited JSON.
+
+- [ ] `SoundTracker.App.SettingsForm`: theme-aware Form with controls for `RunAtStartup`, `StartupDelaySeconds`, and any session/history retention knobs that exist
+- [ ] Wire Settings menu item in `TrayApplicationContext`; close menu Run-at-startup toggle in favour of the dialog (or keep both for ergonomics — decide during build)
+- [ ] Atomic save via `JsonSettingsStore`
+- [ ] Tests: form construction, save round-trip, validation
+- [ ] Commit
+
+### Phase 20 — ProgramHider settings dialog
+
+ProgramHider has the most settings of any app and the worst current UX (hand-edited JSON with hotkey enum values, window rules, PIN config).
+
+- [ ] `ProgramHider.SettingsForm`: theme-aware Form, sections for hotkey, safe mode, startup delay, restore-PIN config, window rules editor (list + add/edit/delete rule dialog)
+- [ ] Reuse pattern emerging from SoundTracker; extract `SettingsFormBase` in `WindowsTrayCore` only if 2+ concrete forms share enough surface
+- [ ] Wire Settings menu item; deprecate any current menu-item config toggles where the dialog replaces them
+- [ ] Tests: form construction, save round-trip, rule editor flow
+- [ ] Commit
+
+### Phase 21 — First-run welcomes for NPS, SoundTracker, ProgramHider
+
+BatteryTray already shows a first-run balloon. Add equivalents to the other three.
+
+- [ ] `WindowsTrayCore.FirstRunBalloon`: helper that shows a one-shot balloon ("Right-click the tray icon to configure / open settings") gated by a `ShownFirstRunWelcome` flag in each app's settings
+- [ ] Add `ShownFirstRunWelcome` to `NetProfileSwitcher.AppConfig`, `SoundTrackerConfig`, `ProgramHider.AppSettings` (with schema bump)
+- [ ] Wire into each app's tray context after the initial render
+- [ ] Tests: flag persistence, idempotency on subsequent launches
+- [ ] Commit
+
+### Phase 22 — Per-app icon providers
+
+Phase 7 added the `ITrayIconProvider` interface with a `HasChanged` dirty-flag default but deferred per-app wiring. Each app currently renders its tray icon ad-hoc.
+
+- [ ] BatteryTray: wrap `IconRenderer` in `BatteryIconProvider : ITrayIconProvider`; route through `TrayIconManager`
+- [ ] SoundTracker: wrap `TrayIconRenderer`
+- [ ] NetProfileSwitcher: wrap the current state-driven icon logic
+- [ ] ProgramHider: wrap the `_appIcon` source (mostly static, dirty-flag returns false except on theme change)
+- [ ] Tests: provider behaviour, `HasChanged` semantics, theme-change forced refresh
+- [ ] Commit per app
+
+### Phase 23 — Accessibility pass
+
+- [ ] Set `AccessibleName` / `AccessibleDescription` on each app's `NotifyIcon` and key form controls
+- [ ] Audit tab order on all settings forms and `NetProfileSwitcher.MainForm`
+- [ ] Add keyboard-shortcut underlines (`&Save`, `&Cancel`, etc.) where missing
+- [ ] Verify High-DPI scaling on each form at 100 / 125 / 150 / 200 % at design time
+- [ ] Tests: AccessibleName surface where assertable
+- [ ] Commit
