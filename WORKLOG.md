@@ -364,6 +364,22 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-13 18:15
+
+**Did:** Phase 18 — Standard tray-menu block complete.
+- `WindowsTrayCore.RepoInfo`: shared owner/name/url/license constants
+- `WindowsTrayCore.AboutDialog`: theme-aware Form with title, version (suffix-stripped), repo link, license summary, optional extra-info text area, "Check for updates" button
+- `WindowsTrayCore.StandardMenuItems`: three factories — `CreateAbout` (lazy `Func<string?>` extraInfoProvider so live diagnostics stay fresh), `CreateCheckForUpdates` (one-shot check, balloon result), `CreateOpenLogs` (Explorer at `%LOCALAPPDATA%\<App>\logs`)
+- All four tray menus updated: BatteryTray retained its rich diagnostic content via `BuildAboutDiagnostics`; the other three got the new block fresh
+- Each app now stores `_updateChecker` as a field so the menu and background poller share one instance
+- 12 new tests (4 StandardMenuItems + 8 AboutDialog Theory rows); 224/224 across all six test projects
+
+**Committed:** (pending)
+
+**Next:** Phase 19 — SoundTracker settings dialog
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -538,17 +554,15 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Smoke-test release zips; ship `v1.0.1` to fix SemVer-suffix parsing in UpdateChecker
 - [x] Add `-Run` flag to `install.ps1` and standalone `run-all.ps1` for post-install launching
 
-### Phase 18 — Standard tray-menu block: About / Check for updates / Open logs
+### Phase 18 — Standard tray-menu block: About / Check for updates / Open logs *(complete)*
 
-Add a shared helper that appends three standard items to each app's tray context menu. Small surface, high visibility — gives users version info, a manual update poke, and one-click access to log files for support.
-
-- [ ] `WindowsTrayCore.StandardMenuItems`: static helpers that build the three `ToolStripMenuItem`s
-- [ ] `WindowsTrayCore.AboutDialog`: simple form — app name, version, repo URL link, license summary, "Check for updates" button
-- [ ] "Check for updates" wiring: triggers `UpdateChecker.CheckAsync` once and shows result via balloon (update available with version, or "you're on the latest")
-- [ ] "Open logs" wiring: launches Explorer at `%LOCALAPPDATA%\<AppName>\logs`
-- [ ] Add the block to BatteryTray / NetProfileSwitcher / ProgramHider / SoundTracker context menus, placed above the existing Quit/Exit
-- [ ] Tests: `AboutDialog` constructs cleanly, `StandardMenuItems` shape, "Check for updates" callback fires once
-- [ ] Commit per logical unit
+- [x] `WindowsTrayCore.StandardMenuItems`: static helpers that build the three `ToolStripMenuItem`s
+- [x] `WindowsTrayCore.AboutDialog`: theme-aware form — app name, version, repo URL link, license summary, optional diagnostic block, "Check for updates" button
+- [x] "Check for updates" wiring: triggers `UpdateChecker.CheckAsync` once and shows result via balloon
+- [x] "Open logs" wiring: launches Explorer at `%LOCALAPPDATA%\<AppName>\logs`
+- [x] Add the block to BatteryTray / NetProfileSwitcher / ProgramHider / SoundTracker context menus
+- [x] Tests: `AboutDialog` constructs cleanly, `StandardMenuItems` shape, version suffix-trim Theory
+- [x] Commit per logical unit
 
 ### Phase 19 — SoundTracker settings dialog
 

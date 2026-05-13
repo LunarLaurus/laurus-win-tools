@@ -36,6 +36,7 @@ public sealed class BatteryTrayContext : ApplicationContext
 
     private readonly CancellationTokenSource _updateCts = new();
     private readonly HttpClient _updateHttpClient = new();
+    private readonly UpdateChecker _updateChecker;
 
     private enum PowerLineStatusSource { Unknown, Ac, Battery }
 
@@ -45,13 +46,14 @@ public sealed class BatteryTrayContext : ApplicationContext
         _activation = activation;
         _startup = startup;
         _ui = new UiDispatcher();
+        _updateChecker = new UpdateChecker(_updateHttpClient, Application.ProductVersion, RepoInfo.Owner, RepoInfo.Name);
 
         _notifyIcon = new NotifyIcon
         {
             Visible = true,
             Text = $"BatteryTray {Application.ProductVersion}",
-            ContextMenuStrip = BuildMenu(),
         };
+        _notifyIcon.ContextMenuStrip = BuildMenu();
         _notifyIcon.DoubleClick += (_, _) => OpenSettings();
 
         _notifier = new Notifier(_notifyIcon);
@@ -97,8 +99,7 @@ public sealed class BatteryTrayContext : ApplicationContext
         Refresh();
         ShowFirstRunWelcomeIfNeeded();
 
-        var updater = new UpdateChecker(_updateHttpClient, Application.ProductVersion, "LunarLaurus", "laurus-win-tools");
-        updater.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
+        _updateChecker.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
             _ui.Post(() => _notifyIcon.ShowBalloonTip(5000, "BatteryTray update available",
                 $"Version {r.LatestVersion} is available — visit GitHub to download.", ToolTipIcon.Info)),
             _updateCts.Token);
@@ -122,7 +123,10 @@ public sealed class BatteryTrayContext : ApplicationContext
             _monitor.InvalidateCache();
             Refresh();
         });
-        menu.Items.Add("About", null, (_, _) => ShowAbout());
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(StandardMenuItems.CreateAbout("BatteryTray", BuildAboutDiagnostics, _updateChecker));
+        menu.Items.Add(StandardMenuItems.CreateCheckForUpdates(_updateChecker, _notifyIcon, "BatteryTray"));
+        menu.Items.Add(StandardMenuItems.CreateOpenLogs("BatteryTray"));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Quit", null, (_, _) => ExitThread());
         return menu;
@@ -346,22 +350,18 @@ public sealed class BatteryTrayContext : ApplicationContext
         }
     }
 
-    private void ShowAbout()
+    private string BuildAboutDiagnostics()
     {
         var elevated = ElevationHelper.IsElevated() ? "elevated" : "user";
         var toasts = _notifier.ToastsAvailable ? "toasts" : "balloons (legacy)";
         var (currentSource, _, _) = _powerCoordinator.GetCurrent();
-        MessageBox.Show(
-            $"BatteryTray 1.6\nA configurable taskbar battery indicator.\n\n" +
-            $"Running as: {elevated}\n" +
-            $"Notifications: {toasts}\n" +
-            $"Battery Saver: {(BatterySaverController.IsActive() ? "active" : "inactive")}\n" +
-            $"Power sampler: {currentSource}\n" +
-            $"Crash log: {CrashLogger.GetLogPath()}\n\n" +
-            "Double-click the tray icon to open settings.",
-            "About BatteryTray",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information);
+        return
+            $"Running as: {elevated}\r\n" +
+            $"Notifications: {toasts}\r\n" +
+            $"Battery Saver: {(BatterySaverController.IsActive() ? "active" : "inactive")}\r\n" +
+            $"Power sampler: {currentSource}\r\n" +
+            $"Crash log: {CrashLogger.GetLogPath()}\r\n\r\n" +
+            "Tip: Double-click the tray icon to open settings.";
     }
 
     private static int ClampInterval(int seconds) =>

@@ -43,6 +43,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private bool _disposed;
     private readonly CancellationTokenSource _updateCts = new();
     private readonly HttpClient _updateHttpClient = new();
+    private readonly UpdateChecker _updateChecker;
 
     public ProgramHiderContext(StartupOptions startupOptions, SingleInstanceActivation activation)
     {
@@ -64,6 +65,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _safeModeEnabled = startupOptions.SafeMode;
 
         _ui = new UiDispatcher();
+        _updateChecker = new UpdateChecker(_updateHttpClient, Application.ProductVersion, RepoInfo.Owner, RepoInfo.Name);
         _appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
 
         _menu = new ContextMenuStrip();
@@ -138,8 +140,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         if (_startupOptions.PendingHideHandle != 0)
             _ui.Post(TryHidePendingStartupWindow);
 
-        var updater = new UpdateChecker(_updateHttpClient, Application.ProductVersion, "LunarLaurus", "laurus-win-tools");
-        updater.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
+        _updateChecker.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
             _ui.Post(() => _notifyIcon.ShowBalloonTip(5000, "ProgramHider update available",
                 $"Version {r.LatestVersion} is available — visit GitHub to download.", ToolTipIcon.Info)),
             _updateCts.Token);
@@ -249,6 +250,12 @@ internal sealed class ProgramHiderContext : ApplicationContext
             };
             restoreAllItem.Click += (_, _) => RestoreAllWindows();
             _menu.Items.Add(restoreAllItem);
+
+            _menu.Items.Add(new ToolStripSeparator());
+            _menu.Items.Add(StandardMenuItems.CreateAbout("ProgramHider", updateChecker: _updateChecker));
+            _menu.Items.Add(StandardMenuItems.CreateCheckForUpdates(_updateChecker, _notifyIcon, "ProgramHider"));
+            _menu.Items.Add(StandardMenuItems.CreateOpenLogs("ProgramHider"));
+            _menu.Items.Add(new ToolStripSeparator());
 
             var exitItem = new ToolStripMenuItem("Exit");
             exitItem.Click += (_, _) => ExitThread();

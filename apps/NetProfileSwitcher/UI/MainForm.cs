@@ -54,6 +54,7 @@ public class MainForm : Form
 
     private readonly CancellationTokenSource _updateCts = new();
     private readonly HttpClient _updateHttpClient = new();
+    private readonly UpdateChecker _updateChecker;
 
     // Tray state
     private System.Windows.Forms.Timer? _switchingTimer;
@@ -72,6 +73,7 @@ public class MainForm : Form
             "Network Profile Switcher");
         _cfg = ConfigStore.Load();
         _ui = new UiDispatcher();
+        _updateChecker = new UpdateChecker(_updateHttpClient, Application.ProductVersion, RepoInfo.Owner, RepoInfo.Name);
         InitForm();
         BuildLayout();
         InitTray();
@@ -85,8 +87,7 @@ public class MainForm : Form
         PollSsid();
         _log.Info("app.started", new { profileCount = _cfg.Profiles.Count, adapter = _cfg.SelectedAdapter });
 
-        var updater = new UpdateChecker(_updateHttpClient, Application.ProductVersion, "LunarLaurus", "laurus-win-tools");
-        updater.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
+        _updateChecker.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
             _ui.Post(() => _tray.ShowBalloonTip(5000, "NetProfileSwitcher update available",
                 $"Version {r.LatestVersion} is available — visit GitHub to download.", ToolTipIcon.Info)),
             _updateCts.Token);
@@ -450,6 +451,10 @@ public class MainForm : Form
         mon.Click += (_, _) => { _cfg.MonitorEnabled = mon.Checked; _chkMonitor.Checked = mon.Checked; ConfigStore.Save(_cfg); };
         _trayMenu.Items.Add(mon);
 
+        _trayMenu.Items.Add(new ToolStripSeparator());
+        _trayMenu.Items.Add(StandardMenuItems.CreateAbout("NetProfileSwitcher", updateChecker: _updateChecker));
+        _trayMenu.Items.Add(StandardMenuItems.CreateCheckForUpdates(_updateChecker, _tray, "NetProfileSwitcher"));
+        _trayMenu.Items.Add(StandardMenuItems.CreateOpenLogs("NetProfileSwitcher"));
         _trayMenu.Items.Add(new ToolStripSeparator());
         _trayMenu.Items.Add("Show Window").Click += (_, _) => { Show(); WindowState = FormWindowState.Normal; };
         _trayMenu.Items.Add("Quit").Click += (_, _) => { _tray.Visible = false; Application.Exit(); };

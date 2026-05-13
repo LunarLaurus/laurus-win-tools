@@ -8,6 +8,7 @@ using WindowsTrayCore;
 using RunKeyStartupRegistration = WindowsAppCore.RunKeyStartupRegistration;
 using SingleInstanceActivation = WindowsAppCore.SingleInstanceActivation;
 using StartupRegistrationResult = WindowsAppCore.StartupRegistrationResult;
+using UpdateChecker = WindowsAppCore.UpdateChecker;
 
 namespace SoundTracker.App;
 
@@ -31,6 +32,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private bool _shuttingDown;
     private readonly CancellationTokenSource _updateCts = new();
     private readonly HttpClient _updateHttpClient = new();
+    private readonly UpdateChecker _updateChecker;
 
     public TrayApplicationContext(SingleInstanceActivation? activation = null)
         : this(
@@ -75,6 +77,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             "SoundTracker",
             Environment.ProcessPath ?? Application.ExecutablePath);
         _ui = new UiDispatcher();
+        _updateChecker = new UpdateChecker(_updateHttpClient, Application.ProductVersion, RepoInfo.Owner, RepoInfo.Name);
         _recentActivityForm = new RecentActivityForm();
         _leftClickTimer = new System.Windows.Forms.Timer
         {
@@ -130,15 +133,21 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(recentActivityItem);
         menu.Items.Add(_runAtStartupItem);
         menu.Items.Add(refreshItem);
-        menu.Items.Add(exitItem);
 
         _notifyIcon = new NotifyIcon
         {
-            ContextMenuStrip = menu,
             Icon = SystemIcons.Information,
             Text = $"{AppMetadata.TooltipPrefix}: starting",
             Visible = showNotifyIcon,
         };
+
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(StandardMenuItems.CreateAbout("SoundTracker", updateChecker: _updateChecker));
+        menu.Items.Add(StandardMenuItems.CreateCheckForUpdates(_updateChecker, _notifyIcon, "SoundTracker"));
+        menu.Items.Add(StandardMenuItems.CreateOpenLogs("SoundTracker"));
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(exitItem);
+        _notifyIcon.ContextMenuStrip = menu;
         _currentTrayIcon = (Icon)SystemIcons.Information.Clone();
         _notifyIcon.MouseClick += HandleNotifyIconMouseClick;
         _notifyIcon.MouseDoubleClick += HandleNotifyIconMouseDoubleClick;
@@ -162,8 +171,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         RefreshSessions();
         AppLog.Info("tray context initialized");
 
-        var updater = new WindowsAppCore.UpdateChecker(_updateHttpClient, Application.ProductVersion, "LunarLaurus", "laurus-win-tools");
-        updater.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
+        _updateChecker.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
             _ui.Post(() =>
             {
                 if (!_shuttingDown)
