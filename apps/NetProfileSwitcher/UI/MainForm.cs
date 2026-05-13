@@ -396,7 +396,7 @@ public class MainForm : Form
 
         _tray = new NotifyIcon
         {
-            Text = "Network Profile Switcher",
+            Text = $"NetProfileSwitcher {Application.ProductVersion}",
             Icon = Icons.GetTrayIcon(TrayState.Idle),
             ContextMenuStrip = _trayMenu,
             Visible = true,

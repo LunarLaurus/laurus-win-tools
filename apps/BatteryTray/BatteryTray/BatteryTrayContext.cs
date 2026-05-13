@@ -46,6 +46,7 @@ public sealed class BatteryTrayContext : ApplicationContext
         _notifyIcon = new NotifyIcon
         {
             Visible = true,
+            Text = $"BatteryTray {Application.ProductVersion}",
             ContextMenuStrip = BuildMenu(),
         };
         _notifyIcon.DoubleClick += (_, _) => OpenSettings();

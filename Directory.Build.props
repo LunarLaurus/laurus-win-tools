@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    RELEASE_VERSION is injected by CI (e.g. "1.2.3" stripped from the git tag).
+    Local builds keep whatever <Version> is set in the individual .csproj.
+  -->
+  <PropertyGroup Condition="'$(RELEASE_VERSION)' != ''">
+    <Version>$(RELEASE_VERSION)</Version>
+    <AssemblyVersion>$(RELEASE_VERSION)</AssemblyVersion>
+    <FileVersion>$(RELEASE_VERSION)</FileVersion>
+    <InformationalVersion>$(RELEASE_VERSION)</InformationalVersion>
+  </PropertyGroup>
+</Project>

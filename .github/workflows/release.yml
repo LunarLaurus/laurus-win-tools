@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build, Test and Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Extract version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+
+      # ── Tests ────────────────────────────────────────────────────────────────
+
+      - name: Test — WindowsAppCore
+        run: dotnet test shared/WindowsAppCore.Tests/WindowsAppCore.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Test — WindowsTrayCore
+        run: dotnet test shared/WindowsTrayCore.Tests/WindowsTrayCore.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Test — BatteryTray
+        run: dotnet test apps/BatteryTray/BatteryTray.Tests/BatteryTray.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Test — SoundTracker
+        run: dotnet test apps/SoundTracker/SoundTracker.Tests/SoundTracker.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Test — NetProfileSwitcher
+        run: dotnet test apps/NetProfileSwitcher.Tests/NetProfileSwitcher.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Test — ProgramHider
+        run: dotnet test apps/ProgramHider/tests/ProgramHider.Tests/ProgramHider.Tests.csproj --configuration Release --verbosity normal
+
+      # ── Publish ──────────────────────────────────────────────────────────────
+
+      - name: Publish — BatteryTray
+        run: dotnet publish apps/BatteryTray/BatteryTray/BatteryTray.csproj --configuration Release --no-self-contained --output artifacts/BatteryTray /p:RELEASE_VERSION=${{ steps.version.outputs.VERSION }}
+
+      - name: Publish — NetProfileSwitcher
+        run: dotnet publish apps/NetProfileSwitcher/NetProfileSwitcher.csproj --configuration Release --no-self-contained --output artifacts/NetProfileSwitcher /p:RELEASE_VERSION=${{ steps.version.outputs.VERSION }}
+
+      - name: Publish — ProgramHider
+        run: dotnet publish apps/ProgramHider/app/ProgramHider/ProgramHider.csproj --configuration Release --no-self-contained --output artifacts/ProgramHider /p:RELEASE_VERSION=${{ steps.version.outputs.VERSION }}
+
+      - name: Publish — SoundTracker
+        run: dotnet publish apps/SoundTracker/SoundTracker.App/SoundTracker.App.csproj --configuration Release --no-self-contained --output artifacts/SoundTracker /p:RELEASE_VERSION=${{ steps.version.outputs.VERSION }}
+
+      # ── Package ──────────────────────────────────────────────────────────────
+
+      - name: Zip artifacts
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.VERSION }}"
+          Compress-Archive -Path artifacts/BatteryTray        -DestinationPath "artifacts/BatteryTray-$v.zip"
+          Compress-Archive -Path artifacts/NetProfileSwitcher -DestinationPath "artifacts/NetProfileSwitcher-$v.zip"
+          Compress-Archive -Path artifacts/ProgramHider       -DestinationPath "artifacts/ProgramHider-$v.zip"
+          Compress-Archive -Path artifacts/SoundTracker       -DestinationPath "artifacts/SoundTracker-$v.zip"
+
+      # ── Release ──────────────────────────────────────────────────────────────
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ steps.version.outputs.VERSION }}"
+          $tag = "${{ github.ref_name }}"
+          gh release create $tag `
+            "artifacts/BatteryTray-$v.zip" `
+            "artifacts/NetProfileSwitcher-$v.zip" `
+            "artifacts/ProgramHider-$v.zip" `
+            "artifacts/SoundTracker-$v.zip" `
+            --title "Release $tag" `
+            --generate-notes
