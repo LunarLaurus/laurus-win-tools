@@ -43,10 +43,12 @@ public sealed class SettingsForm : Form
     private CheckBox _runAtStartup = null!;
 
     private IReadOnlyList<PowerPlan> _powerPlans = Array.Empty<PowerPlan>();
+    private readonly bool _currentlyRunAtStartup;
 
-    public SettingsForm(AppSettings settings)
+    public SettingsForm(AppSettings settings, bool currentlyRunAtStartup)
     {
         _settings = settings;
+        _currentlyRunAtStartup = currentlyRunAtStartup;
 
         Text = "BatteryTray Settings";
         ClientSize = new System.Drawing.Size(520, 620);
@@ -432,7 +434,7 @@ public sealed class SettingsForm : Form
         SelectPlan(_planOnBattery, _settings.PowerPlanOnBatteryGuid);
         UpdatePlanComboState();
 
-        _runAtStartup.Checked = StartupManager.GetRunAtStartup();
+        _runAtStartup.Checked = _currentlyRunAtStartup;
     }
 
     private static void SelectPlan(ComboBox combo, string? guidStr)

@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Windows.Forms;
+using WindowsAppCore;
 
 namespace BatteryTray;
 
@@ -580,7 +581,7 @@ public sealed class BatteryInfoForm : Form
 
         _diagToastLabel.Text = "Probe deferred to runtime — see About dialog";
 
-        _diagElevationLabel.Text = StartupManager.IsElevated() ? "Elevated (admin)" : "Standard user";
+        _diagElevationLabel.Text = ElevationHelper.IsElevated() ? "Elevated (admin)" : "Standard user";
 
         var plans = TryListPowerPlans();
         _diagPowerPlansLabel.Text = plans is null

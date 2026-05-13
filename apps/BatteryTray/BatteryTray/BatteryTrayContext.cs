@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows.Forms;
+using WindowsAppCore;
 
 namespace BatteryTray;
 
@@ -11,11 +12,10 @@ public sealed class BatteryTrayContext : ApplicationContext
     private readonly Notifier _notifier;
     private readonly PowerEventListener _powerListener;
     private readonly RateHistory _rateHistory = new();
-    private readonly ActivationSignal _activationSignal;
-    private readonly Thread _activationThread;
+    private readonly SingleInstanceActivation _activation;
+    private readonly ScheduledTaskStartupRegistration _startup;
     private readonly IDisposable _saverSubscription;
     private readonly ProcessPowerCoordinator _powerCoordinator = new();
-    private volatile bool _running = true;
 
     private AppSettings _settings;
     private Icon? _currentIcon;
@@ -34,10 +34,11 @@ public sealed class BatteryTrayContext : ApplicationContext
 
     private enum PowerLineStatusSource { Unknown, Ac, Battery }
 
-    public BatteryTrayContext(AppSettings settings, ActivationSignal activationSignal)
+    public BatteryTrayContext(AppSettings settings, SingleInstanceActivation activation, ScheduledTaskStartupRegistration startup)
     {
         _settings = settings;
-        _activationSignal = activationSignal;
+        _activation = activation;
+        _startup = startup;
 
         _notifyIcon = new NotifyIcon
         {
@@ -83,31 +84,14 @@ public sealed class BatteryTrayContext : ApplicationContext
             catch (Exception ex) { CrashLogger.Write("Saver→UI marshal", ex); }
         });
 
-        _activationThread = new Thread(ActivationLoop)
+        _activation.ActivationRequested += (_, _) =>
         {
-            IsBackground = true,
-            Name = "BatteryTray.ActivationListener",
+            try { _notifyIcon.ContextMenuStrip?.BeginInvoke(new Action(OpenSettings)); }
+            catch (Exception ex) { CrashLogger.Write("Activation→OpenSettings", ex); }
         };
-        _activationThread.Start();
 
         Refresh();
         ShowFirstRunWelcomeIfNeeded();
-    }
-
-    private void ActivationLoop()
-    {
-        while (_running)
-        {
-            if (_activationSignal.WaitOne(500))
-            {
-                if (!_running) return;
-                try
-                {
-                    _notifyIcon.ContextMenuStrip?.BeginInvoke(new Action(OpenSettings));
-                }
-                catch (Exception ex) { CrashLogger.Write("Activation→OpenSettings", ex); }
-            }
-        }
     }
 
     private void OnSafetyTick()
@@ -290,7 +274,7 @@ public sealed class BatteryTrayContext : ApplicationContext
     {
         if (_settingsForm is { IsDisposed: false }) { _settingsForm.Activate(); return; }
 
-        _settingsForm = new SettingsForm(_settings);
+        _settingsForm = new SettingsForm(_settings, _startup.IsRegistered);
         _settingsForm.SettingsSaved += OnSettingsSaved;
         _settingsForm.FormClosed += (_, _) => _settingsForm = null;
         _settingsForm.Show();
@@ -306,17 +290,16 @@ public sealed class BatteryTrayContext : ApplicationContext
 
         if (startupChanged)
         {
-            var result = StartupManager.SetRunAtStartup(_settings.RunAtStartup);
-            if (result != StartupResult.Success)
+            var result = _settings.RunAtStartup ? _startup.Register() : _startup.Unregister();
+            if (result != StartupRegistrationResult.Success)
             {
                 _settings.RunAtStartup = !_settings.RunAtStartup;
                 try { _settings.Save(); } catch { }
 
-                if (result == StartupResult.Failed)
+                if (result == StartupRegistrationResult.Failed)
                 {
                     MessageBox.Show(
-                        "Couldn't update Windows startup configuration.\n\n" +
-                        "Diagnostic log: %TEMP%\\BatteryTray-startup.log",
+                        "Couldn't update Windows startup configuration.",
                         "Startup configuration",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning);
@@ -355,7 +338,7 @@ public sealed class BatteryTrayContext : ApplicationContext
 
     private void ShowAbout()
     {
-        var elevated = StartupManager.IsElevated() ? "elevated" : "user";
+        var elevated = ElevationHelper.IsElevated() ? "elevated" : "user";
         var toasts = _notifier.ToastsAvailable ? "toasts" : "balloons (legacy)";
         var (currentSource, _, _) = _powerCoordinator.GetCurrent();
         MessageBox.Show(
@@ -378,10 +361,7 @@ public sealed class BatteryTrayContext : ApplicationContext
     {
         if (disposing)
         {
-            _running = false;
-            _activationSignal.TrySignal();
-            try { _activationThread.Join(1000); } catch { }
-
+            _activation.Dispose();
             _saverSubscription.Dispose();
             _safetyTimer.Stop();
             _safetyTimer.Dispose();
