@@ -8,6 +8,8 @@ public sealed class SoundTrackerConfig
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     public const int CurrentSchemaVersion = 1;
 
+    public bool RunAtStartup { get; set; }
+
     private static readonly JsonSettingsStore<SoundTrackerConfig> Store = new("SoundTracker");
 
     [JsonIgnore]

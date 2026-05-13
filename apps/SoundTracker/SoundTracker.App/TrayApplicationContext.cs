@@ -4,6 +4,9 @@ using Microsoft.Win32;
 using SoundTracker.App.Audio;
 using SoundTracker.App.Diagnostics;
 using SoundTracker.App.History;
+using RunKeyStartupRegistration = WindowsAppCore.RunKeyStartupRegistration;
+using SingleInstanceActivation = WindowsAppCore.SingleInstanceActivation;
+using StartupRegistrationResult = WindowsAppCore.StartupRegistrationResult;
 
 namespace SoundTracker.App;
 
@@ -17,18 +20,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _volumeStatusItem;
     private readonly ToolStripMenuItem _activeStatusItem;
     private readonly ToolStripMenuItem _recentStatusItem;
+    private readonly ToolStripMenuItem _runAtStartupItem;
     private readonly NotifyIcon _notifyIcon;
     private readonly Control _uiDispatcher;
     private readonly System.Windows.Forms.Timer _leftClickTimer;
+    private readonly SingleInstanceActivation? _activation;
+    private readonly RunKeyStartupRegistration _startup;
     private Icon? _currentTrayIcon;
 
-    public TrayApplicationContext()
+    public TrayApplicationContext(SingleInstanceActivation? activation = null)
         : this(
             new AudioSessionMonitor(),
             activityTimeline: null,
             ownsAudioSessionSource: true,
             ownsActivityTimeline: true,
-            showNotifyIcon: true)
+            showNotifyIcon: true,
+            activation)
     {
     }
 
@@ -41,7 +48,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             activityTimeline: null,
             ownsAudioSessionSource,
             ownsActivityTimeline: true,
-            showNotifyIcon)
+            showNotifyIcon,
+            activation: null)
     {
     }
 
@@ -50,13 +58,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AudioActivityTimeline? activityTimeline,
         bool ownsAudioSessionSource,
         bool ownsActivityTimeline,
-        bool showNotifyIcon)
+        bool showNotifyIcon,
+        SingleInstanceActivation? activation = null)
     {
         AppLog.Info($"tray context initializing ownsAudioSessionSource={ownsAudioSessionSource} showNotifyIcon={showNotifyIcon}");
         _audioSessionSource = audioSessionSource;
         _activityTimeline = activityTimeline ?? new AudioActivityTimeline(_audioSessionSource);
         _ownsAudioSessionSource = ownsAudioSessionSource;
         _ownsActivityTimeline = ownsActivityTimeline;
+        _activation = activation;
+        _startup = new RunKeyStartupRegistration(
+            "SoundTracker",
+            Environment.ProcessPath ?? Application.ExecutablePath);
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
         _recentActivityForm = new RecentActivityForm();
@@ -80,6 +93,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             Enabled = false,
         };
+        _runAtStartupItem = new ToolStripMenuItem("Run at startup")
+        {
+            Checked = _startup.IsRegistered,
+            CheckOnClick = false,
+        };
+        _runAtStartupItem.Click += HandleRunAtStartupClick;
         var recentActivityItem = new ToolStripMenuItem("Recent Activity", null, (_, _) =>
         {
             AppLog.Info("tray menu recent activity clicked");
@@ -107,6 +126,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(volumeMixerItem);
         menu.Items.Add(recentActivityItem);
+        menu.Items.Add(_runAtStartupItem);
         menu.Items.Add(refreshItem);
         menu.Items.Add(exitItem);
 
@@ -134,6 +154,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         SystemEvents.UserPreferenceChanged += HandleUserPreferenceChanged;
         AppLog.Info("audio session source subscribed");
 
+        if (_activation is not null)
+            _activation.ActivationRequested += (_, _) =>
+                _uiDispatcher.BeginInvoke((Action)ShowRecentActivityWindow);
+
         RefreshSessions();
         AppLog.Info("tray context initialized");
     }
@@ -154,6 +178,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     protected override void ExitThreadCore()
     {
         AppLog.Info("tray context exiting");
+        _activation?.Dispose();
         _audioSessionSource.SessionsChanged -= HandleSessionsChanged;
         _audioSessionSource.VolumeStateChanged -= HandleVolumeStateChanged;
         _activityTimeline.HistoryChanged -= HandleHistoryChanged;
@@ -181,6 +206,24 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         base.ExitThreadCore();
         AppLog.Info("tray context exited");
+    }
+
+    private void HandleRunAtStartupClick(object? sender, EventArgs e)
+    {
+        bool enable = !_runAtStartupItem.Checked;
+        var result = enable ? _startup.Register() : _startup.Unregister();
+        if (result == StartupRegistrationResult.Success)
+        {
+            _runAtStartupItem.Checked = enable;
+            var config = SoundTrackerConfig.Load();
+            config.RunAtStartup = enable;
+            config.Save();
+            AppLog.Info($"startup.registration.changed enabled={enable}");
+        }
+        else
+        {
+            AppLog.Info($"startup.registration.failed wanted={enable} result={result}");
+        }
     }
 
     private void HandleSessionsChanged(object? sender, EventArgs e)
