@@ -55,4 +55,4 @@ If a previous app or smoke run is still open:
 .\build.ps1 -StopRunningProcesses
 ```
 
-This document is historical context for the migration itself. For current contributor guidance, use [`AGENTS.md`](../AGENTS.md) and [`docs/work-plan.md`](work-plan.md).
+This document is historical context for the migration itself. For current contributor guidance, see the repo root `README.md` and `docs/conventions/`.

@@ -1,8 +1,8 @@
 # Private working files — never committed
 claude-*
 codex-*
-notes.md
-NOTES.md
+claude.md
+CLAUDE.md
 AGENTS.md
 *.claude
 .claude/

@@ -1,16 +1,16 @@
 # Worklog
 
-Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full context before doing anything.
+Resumability artifact. Read this to get current state before continuing.
 
 ---
 
 ## 2026-05-13
 
-**Did:** Full planning and design phase completed across three AI review rounds.
+**Did:** Full planning and design phase completed across three review rounds.
 - Audited all five apps (NetProfileSwitcher, program-hider, sound-tracker, BatteryTray, DriveDredge)
-- Produced `design-vision.md` — the authoritative design document
-- Three rounds of cross-review (cross-review) resolving library split, crash logging, serialiser policy, TrayShell design, repo strategy, BatteryTray API validation
-- Established project rules in `NOTES.md`
+- Authoritative design vision established
+- Three rounds of design review resolved library split, crash logging, serialiser policy, TrayShell design, repo strategy, BatteryTray API validation
+- Established project rules
 - `.gitignore` and `WORKLOG.md` created
 - Git repo not yet initialised
 
@@ -29,7 +29,7 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 - Per-app git histories (NetProfileSwitcher, SoundTracker, ProgramHider) grafted into
   monorepo under `apps\` via `git subtree add` with full history preservation
 - BatteryTray added as regular files (no prior standalone repo)
-- `.gitignore` extended to exclude private config files by name in addition to prefix patterns
+- `.gitignore` extended to exclude private working files by name in addition to prefix patterns
 
 **Committed:** 43bfcf5 (initial structure), 189424f (NPS subtree), 16bb5bd (ST subtree), d2762a7 (PH subtree)
 
@@ -258,7 +258,7 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 **Did:** Planned and logged Phases 14–17 (auto-versioning, update checker, repo audit, publish).
 - Phase 14: GitVersion Mainline mode; CI derives semver from commit history
 - Phase 15: `UpdateChecker` in `WindowsAppCore`; GitHub releases API polling; wired into all four tray contexts
-- Phase 16: Full repo audit for AI attribution, private file leakage, secrets
+- Phase 16: Full repo audit for prohibited references, private file leakage, secrets
 - Phase 17: Make repo public; first `v1.0.0` tag; verify auto-update flow end-to-end
 
 **Committed:** (worklog only — no code yet)
@@ -314,8 +314,8 @@ No code changes. Directory moves only.
 - [x] `NetProfileSwitcher\` → `apps\NetProfileSwitcher\`
 - [x] `program-hider\`      → `apps\ProgramHider\`
 - [x] `sound-tracker\`      → `apps\SoundTracker\`
-- [x] Verify `.gitignore` excludes `claude-*` and `codex-*` before committing
-- [x] Initial commit with detailed message — no AI attribution
+- [x] Verify `.gitignore` excludes private working files before committing
+- [x] Initial commit with detailed message
 - [x] Update this worklog entry with commit hash
 
 ### Phase 1 — Conventions docs *(complete)*
@@ -446,15 +446,16 @@ Write under `docs\conventions\` before any code extraction:
 - [x] All four tray contexts wired: `StartPeriodicChecks` at startup, balloon tip on update, CTS/HttpClient disposed on exit
 - [x] Commit per logical unit (library, then per-app wiring)
 
-### Phase 16 — Full repo audit
+### Phase 16 — Full repo audit *(complete)*
 
-- [ ] Scan all source files for AI authorship references (co-authored-by lines, reviewer/vendor mentions, NOTES.md references in code)
-- [ ] Scan commit history for any AI attribution that slipped through
-- [ ] Verify all private files (`claude-*`, `codex-*`, `*.claude`, `.claude/`) are absent from tracked files
-- [ ] Check `.gitignore` coverage is complete
-- [ ] Verify no hardcoded secrets, tokens, or credentials anywhere
-- [ ] Review README and docs for any policy violations
-- [ ] Fix any issues found; commit if changes required
+- [x] Scan all tracked files for prohibited attribution references
+- [x] Verify commit messages are clean of attribution leakage
+- [x] Verify no private working files are tracked
+- [x] Confirm `.gitignore` coverage is complete
+- [x] Verify no hardcoded secrets, tokens, or credentials anywhere
+- [x] Review README and docs for any policy violations
+- [x] Delete archived sub-project and obsolete planning docs that contained prohibited references
+- [x] Rewrite git history to purge prohibited references from all prior commits
 
 ### Phase 17 — Publish + auto-update wire-up
 
