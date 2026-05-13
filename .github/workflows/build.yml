@@ -1,0 +1,89 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: Build, Test, Publish
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      # ── Tests ────────────────────────────────────────────────────────────────
+
+      - name: Test — WindowsAppCore
+        run: dotnet test shared/WindowsAppCore.Tests/WindowsAppCore.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Test — WindowsTrayCore
+        run: dotnet test shared/WindowsTrayCore.Tests/WindowsTrayCore.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Test — BatteryTray
+        run: dotnet test apps/BatteryTray/BatteryTray.Tests/BatteryTray.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Test — SoundTracker
+        run: dotnet test apps/SoundTracker/SoundTracker.Tests/SoundTracker.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Test — NetProfileSwitcher
+        run: dotnet test apps/NetProfileSwitcher.Tests/NetProfileSwitcher.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Test — ProgramHider
+        run: dotnet test apps/ProgramHider/tests/ProgramHider.Tests/ProgramHider.Tests.csproj --configuration Release --verbosity normal
+
+      # ── Publish ──────────────────────────────────────────────────────────────
+
+      - name: Publish — BatteryTray
+        run: dotnet publish apps/BatteryTray/BatteryTray/BatteryTray.csproj --configuration Release --no-self-contained --output artifacts/BatteryTray
+
+      - name: Publish — NetProfileSwitcher
+        run: dotnet publish apps/NetProfileSwitcher/NetProfileSwitcher.csproj --configuration Release --no-self-contained --output artifacts/NetProfileSwitcher
+
+      - name: Publish — ProgramHider
+        run: dotnet publish apps/ProgramHider/app/ProgramHider/ProgramHider.csproj --configuration Release --no-self-contained --output artifacts/ProgramHider
+
+      - name: Publish — SoundTracker
+        run: dotnet publish apps/SoundTracker/SoundTracker.App/SoundTracker.App.csproj --configuration Release --no-self-contained --output artifacts/SoundTracker
+
+      # ── Upload artifacts ─────────────────────────────────────────────────────
+
+      - name: Upload — BatteryTray
+        uses: actions/upload-artifact@v4
+        with:
+          name: BatteryTray
+          path: artifacts/BatteryTray
+
+      - name: Upload — NetProfileSwitcher
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetProfileSwitcher
+          path: artifacts/NetProfileSwitcher
+
+      - name: Upload — ProgramHider
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProgramHider
+          path: artifacts/ProgramHider
+
+      - name: Upload — SoundTracker
+        uses: actions/upload-artifact@v4
+        with:
+          name: SoundTracker
+          path: artifacts/SoundTracker
