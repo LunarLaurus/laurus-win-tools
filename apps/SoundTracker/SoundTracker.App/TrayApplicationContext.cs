@@ -4,6 +4,7 @@ using Microsoft.Win32;
 using SoundTracker.App.Audio;
 using SoundTracker.App.Diagnostics;
 using SoundTracker.App.History;
+using WindowsTrayCore;
 using RunKeyStartupRegistration = WindowsAppCore.RunKeyStartupRegistration;
 using SingleInstanceActivation = WindowsAppCore.SingleInstanceActivation;
 using StartupRegistrationResult = WindowsAppCore.StartupRegistrationResult;
@@ -22,11 +23,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _recentStatusItem;
     private readonly ToolStripMenuItem _runAtStartupItem;
     private readonly NotifyIcon _notifyIcon;
-    private readonly Control _uiDispatcher;
+    private readonly UiDispatcher _ui;
     private readonly System.Windows.Forms.Timer _leftClickTimer;
     private readonly SingleInstanceActivation? _activation;
     private readonly RunKeyStartupRegistration _startup;
     private Icon? _currentTrayIcon;
+    private bool _shuttingDown;
 
     public TrayApplicationContext(SingleInstanceActivation? activation = null)
         : this(
@@ -70,15 +72,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _startup = new RunKeyStartupRegistration(
             "SoundTracker",
             Environment.ProcessPath ?? Application.ExecutablePath);
-        _uiDispatcher = new Control();
-        _ = _uiDispatcher.Handle;
+        _ui = new UiDispatcher();
         _recentActivityForm = new RecentActivityForm();
         _leftClickTimer = new System.Windows.Forms.Timer
         {
             Interval = Math.Max(200, SystemInformation.DoubleClickTime),
         };
         _leftClickTimer.Tick += HandleLeftClickTimerTick;
-        AppLog.Info($"ui dispatcher handle created=0x{_uiDispatcher.Handle.ToInt64():X}");
 
         var menu = new ContextMenuStrip();
         _volumeStatusItem = new ToolStripMenuItem("Checking volume...")
@@ -155,8 +155,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AppLog.Info("audio session source subscribed");
 
         if (_activation is not null)
-            _activation.ActivationRequested += (_, _) =>
-                _uiDispatcher.BeginInvoke((Action)ShowRecentActivityWindow);
+            _activation.ActivationRequested += (_, _) => _ui.Post(ShowRecentActivityWindow);
 
         RefreshSessions();
         AppLog.Info("tray context initialized");
@@ -197,7 +196,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _recentActivityForm.Close();
         _recentActivityForm.Dispose();
-        _uiDispatcher.Dispose();
+        _shuttingDown = true;
+        _ui.Dispose();
 
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
@@ -228,19 +228,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void HandleSessionsChanged(object? sender, EventArgs e)
     {
-        AppLog.Info($"sessions changed callback invokeRequired={_uiDispatcher.InvokeRequired} disposed={_uiDispatcher.IsDisposed}");
+        AppLog.Info($"sessions changed callback onUiThread={_ui.IsUiThread} shuttingDown={_shuttingDown}");
         BeginRefreshOnUiThread();
     }
 
     private void HandleHistoryChanged(object? sender, EventArgs e)
     {
-        AppLog.Info($"history changed callback invokeRequired={_uiDispatcher.InvokeRequired} disposed={_uiDispatcher.IsDisposed}");
+        AppLog.Info($"history changed callback onUiThread={_ui.IsUiThread} shuttingDown={_shuttingDown}");
         BeginRefreshOnUiThread();
     }
 
     private void HandleVolumeStateChanged(object? sender, EventArgs e)
     {
-        AppLog.Info($"volume changed callback invokeRequired={_uiDispatcher.InvokeRequired} disposed={_uiDispatcher.IsDisposed}");
+        AppLog.Info($"volume changed callback onUiThread={_ui.IsUiThread} shuttingDown={_shuttingDown}");
         BeginRefreshOnUiThread();
     }
 
@@ -282,15 +282,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void BeginRefreshOnUiThread()
     {
-        if (_uiDispatcher.IsDisposed)
-        {
+        if (_shuttingDown)
             return;
-        }
 
-        if (_uiDispatcher.InvokeRequired)
+        if (!_ui.IsUiThread)
         {
             AppLog.Info("dispatching refresh to ui thread");
-            _uiDispatcher.BeginInvoke(RefreshSessions);
+            _ui.Post(RefreshSessions);
             return;
         }
 
