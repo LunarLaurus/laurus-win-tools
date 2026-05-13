@@ -23,6 +23,7 @@
     <ProjectReference Include="..\SoundTracker.App\SoundTracker.App.csproj" />
     <ProjectReference Include="..\..\..\shared\WindowsAppCore\WindowsAppCore.csproj" />
     <ProjectReference Include="..\..\..\shared\WindowsTrayCore\WindowsTrayCore.csproj" />
+    <ProjectReference Include="..\..\..\shared\WindowsAppTesting\WindowsAppTesting.csproj" />
   </ItemGroup>
 
 </Project>

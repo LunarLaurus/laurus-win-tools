@@ -11,23 +11,16 @@ namespace WindowsAppCore.Tests;
 public class JsonSettingsStoreTests : IDisposable
 {
     private readonly string _appName = $"StoreTest-{Guid.NewGuid():N}";
-    private readonly string _tempRoot;
+    private readonly TempAppData _temp;
 
     public JsonSettingsStoreTests()
     {
-        _tempRoot = Path.Combine(Path.GetTempPath(), $"store-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_tempRoot);
-        Environment.SetEnvironmentVariable(EnvKey, _tempRoot);
+        _temp = new TempAppData(_appName);
     }
 
-    public void Dispose()
-    {
-        Environment.SetEnvironmentVariable(EnvKey, null);
-        try { Directory.Delete(_tempRoot, recursive: true); } catch { }
-    }
+    public void Dispose() => _temp.Dispose();
 
-    private string EnvKey => _appName.ToUpperInvariant().Replace('-', '_') + "_DATA";
-    private string SettingsFile => Path.Combine(_tempRoot, "settings.json");
+    private string SettingsFile => Path.Combine(_temp.Path, "settings.json");
 
     // ── Happy path ─────────────────────────────────────────────────────────
 
@@ -69,7 +62,7 @@ public class JsonSettingsStoreTests : IDisposable
     {
         var store = new JsonSettingsStore<FlatSettings>(_appName);
         store.Save(new FlatSettings { Name = "check" });
-        var tmpFiles = Directory.GetFiles(_tempRoot, "*.tmp");
+        var tmpFiles = Directory.GetFiles(_temp.Path, "*.tmp");
         tmpFiles.Should().BeEmpty("temp file must be cleaned up after atomic move");
     }
 
@@ -78,7 +71,7 @@ public class JsonSettingsStoreTests : IDisposable
     [Fact]
     public void Load_CorruptJson_ReturnsDefault()
     {
-        Directory.CreateDirectory(_tempRoot);
+        Directory.CreateDirectory(_temp.Path);
         File.WriteAllText(SettingsFile, "{ this is garbage !!! }");
         var store = new JsonSettingsStore<FlatSettings>(_appName);
         var s = store.Load();
@@ -88,11 +81,11 @@ public class JsonSettingsStoreTests : IDisposable
     [Fact]
     public void Load_CorruptJson_QuarantinesBrokenFile()
     {
-        Directory.CreateDirectory(_tempRoot);
+        Directory.CreateDirectory(_temp.Path);
         File.WriteAllText(SettingsFile, "null");
         var store = new JsonSettingsStore<FlatSettings>(_appName);
         store.Load();
-        var broken = Directory.GetFiles(_tempRoot, "settings.json.broken-*");
+        var broken = Directory.GetFiles(_temp.Path, "settings.json.broken-*");
         broken.Should().NotBeEmpty("broken file must be renamed for forensics");
     }
 

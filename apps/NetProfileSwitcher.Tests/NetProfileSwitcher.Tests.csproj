@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\NetProfileSwitcher\NetProfileSwitcher.csproj" />
     <ProjectReference Include="..\..\shared\WindowsTrayCore\WindowsTrayCore.csproj" />
+    <ProjectReference Include="..\..\shared\WindowsAppTesting\WindowsAppTesting.csproj" />
   </ItemGroup>
 
 </Project>

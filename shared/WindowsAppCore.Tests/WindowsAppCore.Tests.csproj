@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WindowsAppCore\WindowsAppCore.csproj" />
+    <ProjectReference Include="..\WindowsAppTesting\WindowsAppTesting.csproj" />
   </ItemGroup>
 
 </Project>

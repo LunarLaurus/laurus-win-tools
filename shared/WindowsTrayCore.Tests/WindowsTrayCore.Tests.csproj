@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WindowsTrayCore\WindowsTrayCore.csproj" />
+    <ProjectReference Include="..\WindowsAppTesting\WindowsAppTesting.csproj" />
   </ItemGroup>
 
 </Project>

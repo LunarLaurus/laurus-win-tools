@@ -1,68 +1,39 @@
-using System.IO;
 using FluentAssertions;
 using WindowsAppCore;
 using Xunit;
 
 namespace SoundTracker.Tests;
 
-public class SoundTrackerConfigTests
+public class SoundTrackerConfigTests : IDisposable
 {
+    private readonly TempAppData _temp = new("SoundTracker");
+
+    public void Dispose() => _temp.Dispose();
+
     [Fact]
     public void Load_NoFile_ReturnsCurrentSchemaVersion()
     {
-        var tempRoot = Path.Combine(Path.GetTempPath(), $"SoundTrackerTest-{Guid.NewGuid():N}");
-        try
-        {
-            Environment.SetEnvironmentVariable("SOUNDTRACKER_DATA", tempRoot);
-            var store = new JsonSettingsStore<SoundTracker.App.SoundTrackerConfig>("SoundTracker");
-            var config = store.Load();
-            config.SchemaVersion.Should().Be(SoundTracker.App.SoundTrackerConfig.CurrentSchemaVersion);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("SOUNDTRACKER_DATA", null);
-            try { Directory.Delete(tempRoot, recursive: true); } catch { }
-        }
+        var store = new JsonSettingsStore<SoundTracker.App.SoundTrackerConfig>("SoundTracker");
+        var config = store.Load();
+        config.SchemaVersion.Should().Be(SoundTracker.App.SoundTrackerConfig.CurrentSchemaVersion);
     }
 
     [Fact]
     public void Save_ThenLoad_RoundTripsRunAtStartup()
     {
-        var tempRoot = Path.Combine(Path.GetTempPath(), $"SoundTrackerTest-{Guid.NewGuid():N}");
-        try
-        {
-            Environment.SetEnvironmentVariable("SOUNDTRACKER_DATA", tempRoot);
-            var store = new JsonSettingsStore<SoundTracker.App.SoundTrackerConfig>("SoundTracker");
-            var config = store.Load();
-            config.RunAtStartup = true;
-            store.Save(config);
-            var reloaded = store.Load();
-            reloaded.RunAtStartup.Should().BeTrue();
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("SOUNDTRACKER_DATA", null);
-            try { Directory.Delete(tempRoot, recursive: true); } catch { }
-        }
+        var store = new JsonSettingsStore<SoundTracker.App.SoundTrackerConfig>("SoundTracker");
+        var config = store.Load();
+        config.RunAtStartup = true;
+        store.Save(config);
+        store.Load().RunAtStartup.Should().BeTrue();
     }
 
     [Fact]
     public void Save_ThenLoad_RoundTripsSchemaVersion()
     {
-        var tempRoot = Path.Combine(Path.GetTempPath(), $"SoundTrackerTest-{Guid.NewGuid():N}");
-        try
-        {
-            Environment.SetEnvironmentVariable("SOUNDTRACKER_DATA", tempRoot);
-            var store = new JsonSettingsStore<SoundTracker.App.SoundTrackerConfig>("SoundTracker");
-            var config = store.Load();
-            store.Save(config);
-            var reloaded = store.Load();
-            reloaded.SchemaVersion.Should().Be(SoundTracker.App.SoundTrackerConfig.CurrentSchemaVersion);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("SOUNDTRACKER_DATA", null);
-            try { Directory.Delete(tempRoot, recursive: true); } catch { }
-        }
+        var store = new JsonSettingsStore<SoundTracker.App.SoundTrackerConfig>("SoundTracker");
+        var config = store.Load();
+        store.Save(config);
+        store.Load().SchemaVersion.Should().Be(SoundTracker.App.SoundTrackerConfig.CurrentSchemaVersion);
     }
 }

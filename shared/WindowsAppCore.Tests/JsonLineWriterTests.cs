@@ -102,4 +102,29 @@ public class JsonLineWriterTests : IDisposable
         var act = () => writer.Dispose();
         act.Should().NotThrow();
     }
+
+    [Fact]
+    public void DateRollover_WritesToNewFileAtMidnight()
+    {
+        var d1 = new DateTimeOffset(2025, 1, 14, 23, 59, 59, TimeSpan.Zero);
+        var d2 = d1.AddSeconds(2);
+        var clock = new FakeClock(d1);
+        var d1Path = Path.Combine(_tempDir, $"dayroll-{d1:yyyyMMdd}.jsonl");
+        var d2Path = Path.Combine(_tempDir, $"dayroll-{d2:yyyyMMdd}.jsonl");
+
+        using (var writer = new JsonLineWriter(_tempDir, "dayroll", clock: clock))
+        {
+            writer.Write("{\"day\":1}");
+
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            while (!File.Exists(d1Path) && DateTime.UtcNow < deadline)
+                Thread.Sleep(50);
+
+            clock.Set(d2);
+            writer.Write("{\"day\":2}");
+        }
+
+        File.ReadAllLines(d1Path).Should().ContainSingle(l => l.Contains("\"day\":1"));
+        File.ReadAllLines(d2Path).Should().ContainSingle(l => l.Contains("\"day\":2"));
+    }
 }
