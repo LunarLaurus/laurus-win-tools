@@ -1,7 +1,5 @@
-using System.IO;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using WindowsAppCore;
 
 namespace BatteryTray;
 
@@ -65,116 +63,27 @@ public sealed class AppSettings
     public string ColorCritical { get; set; } = "#E53935";
     public string ColorText     { get; set; } = "#FFFFFF";
 
-    [JsonIgnore]
-    public string SettingsFilePath => GetSettingsPath();
+    private static readonly JsonSettingsStore<AppSettings> Store = new(
+        "BatteryTray",
+        migrations: new ISettingsMigration[]
+        {
+            new AppSettingsMigrationV1ToV2(),
+            new AppSettingsMigrationV2ToV3(),
+        });
 
-    private static string GetSettingsPath()
-    {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "BatteryTray");
-        Directory.CreateDirectory(dir);
-        return Path.Combine(dir, "settings.json");
-    }
+    [JsonIgnore]
+    public string SettingsFilePath => Store.SettingsPath;
 
     public static AppSettings Load()
     {
-        var path = GetSettingsPath();
-        try
-        {
-            if (!File.Exists(path))
-            {
-                var fresh = new AppSettings();
-                try { fresh.Save(); } catch { }
-                return fresh;
-            }
-
-            var json = File.ReadAllText(path);
-            int existingVersion = ReadSchemaVersion(json);
-            var migratedJson = Migrate(json, existingVersion);
-
-            var loaded = JsonSerializer.Deserialize<AppSettings>(migratedJson);
-            if (loaded != null)
-            {
-                if (loaded.SchemaVersion != CurrentSchemaVersion)
-                {
-                    loaded.SchemaVersion = CurrentSchemaVersion;
-                    try { loaded.Save(); } catch { }
-                }
-                return loaded;
-            }
-        }
-        catch (Exception ex)
-        {
-            CrashLogger.Write("Settings.Load", ex);
-        }
-
-        try
-        {
-            if (File.Exists(path))
-                File.Move(path, path + ".broken-" + DateTime.Now.ToString("yyyyMMddHHmmss"), overwrite: false);
-        }
-        catch { }
-
-        var defaults = new AppSettings();
-        try { defaults.Save(); } catch { }
-        return defaults;
+        var s = Store.Load();
+        s.SchemaVersion = CurrentSchemaVersion;
+        return s;
     }
 
     public void Save()
     {
         SchemaVersion = CurrentSchemaVersion;
-        var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
-        var path = GetSettingsPath();
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, json);
-        File.Move(tmp, path, overwrite: true);
-    }
-
-    private static int ReadSchemaVersion(string json)
-    {
-        try
-        {
-            var node = JsonNode.Parse(json);
-            if (node?["SchemaVersion"] is JsonNode v) return (int?)v ?? 1;
-        }
-        catch { }
-        return 1;
-    }
-
-    private static string Migrate(string json, int from)
-    {
-        if (from >= CurrentSchemaVersion) return json;
-
-        try
-        {
-            var node = JsonNode.Parse(json) as JsonObject;
-            if (node is null) return json;
-
-            // v1 → v2: bump default polling interval if it was the old default of 5.
-            if (from < 2)
-            {
-                if (node["UpdateIntervalSeconds"] is JsonNode interval && (int?)interval == 5)
-                {
-                    node["UpdateIntervalSeconds"] = 30;
-                }
-            }
-
-            // v2 → v3: drop the dead Battery Saver fields. The deserializer would just
-            // ignore unknown JSON keys against the v3 schema, but explicit removal keeps
-            // the saved file clean and prevents confusion if someone hand-edits it.
-            if (from < 3)
-            {
-                node.Remove("AutoEnableBatterySaver");
-                node.Remove("BatterySaverThreshold");
-            }
-
-            return node.ToJsonString();
-        }
-        catch (Exception ex)
-        {
-            CrashLogger.Write("Settings.Migrate", ex);
-            return json;
-        }
+        Store.Save(this);
     }
 }
