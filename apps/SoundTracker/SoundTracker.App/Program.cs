@@ -8,6 +8,8 @@ internal static class Program
     private static void Main()
     {
         AppLog.Info($"application starting version={AppMetadata.DisplayVersion} log={AppLog.LogPath}");
+        var settings = SoundTrackerConfig.Load();
+        AppLog.Info($"settings loaded path={settings.SettingsFilePath}");
         Application.ThreadException += (_, args) => AppLog.Error("ui thread exception", args.Exception);
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
             AppLog.Error("unhandled exception", args.ExceptionObject as Exception);
