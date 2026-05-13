@@ -253,6 +253,20 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-13 14:30
+
+**Did:** Planned and logged Phases 14–17 (auto-versioning, update checker, repo audit, publish).
+- Phase 14: GitVersion Mainline mode; CI derives semver from commit history
+- Phase 15: `UpdateChecker` in `WindowsAppCore`; GitHub releases API polling; wired into all four tray contexts
+- Phase 16: Full repo audit for AI attribution, private file leakage, secrets
+- Phase 17: Make repo public; first `v1.0.0` tag; verify auto-update flow end-to-end
+
+**Committed:** (worklog only — no code yet)
+
+**Next:** Phase 14 — GitVersion auto-versioning
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -387,3 +401,42 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Add `StartupDelaySeconds` to each app's settings type (fallback when `--delay=N` not passed)
 - [x] Wire CLI-arg-over-settings priority in all four `Program.cs`
 - [x] Commit per logical unit
+
+### Phase 14 — GitVersion auto-versioning
+
+- [ ] Add `GitVersion.yml` at repo root (Mainline mode, master branch, patch increment)
+- [ ] Update `build.yml` to run `gittools/actions@v2` GitVersion step; expose `gitVersion.semVer` as env var for publish steps
+- [ ] Update `release.yml` to derive version from GitVersion output rather than manual tag strip
+- [ ] Verify `RELEASE_VERSION` continues to stamp all four app binaries correctly in CI
+- [ ] Commit
+
+### Phase 15 — Update checker
+
+- [ ] Add `IUpdateChecker`, `UpdateCheckResult` record, `UpdateChecker` class to `WindowsAppCore`
+  - Polls GitHub releases API (`https://api.github.com/repos/{owner}/{repo}/releases/latest`)
+  - Returns `IsUpdateAvailable`, `LatestVersion`, `ReleaseUrl`
+  - `StartPeriodicChecks(TimeSpan interval, CancellationToken ct)` — fire-and-forget background polling
+- [ ] Add `FakeHttpMessageHandler` to `WindowsAppTesting` for deterministic HTTP unit tests
+- [ ] Tests: happy path (newer version available), no update, malformed response, network failure
+- [ ] Wire `UpdateChecker.StartPeriodicChecks` into all four app tray contexts
+  - On update available: balloon/toast notification with release URL
+  - Rate: check once on launch + every 24 h
+- [ ] Commit per logical unit (library, then per-app wiring)
+
+### Phase 16 — Full repo audit
+
+- [ ] Scan all source files for AI authorship references (co-authored-by lines, reviewer/vendor mentions, NOTES.md references in code)
+- [ ] Scan commit history for any AI attribution that slipped through
+- [ ] Verify all private files (`claude-*`, `codex-*`, `*.claude`, `.claude/`) are absent from tracked files
+- [ ] Check `.gitignore` coverage is complete
+- [ ] Verify no hardcoded secrets, tokens, or credentials anywhere
+- [ ] Review README and docs for any policy violations
+- [ ] Fix any issues found; commit if changes required
+
+### Phase 17 — Publish + auto-update wire-up
+
+- [ ] Make GitHub repository public
+- [ ] Verify GitHub Actions release workflow fires cleanly on first public tag
+- [ ] Confirm `UpdateChecker` can reach `api.github.com/repos/LunarLaurus/laurus-win-tools` without auth (public API)
+- [ ] Tag and push `v1.0.0` to trigger first public release
+- [ ] Verify all four app zips appear in GitHub Release
