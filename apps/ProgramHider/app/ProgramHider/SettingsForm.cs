@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Windows.Forms;
+using WindowsTrayCore;
 
 namespace ProgramHider;
 
@@ -96,9 +97,24 @@ internal sealed class SettingsForm : Form
         root.Controls.Add(BuildButtonPanel(), 0, 1);
 
         Controls.Add(root);
+
+        ThemeApplier.ApplyTo(this);
+        TrayTheme.Current.Changed += OnThemeChanged;
     }
 
     public AppSettings? UpdatedSettings { get; private set; }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        ThemeApplier.ApplyTo(this);
+        Invalidate(invalidateChildren: true);
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        TrayTheme.Current.Changed -= OnThemeChanged;
+        base.OnFormClosed(e);
+    }
 
     private TabPage BuildGeneralTab(string settingsPath)
     {
