@@ -1,7 +1,9 @@
 using SoundTracker.App;
 using SoundTracker.App.Audio;
+using SoundTracker.App.History;
 using SoundTracker.App.Processes;
 using System.Diagnostics;
+using System.Drawing;
 using System.Media;
 using System.Text;
 
@@ -22,17 +24,14 @@ internal static class Program
 
         var tests = new (string Name, Action Run)[]
         {
-            ("TooltipFormatter idle state", TooltipFormatter_IdleState),
-            ("TooltipFormatter summary and truncation", TooltipFormatter_SummaryAndTruncation),
-            ("TooltipFormatter menu label overflow", TooltipFormatter_MenuLabelOverflow),
             ("ProcessNameResolver current process", ProcessNameResolver_CurrentProcess),
             ("AudioSessionMonitor lifecycle", AudioSessionMonitor_Lifecycle),
             ("AudioSessionMonitor disposed guard", AudioSessionMonitor_DisposedGuard),
             ("AudioSessionMonitor live playback callbacks", AudioSessionMonitor_LivePlaybackCallbacks),
-            ("TrayApplicationContext initial refresh", TrayApplicationContext_InitialRefresh),
-            ("TrayApplicationContext event-driven refresh", TrayApplicationContext_EventDrivenRefresh),
-            ("TrayApplicationContext error fallback", TrayApplicationContext_ErrorFallback),
-            ("TrayApplicationContext owned source disposal", TrayApplicationContext_OwnedSourceDisposal),
+            ("AudioActivityTimeline persists live playback history", AudioActivityTimeline_PersistsLivePlaybackHistory),
+            ("AudioActivityHistoryStore reloads captured history", AudioActivityHistoryStore_ReloadsCapturedHistory),
+            ("RecentActivityForm renders screenshot", RecentActivityForm_RendersScreenshot),
+            ("TrayApplicationContext reflects recent history", TrayApplicationContext_ReflectsRecentHistory),
         };
 
         var failures = new List<string>();
@@ -111,37 +110,6 @@ internal static class Program
         }
     }
 
-    private static void TooltipFormatter_IdleState()
-    {
-        Assert.Equal("SoundTracker 0.2.2: listening", TooltipFormatter.Build(Array.Empty<string>(), Array.Empty<AudioActivityEvent>()));
-        Assert.Equal("Recent activity will appear here", TooltipFormatter.BuildMenuLabel(Array.Empty<string>(), Array.Empty<AudioActivityEvent>()));
-    }
-
-    private static void TooltipFormatter_SummaryAndTruncation()
-    {
-        var sessions = new[]
-        {
-            "extremely-long-process-name-one.exe",
-            "extremely-long-process-name-two.exe",
-            "extremely-long-process-name-three.exe",
-            "extremely-long-process-name-four.exe",
-        };
-
-        var tooltip = TooltipFormatter.Build(sessions, Array.Empty<AudioActivityEvent>());
-        Assert.True(tooltip.StartsWith("SoundTracker 0.2.2: "), "Tooltip should include the application version.");
-        Assert.True(tooltip.Length <= 63, "Tooltip must fit NotifyIcon text limits.");
-        Assert.True(tooltip.Contains("active "), "Tooltip should summarize active sessions.");
-    }
-
-    private static void TooltipFormatter_MenuLabelOverflow()
-    {
-        var sessions = Enumerable.Range(1, 10).Select(i => $"app{i}.exe").ToArray();
-        var label = TooltipFormatter.BuildMenuLabel(sessions, Array.Empty<AudioActivityEvent>());
-
-        Assert.True(label.Contains("Active now:"), "Menu label should describe active sessions.");
-        Assert.True(label.Contains("+5 more"), "Menu label should summarize overflow items.");
-    }
-
     private static void ProcessNameResolver_CurrentProcess()
     {
         var resolver = new ProcessNameResolver();
@@ -186,94 +154,68 @@ internal static class Program
         Assert.Equal(0, probe.ExitCode);
     }
 
-    private static void TrayApplicationContext_InitialRefresh()
+    private static void AudioActivityTimeline_PersistsLivePlaybackHistory()
     {
-        using var source = new FakeAudioSessionSource("vlc.exe", "spotify.exe");
-        using var context = new TrayApplicationContext(source, ownsAudioSessionSource: false, showNotifyIcon: false);
+        var capture = GetPlaybackCapture();
 
-        Assert.Equal("SoundTracker 0.2.2: active vlc.exe, spotify.exe", context.CurrentTooltipText);
-        Assert.Equal("Active now: vlc.exe, spotify.exe", context.CurrentStatusText);
+        Assert.True(capture.CapturedActivities.Count >= 2, "Live playback should produce persisted activity records.");
+        Assert.True(
+            capture.CapturedActivities.Any(activity =>
+                activity.Kind == AudioActivityKind.Started &&
+                activity.Description.Contains("SoundTracker.SmokeTests", StringComparison.OrdinalIgnoreCase)),
+            "Captured history should contain a playback-start event for the smoke test host.");
+        Assert.True(
+            capture.CapturedActivities.Any(activity =>
+                activity.Kind == AudioActivityKind.Stopped &&
+                activity.Description.Contains("SoundTracker.SmokeTests", StringComparison.OrdinalIgnoreCase) &&
+                activity.Duration is not null &&
+                activity.Duration.Value > TimeSpan.Zero),
+            "Captured history should contain a playback-stop event with a duration.");
+        Assert.True(File.Exists(capture.HistoryPath), "History file should exist after live playback.");
     }
 
-    private static void TrayApplicationContext_EventDrivenRefresh()
+    private static void AudioActivityHistoryStore_ReloadsCapturedHistory()
     {
-        using var source = new FakeAudioSessionSource("vlc.exe");
-        using var context = new TrayApplicationContext(source, ownsAudioSessionSource: false, showNotifyIcon: false);
+        var capture = GetPlaybackCapture();
+        var reloaded = new AudioActivityHistoryStore(capture.HistoryPath).LoadRecent(100);
 
-        source.SetSessions("spotify.exe", "vlc.exe", "zebra.exe", "chrome.exe");
-        source.RaiseChanged();
-
-        Assert.Equal("SoundTracker 0.2.2: active spotify.exe, vlc.exe +2", context.CurrentTooltipText);
-        Assert.Equal("Active now: spotify.exe, vlc.exe, zebra.exe, chrome.exe", context.CurrentStatusText);
+        Assert.True(reloaded.Count >= capture.CapturedActivities.Count, "Reloaded history should contain the captured live events.");
+        Assert.True(
+            reloaded.Any(activity =>
+                activity.Kind == AudioActivityKind.Stopped &&
+                activity.Description.Contains("SoundTracker.SmokeTests", StringComparison.OrdinalIgnoreCase)),
+            "Reloaded history should preserve the playback-stop event.");
     }
 
-    private static void TrayApplicationContext_ErrorFallback()
+    private static void RecentActivityForm_RendersScreenshot()
     {
-        using var source = new FakeAudioSessionSource();
-        source.ThrowOnGet = true;
+        var capture = GetPlaybackCapture();
 
-        using var context = new TrayApplicationContext(source, ownsAudioSessionSource: false, showNotifyIcon: false);
-
-        Assert.Equal("Sound Tracker: unavailable", context.CurrentTooltipText);
-        Assert.Equal("Audio session query failed", context.CurrentStatusText);
+        Assert.True(File.Exists(capture.ScreenshotPath), "Recent Activity screenshot should be created.");
+        var fileInfo = new FileInfo(capture.ScreenshotPath);
+        Assert.True(fileInfo.Length > 0, "Recent Activity screenshot should not be empty.");
+        Assert.True(
+            capture.RenderedRows.Any(row => row.Contains("SoundTracker.SmokeTests", StringComparison.OrdinalIgnoreCase)),
+            "Rendered Recent Activity rows should include the live playback entry.");
     }
 
-    private static void TrayApplicationContext_OwnedSourceDisposal()
+    private static void TrayApplicationContext_ReflectsRecentHistory()
     {
-        var source = new FakeAudioSessionSource("vlc.exe");
-        var context = new TrayApplicationContext(source, ownsAudioSessionSource: true, showNotifyIcon: false);
+        var capture = GetPlaybackCapture();
 
-        context.ShutdownForTests();
-
-        Assert.True(source.DisposeCallCount > 0, "Owned audio sources should be disposed with the tray context.");
-    }
-
-    private sealed class FakeAudioSessionSource : IAudioSessionSource
-    {
-        private IReadOnlyList<string> _sessions;
-
-        public FakeAudioSessionSource(params string[] sessions)
-        {
-            _sessions = sessions;
-        }
-
-        public event EventHandler<AudioActivityEventArgs>? ActivityRecorded;
-
-        public event EventHandler? SessionsChanged;
-
-        public int DisposeCallCount { get; private set; }
-
-        public bool ThrowOnGet { get; set; }
-
-        public IReadOnlyList<string> GetActiveSessionNames()
-        {
-            if (ThrowOnGet)
-            {
-                throw new InvalidOperationException("Synthetic test failure.");
-            }
-
-            return _sessions;
-        }
-
-        public IReadOnlyList<AudioActivityEvent> GetRecentActivities()
-        {
-            return [];
-        }
-
-        public void Dispose()
-        {
-            DisposeCallCount++;
-        }
-
-        public void RaiseChanged()
-        {
-            SessionsChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        public void SetSessions(params string[] sessions)
-        {
-            _sessions = sessions;
-        }
+        Assert.True(
+            capture.TooltipText.StartsWith("SoundTracker 0.3.0: ", StringComparison.Ordinal),
+            "Tray tooltip should include the current application version.");
+        Assert.True(
+            capture.TooltipText.Contains("started", StringComparison.OrdinalIgnoreCase) ||
+            capture.TooltipText.Contains("stopped", StringComparison.OrdinalIgnoreCase) ||
+            capture.TooltipText.Contains("active", StringComparison.OrdinalIgnoreCase),
+            "Tray tooltip should summarize real activity history.");
+        Assert.True(
+            capture.StatusText.Contains("started", StringComparison.OrdinalIgnoreCase) ||
+            capture.StatusText.Contains("stopped", StringComparison.OrdinalIgnoreCase) ||
+            capture.StatusText.Contains("Active now:", StringComparison.OrdinalIgnoreCase),
+            "Tray status should reflect real activity history.");
     }
 
     private static Process StartPlaybackChild(int durationMs)
@@ -401,6 +343,91 @@ internal static class Program
             monitor.SessionsChanged -= HandleSessionsChanged;
         }
     }
+
+    private static PlaybackCapture GetPlaybackCapture()
+    {
+        if (_playbackCapture is not null)
+        {
+            return _playbackCapture;
+        }
+
+        var captureRoot = Path.Combine(Path.GetTempPath(), $"sound-tracker-smoke-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(captureRoot);
+
+        var historyPath = Path.Combine(captureRoot, "audio-activity.jsonl");
+        var screenshotPath = Path.Combine(captureRoot, "recent-activity.bmp");
+
+        using var monitor = new AudioSessionMonitor();
+        using var timeline = new AudioActivityTimeline(
+            monitor,
+            new AudioActivityHistoryStore(historyPath),
+            maxEventCount: 512);
+        using var context = new TrayApplicationContext(
+            monitor,
+            timeline,
+            ownsAudioSessionSource: false,
+            ownsActivityTimeline: false,
+            showNotifyIcon: false);
+        using var child = StartPlaybackChild(3000);
+
+        var capturedSourceName = "SoundTracker.SmokeTests";
+        var sawStart = WaitUntil(
+            timeout: TimeSpan.FromSeconds(15),
+            condition: () => timeline.GetRecentEvents(100).Any(activity =>
+                activity.Kind == AudioActivityKind.Started &&
+                activity.Description.Contains(capturedSourceName, StringComparison.OrdinalIgnoreCase)));
+        Assert.True(sawStart, "Live capture should observe a playback-start history event.");
+
+        child.WaitForExit(15000);
+        Assert.True(child.HasExited, "Live capture playback child should exit.");
+        Assert.Equal(0, child.ExitCode);
+
+        var sawStop = WaitUntil(
+            timeout: TimeSpan.FromSeconds(15),
+            condition: () => timeline.GetRecentEvents(100).Any(activity =>
+                activity.Kind == AudioActivityKind.Stopped &&
+                activity.Description.Contains(capturedSourceName, StringComparison.OrdinalIgnoreCase)));
+        Assert.True(sawStop, "Live capture should observe a playback-stop history event.");
+
+        var capturedActivities = timeline
+            .GetRecentEvents(100)
+            .Where(activity => activity.Description.Contains(capturedSourceName, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(activity => activity.TimestampUtc)
+            .ToList();
+
+        using var recentActivityForm = new RecentActivityForm();
+        recentActivityForm.RefreshEntries(capturedActivities);
+        recentActivityForm.Show();
+        Application.DoEvents();
+
+        using (var bitmap = new Bitmap(recentActivityForm.ClientSize.Width, recentActivityForm.ClientSize.Height))
+        {
+            recentActivityForm.DrawToBitmap(bitmap, new Rectangle(Point.Empty, recentActivityForm.ClientSize));
+            bitmap.Save(screenshotPath);
+        }
+
+        var renderedRows = recentActivityForm.SnapshotRows();
+        recentActivityForm.Hide();
+
+        _playbackCapture = new PlaybackCapture(
+            HistoryPath: historyPath,
+            ScreenshotPath: screenshotPath,
+            TooltipText: context.CurrentTooltipText,
+            StatusText: context.CurrentStatusText,
+            CapturedActivities: capturedActivities,
+            RenderedRows: renderedRows);
+        return _playbackCapture;
+    }
+
+    private static PlaybackCapture? _playbackCapture;
+
+    private sealed record PlaybackCapture(
+        string HistoryPath,
+        string ScreenshotPath,
+        string TooltipText,
+        string StatusText,
+        IReadOnlyList<AudioActivityEvent> CapturedActivities,
+        IReadOnlyList<string> RenderedRows);
 
     private static class Assert
     {

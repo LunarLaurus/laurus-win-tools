@@ -11,13 +11,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly IAudioSessionSource _audioSessionSource;
     private readonly AudioActivityTimeline _activityTimeline;
     private readonly bool _ownsAudioSessionSource;
+    private readonly bool _ownsActivityTimeline;
     private readonly RecentActivityForm _recentActivityForm;
     private readonly ToolStripMenuItem _statusItem;
     private readonly NotifyIcon _notifyIcon;
     private readonly Control _uiDispatcher;
 
     public TrayApplicationContext()
-        : this(new AudioSessionMonitor(), ownsAudioSessionSource: true, showNotifyIcon: true)
+        : this(
+            new AudioSessionMonitor(),
+            activityTimeline: null,
+            ownsAudioSessionSource: true,
+            ownsActivityTimeline: true,
+            showNotifyIcon: true)
     {
     }
 
@@ -25,11 +31,27 @@ internal sealed class TrayApplicationContext : ApplicationContext
         IAudioSessionSource audioSessionSource,
         bool ownsAudioSessionSource,
         bool showNotifyIcon)
+        : this(
+            audioSessionSource,
+            activityTimeline: null,
+            ownsAudioSessionSource,
+            ownsActivityTimeline: true,
+            showNotifyIcon)
+    {
+    }
+
+    internal TrayApplicationContext(
+        IAudioSessionSource audioSessionSource,
+        AudioActivityTimeline? activityTimeline,
+        bool ownsAudioSessionSource,
+        bool ownsActivityTimeline,
+        bool showNotifyIcon)
     {
         AppLog.Info($"tray context initializing ownsAudioSessionSource={ownsAudioSessionSource} showNotifyIcon={showNotifyIcon}");
         _audioSessionSource = audioSessionSource;
-        _activityTimeline = new AudioActivityTimeline(_audioSessionSource);
+        _activityTimeline = activityTimeline ?? new AudioActivityTimeline(_audioSessionSource);
         _ownsAudioSessionSource = ownsAudioSessionSource;
+        _ownsActivityTimeline = ownsActivityTimeline;
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
         _recentActivityForm = new RecentActivityForm();
@@ -102,7 +124,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         AppLog.Info("tray context exiting");
         _audioSessionSource.SessionsChanged -= HandleSessionsChanged;
         _activityTimeline.HistoryChanged -= HandleHistoryChanged;
-        _activityTimeline.Dispose();
+        if (_ownsActivityTimeline)
+        {
+            _activityTimeline.Dispose();
+        }
         if (_ownsAudioSessionSource)
         {
             AppLog.Info("disposing owned audio session source");
