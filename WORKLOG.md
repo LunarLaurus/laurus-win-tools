@@ -20,28 +20,45 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 ---
 
+## 2026-05-13 06:50
+
+**Did:** Phase 0 — workspace restructure complete.
+- `git init` at `D:\code\windows-apps\`
+- Created `apps\`, `shared\`, `archive\snapshots\`, `docs\conventions\`
+- Moved all apps and archive to target layout
+- Per-app git histories (NetProfileSwitcher, SoundTracker, ProgramHider) grafted into
+  monorepo under `apps\` via `git subtree add` with full history preservation
+- BatteryTray added as regular files (no prior standalone repo)
+- `.gitignore` extended to exclude private config files by name in addition to prefix patterns
+
+**Committed:** 43bfcf5 (initial structure), 189424f (NPS subtree), 16bb5bd (ST subtree), d2762a7 (PH subtree)
+
+**Next:** Phase 1 — conventions docs
+
+---
+
 ## Phase Checklist
 
-### Phase 0 — Workspace restructure *(not started)*
+### Phase 0 — Workspace restructure *(complete)*
 
 No code changes. Directory moves only.
 
-- [ ] `git init` at `D:\code\windows-apps\`
-- [ ] Create `apps\`, `shared\`, `archive\snapshots\`, `docs\conventions\`
-- [ ] `DriveDredge_v1.13.1\` → `archive\DriveDredge_v1.13.1\`
-- [ ] BatteryTray canonical source (from inside `BatteryTray\`):
-  - [ ] `BatteryTray\BatteryTray\`          → `apps\BatteryTray\BatteryTray\`
-  - [ ] `BatteryTray\BatteryTray.Tests\`    → `apps\BatteryTray\BatteryTray.Tests\`
-  - [ ] `BatteryTray\BatteryTray.E2ETests\` → `apps\BatteryTray\BatteryTray.E2ETests\`
-  - [ ] `BatteryTray\BatteryTray.sln`       → `apps\BatteryTray\BatteryTray.sln`
-  - [ ] Remaining loose files at `BatteryTray\` root → `archive\snapshots\batterytray-import-root\`
-  - [ ] Remove now-empty `BatteryTray\` import root
-- [ ] `NetProfileSwitcher\` → `apps\NetProfileSwitcher\`
-- [ ] `program-hider\`      → `apps\ProgramHider\`
-- [ ] `sound-tracker\`      → `apps\SoundTracker\`
-- [ ] Verify `.gitignore` excludes `claude-*` and `codex-*` before committing
-- [ ] Initial commit with detailed message — no AI attribution
-- [ ] Update this worklog entry with commit hash
+- [x] `git init` at `D:\code\windows-apps\`
+- [x] Create `apps\`, `shared\`, `archive\snapshots\`, `docs\conventions\`
+- [x] `DriveDredge_v1.13.1\` → `archive\DriveDredge_v1.13.1\`
+- [x] BatteryTray canonical source (from inside `BatteryTray\`):
+  - [x] `BatteryTray\BatteryTray\`          → `apps\BatteryTray\BatteryTray\`
+  - [x] `BatteryTray\BatteryTray.Tests\`    → `apps\BatteryTray\BatteryTray.Tests\`
+  - [x] `BatteryTray\BatteryTray.E2ETests\` → `apps\BatteryTray\BatteryTray.E2ETests\`
+  - [x] `BatteryTray\BatteryTray.sln`       → `apps\BatteryTray\BatteryTray.sln`
+  - [x] Remaining loose files at `BatteryTray\` root → `archive\snapshots\batterytray-import-root\`
+  - [x] Remove now-empty `BatteryTray\` import root
+- [x] `NetProfileSwitcher\` → `apps\NetProfileSwitcher\`
+- [x] `program-hider\`      → `apps\ProgramHider\`
+- [x] `sound-tracker\`      → `apps\SoundTracker\`
+- [x] Verify `.gitignore` excludes `claude-*` and `codex-*` before committing
+- [x] Initial commit with detailed message — no AI attribution
+- [x] Update this worklog entry with commit hash
 
 ### Phase 1 — Conventions docs *(blocked on Phase 0)*
 
