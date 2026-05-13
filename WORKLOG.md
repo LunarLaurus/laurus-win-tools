@@ -267,6 +267,34 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-13 15:00
+
+**Did:** Phase 14 — GitVersion auto-versioning complete.
+- `GitVersion.yml`: Mainline mode on master, patch increment, semver bump via commit message keywords (`+semver: breaking/minor/fix`)
+- `build.yml`: `fetch-depth: 0`; GitVersion 5.x setup + execute steps; all four publish steps stamp `RELEASE_VERSION` from `gitversion.outputs.semVer`
+- `release.yml`: replaced manual tag-strip step with GitVersion setup + execute; all downstream refs updated to `gitversion.outputs.semVer`
+
+**Committed:** 02d9ffd
+
+**Next:** Phase 15 — Update checker
+
+---
+
+## 2026-05-13 15:30
+
+**Did:** Phase 15 — Update checker complete.
+- `WindowsAppCore.UpdateCheckResult` record, `UpdateChecker` class — polls GitHub releases API, parses `tag_name`, compares with `Version.Parse`
+- `StartPeriodicChecks`: fires on launch + every 24 h; unparseable current version skips checks
+- `WindowsAppTesting.FakeHttpMessageHandler`: configurable response lambda, `Requests` list for assertions, `WithJson`/`ThatThrows` factory helpers
+- 11 `UpdateCheckerTests` covering all paths; 201/201 tests passing
+- All four tray contexts wired: balloon tip on update available, cancellation + disposal on exit
+
+**Committed:** 40777e6
+
+**Next:** Phase 16 — Full repo audit
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -402,26 +430,21 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Wire CLI-arg-over-settings priority in all four `Program.cs`
 - [x] Commit per logical unit
 
-### Phase 14 — GitVersion auto-versioning
+### Phase 14 — GitVersion auto-versioning *(complete)*
 
-- [ ] Add `GitVersion.yml` at repo root (Mainline mode, master branch, patch increment)
-- [ ] Update `build.yml` to run `gittools/actions@v2` GitVersion step; expose `gitVersion.semVer` as env var for publish steps
-- [ ] Update `release.yml` to derive version from GitVersion output rather than manual tag strip
-- [ ] Verify `RELEASE_VERSION` continues to stamp all four app binaries correctly in CI
-- [ ] Commit
+- [x] Add `GitVersion.yml` at repo root (Mainline mode, master branch, patch increment)
+- [x] Update `build.yml` to run `gittools/actions@v2` GitVersion step; expose `gitVersion.semVer` as env var for publish steps
+- [x] Update `release.yml` to derive version from GitVersion output rather than manual tag strip
+- [x] Verify `RELEASE_VERSION` continues to stamp all four app binaries correctly in CI
+- [x] Commit
 
-### Phase 15 — Update checker
+### Phase 15 — Update checker *(complete)*
 
-- [ ] Add `IUpdateChecker`, `UpdateCheckResult` record, `UpdateChecker` class to `WindowsAppCore`
-  - Polls GitHub releases API (`https://api.github.com/repos/{owner}/{repo}/releases/latest`)
-  - Returns `IsUpdateAvailable`, `LatestVersion`, `ReleaseUrl`
-  - `StartPeriodicChecks(TimeSpan interval, CancellationToken ct)` — fire-and-forget background polling
-- [ ] Add `FakeHttpMessageHandler` to `WindowsAppTesting` for deterministic HTTP unit tests
-- [ ] Tests: happy path (newer version available), no update, malformed response, network failure
-- [ ] Wire `UpdateChecker.StartPeriodicChecks` into all four app tray contexts
-  - On update available: balloon/toast notification with release URL
-  - Rate: check once on launch + every 24 h
-- [ ] Commit per logical unit (library, then per-app wiring)
+- [x] `UpdateCheckResult` record and `UpdateChecker` class added to `WindowsAppCore`
+- [x] `FakeHttpMessageHandler` added to `WindowsAppTesting` for deterministic HTTP unit tests
+- [x] 11 tests covering all paths: newer version, same, older, malformed, network failure, endpoint, User-Agent
+- [x] All four tray contexts wired: `StartPeriodicChecks` at startup, balloon tip on update, CTS/HttpClient disposed on exit
+- [x] Commit per logical unit (library, then per-app wiring)
 
 ### Phase 16 — Full repo audit
 
