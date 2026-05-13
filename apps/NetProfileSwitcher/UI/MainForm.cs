@@ -48,6 +48,10 @@ public class MainForm : Form
     private FlatButton _btnApply = null!;
     private FlatButton _btnSnap = null!;
 
+    // Dispatch + cancellation
+    private readonly UiDispatcher _ui;
+    private readonly CancellationTokenSource _applyCts = new();
+
     // Tray state
     private System.Windows.Forms.Timer? _switchingTimer;
     private int _applyInFlight;
@@ -64,10 +68,11 @@ public class MainForm : Form
             Environment.ProcessPath ?? Application.ExecutablePath,
             "Network Profile Switcher");
         _cfg = ConfigStore.Load();
+        _ui = new UiDispatcher();
         InitForm();
         BuildLayout();
         InitTray();
-        _activation.ActivationRequested += (_, _) => BeginInvoke((Action)BringToForeground);
+        _activation.ActivationRequested += (_, _) => _ui.Post(BringToForeground);
         _chkStartup.Checked = _startup.IsRegistered;
         _chkStartup.CheckedChanged += OnStartupCheckChanged;
         _suppressInitialShow = _cfg.StartMinimized;
@@ -414,7 +419,7 @@ public class MainForm : Form
                 string adapter = _adapterCombo.Text;
                 try
                 {
-                    var (ok, msg) = await Task.Run(() => NetCommands.Apply(adapter, p));
+                    var (ok, msg) = await Task.Run(() => NetCommands.Apply(adapter, p), _applyCts.Token);
                     SetTrayState(ok ? TrayState.MatchedProfile : TrayState.Error);
                     SetStatus(ok ? $"✓  {p.Name} applied" : $"✗  Error: {msg}");
                     if (ok)
@@ -422,6 +427,7 @@ public class MainForm : Form
                     else
                         _log.Warn("profile.apply.failed", new { profile = p.Name, adapter, error = msg });
                 }
+                catch (OperationCanceledException) { }
                 finally
                 {
                     System.Threading.Interlocked.Exchange(ref _applyInFlight, 0);
@@ -485,11 +491,7 @@ public class MainForm : Form
         _pollTimer.Tick += (_, _) => PollSsid();
         _pollTimer.Start();
 
-        NetworkChange.NetworkAddressChanged += (_, _) =>
-        {
-            if (InvokeRequired) BeginInvoke(PollSsid);
-            else PollSsid();
-        };
+        NetworkChange.NetworkAddressChanged += (_, _) => _ui.Post(PollSsid);
     }
 
     private void PollSsid()
@@ -528,7 +530,7 @@ public class MainForm : Form
         string adapter = _adapterCombo.Text;
         try
         {
-            var (ok, msg) = await Task.Run(() => NetCommands.Apply(adapter, match));
+            var (ok, msg) = await Task.Run(() => NetCommands.Apply(adapter, match), _applyCts.Token);
             SetTrayState(ok ? TrayState.Switching : TrayState.Error);
             SetStatus(ok
                 ? $"✓  Auto-applied \"{match.Name}\" for SSID \"{ssid}\""
@@ -542,6 +544,7 @@ public class MainForm : Form
             else
                 _log.Warn("profile.autoswitch.failed", new { ssid, error = msg });
         }
+        catch (OperationCanceledException) { }
         finally
         {
             System.Threading.Interlocked.Exchange(ref _applyInFlight, 0);
@@ -755,7 +758,7 @@ public class MainForm : Form
         string adapter = _adapterCombo.Text;
         try
         {
-            var (ok, msg) = await Task.Run(() => NetCommands.Apply(adapter, p));
+            var (ok, msg) = await Task.Run(() => NetCommands.Apply(adapter, p), _applyCts.Token);
             SetTrayState(ok ? TrayState.MatchedProfile : TrayState.Error);
             SetStatus(ok ? $"✓  \"{p.Name}\" applied to {adapter}" : $"✗  {msg}");
             if (ok)
@@ -766,6 +769,7 @@ public class MainForm : Form
                 MessageBox.Show(msg, "netsh error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+        catch (OperationCanceledException) { }
         finally
         {
             System.Threading.Interlocked.Exchange(ref _applyInFlight, 0);
@@ -893,6 +897,9 @@ public class MainForm : Form
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         TrayTheme.Current.Changed -= OnThemeChanged;
+        _applyCts.Cancel();
+        _applyCts.Dispose();
+        _ui.Dispose();
         base.OnFormClosed(e);
     }
 
