@@ -77,7 +77,7 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 - Wired `AppLog` + `UnhandledExceptionWatcher` in `Program.cs`
 - Instrumented: `app.started`, `profile.applied`, `profile.apply.failed`, `profile.autoswitch`, `profile.autoswitch.failed`, `startup.registration.changed`, `startup.registration.failed`, `app.shutdown`
 
-**Committed:** TBD
+**Committed:** 300e0fb
 
 **Next:** Phase 3 — `JsonSettingsStore<T>` + settings migration
 
