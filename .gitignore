@@ -1,0 +1,25 @@
+# Private working files — never committed
+claude-*
+codex-*
+notes.md
+NOTES.md
+AGENTS.md
+*.claude
+.claude/
+.remember/
+
+# Build outputs
+bin/
+obj/
+out/
+output/
+
+# VS / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+.DS_Store
