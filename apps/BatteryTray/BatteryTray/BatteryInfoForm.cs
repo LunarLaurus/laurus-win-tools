@@ -107,7 +107,7 @@ public sealed class BatteryInfoForm : Form
             _monitor.InvalidateCache();
             Reload();
         };
-        var close = new Button { Text = "Close", Width = 90 };
+        var close = new Button { Text = "&Close", Width = 90 };
         close.Click += (_, _) => Close();
         buttons.Controls.Add(close);
         buttons.Controls.Add(refresh);

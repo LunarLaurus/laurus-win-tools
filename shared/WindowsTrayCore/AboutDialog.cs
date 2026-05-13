@@ -102,7 +102,7 @@ public sealed class AboutDialog : Form
 
         _checkUpdatesButton = new Button
         {
-            Text = "Check for updates",
+            Text = "&Check for updates",
             AutoSize = true,
             BackColor = theme.Surface,
             ForeColor = theme.Text,
@@ -115,7 +115,7 @@ public sealed class AboutDialog : Form
 
         var closeButton = new Button
         {
-            Text = "Close",
+            Text = "&Close",
             AutoSize = true,
             DialogResult = DialogResult.OK,
             BackColor = theme.Surface,

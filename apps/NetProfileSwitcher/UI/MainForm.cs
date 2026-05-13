@@ -314,7 +314,7 @@ public class MainForm : Form
         editorBg.Controls.Add(btnCurSsid);
 
         // ── Action buttons
-        var btnSave = new FlatButton(Theme.Accent, Theme.AccentDim) { Text = "Save" };
+        var btnSave = new FlatButton(Theme.Accent, Theme.AccentDim) { Text = "&Save" };
         btnSave.SetBounds(ex, 466, 90, 32);
         btnSave.Click += OnSaveProfile;
         _tip.SetToolTip(btnSave, "Save changes to this profile (settings + SSID links).");

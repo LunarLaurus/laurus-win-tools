@@ -100,7 +100,7 @@ internal sealed class SettingsForm : Form
 
         var saveButton = new Button
         {
-            Text = "Save",
+            Text = "&Save",
             DialogResult = DialogResult.None,
             BackColor = theme.Surface,
             ForeColor = theme.Text,
@@ -114,7 +114,7 @@ internal sealed class SettingsForm : Form
 
         var cancelButton = new Button
         {
-            Text = "Cancel",
+            Text = "&Cancel",
             DialogResult = DialogResult.Cancel,
             BackColor = theme.Surface,
             ForeColor = theme.Text,

@@ -71,7 +71,7 @@ internal sealed class PinPromptForm : Form
 
         var cancelButton = new Button
         {
-            Text = "Cancel",
+            Text = "&Cancel",
             AutoSize = true,
             DialogResult = DialogResult.Cancel
         };

@@ -143,7 +143,7 @@ internal sealed class ActiveWindowInspectorForm : Form
         createButton.Click += (_, _) => CreateRuleAndClose();
         var closeButton = new Button
         {
-            Text = "Close",
+            Text = "&Close",
             DialogResult = DialogResult.Cancel,
             AutoSize = true
         };

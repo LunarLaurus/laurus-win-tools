@@ -332,7 +332,7 @@ internal sealed class SettingsForm : Form
         };
         var saveButton = new Button
         {
-            Text = "Save",
+            Text = "&Save",
             DialogResult = DialogResult.None,
             AutoSize = true
         };
@@ -340,7 +340,7 @@ internal sealed class SettingsForm : Form
 
         var cancelButton = new Button
         {
-            Text = "Cancel",
+            Text = "&Cancel",
             DialogResult = DialogResult.Cancel,
             AutoSize = true
         };

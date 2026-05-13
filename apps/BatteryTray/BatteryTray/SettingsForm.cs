@@ -330,9 +330,9 @@ public sealed class SettingsForm : Form
             Height = 44,
             Padding = new Padding(8),
         };
-        var save = new Button { Text = "Save", Width = 90 };
+        var save = new Button { Text = "&Save", Width = 90 };
         save.Click += (_, _) => SaveAndClose();
-        var cancel = new Button { Text = "Cancel", Width = 90 };
+        var cancel = new Button { Text = "&Cancel", Width = 90 };
         cancel.Click += (_, _) => Close();
         row.Controls.Add(save);
         row.Controls.Add(cancel);

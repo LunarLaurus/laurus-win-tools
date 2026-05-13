@@ -135,7 +135,7 @@ internal sealed class RestoreBrowserForm : Form
 
         var closeButton = new Button
         {
-            Text = "Close",
+            Text = "&Close",
             DialogResult = DialogResult.Cancel,
             AutoSize = true
         };

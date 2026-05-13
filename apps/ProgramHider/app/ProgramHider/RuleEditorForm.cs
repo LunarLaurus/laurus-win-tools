@@ -71,13 +71,13 @@ internal sealed class RuleEditorForm : Form
         };
         var saveButton = new Button
         {
-            Text = "Save Rule",
+            Text = "&Save Rule",
             AutoSize = true
         };
         saveButton.Click += (_, _) => SaveAndClose();
         var cancelButton = new Button
         {
-            Text = "Cancel",
+            Text = "&Cancel",
             DialogResult = DialogResult.Cancel,
             AutoSize = true
         };

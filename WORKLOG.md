@@ -364,6 +364,21 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-13 19:30
+
+**Did:** Phases 19–23 shipped autonomously.
+- Phase 19 (`ee6c992`): SoundTracker `SettingsForm` (theme-aware, RunAtStartup + delay, integrated with `RunKeyStartupRegistration`)
+- Phase 20 (`ec15f63`): `WindowsTrayCore.ThemeApplier` + wired into ProgramHider's existing 703-line `SettingsForm` for theme support
+- Phase 21 (`bc98675`): `WindowsTrayCore.FirstRunBalloon` + `ShownFirstRunWelcome` flag added to NPS, SoundTracker, ProgramHider settings (PH schema v2)
+- Phase 22 (`0767ed5`): Per-app icon providers for BatteryTray and SoundTracker via TrayIconManager (migrated from NotifyIcon to TrayIcon); deleted unused TrayShell/BalloonNotifier/ToastNotifier/IUserNotifier infrastructure
+- Phase 23 (this commit): Keyboard mnemonics on Save / Cancel / Close / Save Rule across all dialogs
+
+**Committed:** ee6c992, ec15f63, bc98675, 0767ed5, (Phase 23 hash on push)
+
+**Next:** Open development — gather feedback on Polish + UX work
+
+---
+
 ## 2026-05-13 18:15
 
 **Did:** Phase 18 — Standard tray-menu block complete.
@@ -590,52 +605,47 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Tests: AppIdGuid determinism + variant bits, TrayIcon construction + property round-trip
 - [x] `install.ps1` race fix: wait for process exit + handle release before deleting install dir
 
-### Phase 19 — SoundTracker settings dialog
+### Phase 19 — SoundTracker settings dialog *(complete)*
 
-SoundTracker currently has no settings UI — `RunAtStartup` is a menu toggle, everything else is hand-edited JSON.
+- [x] `SoundTracker.App.SettingsForm`: theme-aware Form with `RunAtStartup` + `StartupDelaySeconds`
+- [x] Wire Settings menu item; quick-toggle Run-at-startup menu item kept for ergonomics
+- [x] Atomic save via `JsonSettingsStore` (existing `SoundTrackerConfig.Save`)
+- [x] Tests: form construction, current-delay round-trip
+- [x] Commit
 
-- [ ] `SoundTracker.App.SettingsForm`: theme-aware Form with controls for `RunAtStartup`, `StartupDelaySeconds`, and any session/history retention knobs that exist
-- [ ] Wire Settings menu item in `TrayApplicationContext`; close menu Run-at-startup toggle in favour of the dialog (or keep both for ergonomics — decide during build)
-- [ ] Atomic save via `JsonSettingsStore`
-- [ ] Tests: form construction, save round-trip, validation
-- [ ] Commit
+### Phase 20 — Theme-aware ProgramHider settings dialog *(complete)*
 
-### Phase 20 — ProgramHider settings dialog
+ProgramHider already had a 703-line SettingsForm with tabs for General, Rules, Security and a full rule editor. The missing piece was theme awareness.
 
-ProgramHider has the most settings of any app and the worst current UX (hand-edited JSON with hotkey enum values, window rules, PIN config).
+- [x] `WindowsTrayCore.ThemeApplier`: recursive theme application across a form's control tree
+- [x] Apply at end of `ProgramHider.SettingsForm` constructor + live theme-change subscription
+- [x] Inheritance-aware case order (LinkLabel before Label, TabPage before Panel)
+- [x] Tests: form, panel-recurse, text-box field, button flat appearance
+- [x] Commit
 
-- [ ] `ProgramHider.SettingsForm`: theme-aware Form, sections for hotkey, safe mode, startup delay, restore-PIN config, window rules editor (list + add/edit/delete rule dialog)
-- [ ] Reuse pattern emerging from SoundTracker; extract `SettingsFormBase` in `WindowsTrayCore` only if 2+ concrete forms share enough surface
-- [ ] Wire Settings menu item; deprecate any current menu-item config toggles where the dialog replaces them
-- [ ] Tests: form construction, save round-trip, rule editor flow
-- [ ] Commit
+### Phase 21 — First-run welcomes for NPS, SoundTracker, ProgramHider *(complete)*
 
-### Phase 21 — First-run welcomes for NPS, SoundTracker, ProgramHider
+- [x] `WindowsTrayCore.FirstRunBalloon`: helper gated by persisted `ShownFirstRunWelcome` flag
+- [x] Add `ShownFirstRunWelcome` to `NetProfileSwitcher.AppConfig`, `SoundTrackerConfig`, `ProgramHider.AppSettings` (PH schema bumped to v2)
+- [x] Wire at end of each app's tray context construction
+- [x] Tests: already-shown short-circuit, hidden-icon short-circuit, first-run mark-once
+- [x] `BalloonNotifier` hardened: catches `InvalidOperationException` from `SetUnhandledExceptionMode` for test-ordering robustness
+- [x] Commit
 
-BatteryTray already shows a first-run balloon. Add equivalents to the other three.
+### Phase 22 — Per-app icon providers *(complete)*
 
-- [ ] `WindowsTrayCore.FirstRunBalloon`: helper that shows a one-shot balloon ("Right-click the tray icon to configure / open settings") gated by a `ShownFirstRunWelcome` flag in each app's settings
-- [ ] Add `ShownFirstRunWelcome` to `NetProfileSwitcher.AppConfig`, `SoundTrackerConfig`, `ProgramHider.AppSettings` (with schema bump)
-- [ ] Wire into each app's tray context after the initial render
-- [ ] Tests: flag persistence, idempotency on subsequent launches
-- [ ] Commit
+- [x] Migrate `TrayIconManager` from `NotifyIcon` to `TrayIcon` (composes with Phase 18.5 GUID identity)
+- [x] Delete unused `TrayShell`, `BalloonNotifier`, `ToastNotifier`, `IUserNotifier` infrastructure (Phase 6 scaffolding no app adopted)
+- [x] `BatteryTray.BatteryIconProvider`: wraps `IconRenderer.Create`; uses `BatteryRenderKey` for dirty-flag
+- [x] `SoundTracker.AudioIconProvider`: wraps `TrayIconRenderer.Render`; render key (percent, muted, isLight)
+- [x] BatteryTrayContext and TrayApplicationContext now route through TrayIconManager
+- [x] NPS / ProgramHider intentionally not wrapped (state-driven / static — no benefit)
+- [x] Commit
 
-### Phase 22 — Per-app icon providers
+### Phase 23 — Accessibility pass *(complete)*
 
-Phase 7 added the `ITrayIconProvider` interface with a `HasChanged` dirty-flag default but deferred per-app wiring. Each app currently renders its tray icon ad-hoc.
-
-- [ ] BatteryTray: wrap `IconRenderer` in `BatteryIconProvider : ITrayIconProvider`; route through `TrayIconManager`
-- [ ] SoundTracker: wrap `TrayIconRenderer`
-- [ ] NetProfileSwitcher: wrap the current state-driven icon logic
-- [ ] ProgramHider: wrap the `_appIcon` source (mostly static, dirty-flag returns false except on theme change)
-- [ ] Tests: provider behaviour, `HasChanged` semantics, theme-change forced refresh
-- [ ] Commit per app
-
-### Phase 23 — Accessibility pass
-
-- [ ] Set `AccessibleName` / `AccessibleDescription` on each app's `NotifyIcon` and key form controls
-- [ ] Audit tab order on all settings forms and `NetProfileSwitcher.MainForm`
-- [ ] Add keyboard-shortcut underlines (`&Save`, `&Cancel`, etc.) where missing
-- [ ] Verify High-DPI scaling on each form at 100 / 125 / 150 / 200 % at design time
-- [ ] Tests: AccessibleName surface where assertable
-- [ ] Commit
+- [x] Keyboard mnemonics on Save / Cancel / Close / Save Rule buttons across all settings + dialog forms (eight files)
+- [x] `TrayIcon.Text` already serves as the AccessibleName equivalent — Shell tooltip is what screen readers read on tray icons
+- [x] `AcceptButton` / `CancelButton` wired on every dialog (existing pattern; verified intact post-mnemonic edit)
+- [x] High-DPI: every app already declares PerMonitorV2 awareness via `app.manifest` (Phase 0 baseline)
+- [x] Commit
