@@ -16,6 +16,7 @@ public sealed class JsonLineWriter : IDisposable
     private readonly string _filePrefix;
     private readonly long _maxSizeBytes;
     private readonly int _retentionDays;
+    private readonly IClock _clock;
     private readonly Channel<string> _channel;
     private readonly Thread _drainThread;
     private StreamWriter? _writer;
@@ -27,12 +28,14 @@ public sealed class JsonLineWriter : IDisposable
         string directory,
         string filePrefix,
         long maxSizeBytes = 50L * 1024 * 1024,
-        int retentionDays = 30)
+        int retentionDays = 30,
+        IClock? clock = null)
     {
         _directory = directory;
         _filePrefix = filePrefix;
         _maxSizeBytes = maxSizeBytes;
         _retentionDays = retentionDays;
+        _clock = clock ?? SystemClock.Instance;
         _channel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
 
         Directory.CreateDirectory(directory);
@@ -47,7 +50,7 @@ public sealed class JsonLineWriter : IDisposable
     }
 
     public string CurrentPath =>
-        Path.Combine(_directory, $"{_filePrefix}-{DateTime.UtcNow:yyyyMMdd}.jsonl");
+        Path.Combine(_directory, $"{_filePrefix}-{_clock.UtcNow.UtcDateTime:yyyyMMdd}.jsonl");
 
     public void Write(string line)
     {
@@ -117,7 +120,7 @@ public sealed class JsonLineWriter : IDisposable
 
     private void EnsureFile()
     {
-        var date = DateTime.UtcNow.ToString("yyyyMMdd");
+        var date = _clock.UtcNow.UtcDateTime.ToString("yyyyMMdd");
 
         // Daily rollover
         if (date != _currentDate)
@@ -169,7 +172,7 @@ public sealed class JsonLineWriter : IDisposable
     {
         try
         {
-            var cutoff = DateTime.UtcNow.AddDays(-_retentionDays);
+            var cutoff = _clock.UtcNow.UtcDateTime.AddDays(-_retentionDays);
             foreach (var file in Directory.GetFiles(_directory, $"{_filePrefix}-*.jsonl"))
             {
                 if (File.GetLastWriteTimeUtc(file) < cutoff)

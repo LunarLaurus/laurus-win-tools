@@ -19,18 +19,20 @@ public sealed class AppLog : IDisposable
 
     private readonly string _appName;
     private readonly string _version;
+    private readonly IClock _clock;
     private readonly JsonLineWriter _writer;
 
     /// <summary>Production constructor — log dir resolved via <see cref="AppPaths"/>.</summary>
     public AppLog(string appName, string appVersion)
         : this(appName, appVersion, AppPaths.LogDir(appName)) { }
 
-    /// <summary>Testing constructor — caller supplies an explicit log directory.</summary>
-    internal AppLog(string appName, string appVersion, string logDirectory)
+    /// <summary>Testing constructor — caller supplies an explicit log directory and optional fake clock.</summary>
+    internal AppLog(string appName, string appVersion, string logDirectory, IClock? clock = null)
     {
         _appName = appName;
         _version = appVersion;
-        _writer = new JsonLineWriter(logDirectory, appName.ToLowerInvariant());
+        _clock = clock ?? SystemClock.Instance;
+        _writer = new JsonLineWriter(logDirectory, appName.ToLowerInvariant(), clock: clock);
     }
 
     public string LogPath => _writer.CurrentPath;
@@ -51,7 +53,7 @@ public sealed class AppLog : IDisposable
     private void Write(string level, string evt, object? data)
     {
         var entry = new LogEntry(
-            Ts: DateTime.UtcNow.ToString("O"),
+            Ts: _clock.UtcNow.ToString("O"),
             App: _appName,
             V: _version,
             Evt: evt,
