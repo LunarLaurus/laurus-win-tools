@@ -67,6 +67,7 @@ internal static class TestHostProgram
         runner.Run("ActiveWindowTracker remembers explicit foreground handles", ActiveWindowTrackerTracksExplicitHandles);
         runner.Run("WindowHideService hide restore and prune works", WindowHideServiceExercisesFakePlatform);
         runner.Run("WindowHideService rejects excluded and duplicate windows", WindowHideServiceRejectsExcludedAndDuplicateWindows);
+        runner.Run("Startup registration creates and removes ProgramHider Run key", TestProgramHiderStartupRegistration);
         return runner.Finish();
     }
 
@@ -510,6 +511,26 @@ internal static class TestHostProgram
         var pruned = service.PruneDeadWindows(hiddenWindows);
         TestAssert.Equal(1, pruned, "Expected one dead window to be pruned.");
         TestAssert.False(hiddenWindows.ContainsKey(handle), "Expected dead window to be removed.");
+    }
+
+    private static void TestProgramHiderStartupRegistration()
+    {
+        var reg = new WindowsAppCore.RunKeyStartupRegistration(
+            "ProgramHider",
+            Application.ExecutablePath,
+            "--startup --delay=0");
+
+        try
+        {
+            reg.Register();
+            TestAssert.True(reg.IsRegistered, "Expected Run key value to exist after Register.");
+            reg.Unregister();
+            TestAssert.False(reg.IsRegistered, "Expected Run key value to be absent after Unregister.");
+        }
+        finally
+        {
+            reg.Unregister();
+        }
     }
 
     private static void WindowHideServiceRejectsExcludedAndDuplicateWindows()

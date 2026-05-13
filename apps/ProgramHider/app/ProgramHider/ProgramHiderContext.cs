@@ -36,13 +36,15 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private AppSettings _settings;
     private DateTimeOffset _restoreUnlockedUntilUtc = DateTimeOffset.MinValue;
     private DateTimeOffset _bulkRestoreUnlockedUntilUtc = DateTimeOffset.MinValue;
+    private readonly SingleInstanceActivation _activation;
     private readonly bool _isElevated;
     private bool _safeModeEnabled;
     private bool _disposed;
 
-    public ProgramHiderContext(StartupOptions startupOptions)
+    public ProgramHiderContext(StartupOptions startupOptions, SingleInstanceActivation activation)
     {
         _startupOptions = startupOptions;
+        _activation = activation;
         _logger = new AppLogger();
         _settingsStore = new JsonSettingsStore<AppSettings>(
             "ProgramHider",
@@ -75,9 +77,12 @@ internal sealed class ProgramHiderContext : ApplicationContext
         };
         _notifyIcon.MouseClick += OnNotifyIconMouseClick;
 
+        _activation.ActivationRequested += (_, _) =>
+            _uiContext.Post(_ => ShowStatusBalloon("Program Hider", "Program Hider is already running."), null);
+
         _messageWindow = new HotkeyMessageWindow(OnHotkeyPressed);
         RegisterConfiguredHotkey();
-        StartupRegistration.Apply(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
+        ApplyStartupRegistration(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
 
         // Listen for foreground changes and minimize starts so active-window
         // targeting and auto-hide rules can react without polling.
@@ -521,7 +526,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
             _settings = requestedSettings;
             _settings.Normalize();
             RegisterConfiguredHotkey();
-            StartupRegistration.Apply(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
+            ApplyStartupRegistration(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
             ClearUnlockCache();
             PersistSettings();
 
@@ -573,7 +578,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         {
             _settings = originalSettings;
             RegisterConfiguredHotkey();
-            StartupRegistration.Apply(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
+            ApplyStartupRegistration(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
 
             MessageBox.Show(
                 $"Unable to register the requested hotkey {requestedHotkey}. Keep using {originalSettings.Hotkey.ToDisplayString()} or choose a different combination.",
@@ -908,6 +913,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
         _logger.Write("app.stopped", new { remainingHiddenWindows = _hiddenWindows.Count });
 
+        _activation.Dispose();
         _messageWindow.Dispose();
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
@@ -1095,6 +1101,14 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private static string BuildProtectedSuffix(bool requiresPin)
     {
         return requiresPin ? " [PIN]" : string.Empty;
+    }
+
+    private static void ApplyStartupRegistration(bool enabled, int delaySeconds)
+    {
+        var arguments = $"--startup --delay={Math.Clamp(delaySeconds, 0, 300)}";
+        var reg = new RunKeyStartupRegistration("ProgramHider", Application.ExecutablePath, arguments);
+        if (enabled) reg.Register();
+        else reg.Unregister();
     }
 
     private readonly record struct WindowSnapshot(nint Handle, string MenuLabel, string ProcessName);
