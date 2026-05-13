@@ -51,6 +51,24 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 ---
 
+## 2026-05-13
+
+**Did:** Phase 2 — `WindowsAppCore` skeleton + logging complete (library only; NPS migration in next commit).
+- `shared\WindowsAppCore\WindowsAppCore.csproj` (net8.0-windows, no WinForms)
+- `AppPaths` — per-app path resolution with `{APPNAME}_DATA` env override for tests
+- `AppIdentity` — app name + version holder
+- `JsonLineWriter` — buffered `Channel<string>` drain thread; 500 ms flush, 50-line batch, daily rotation, 50 MB size cap, 30-day pruning
+- `AppLog` — structured JSONL logger on top of `JsonLineWriter`; `{ts,app,v,evt,level,data}` envelope
+- `CrashSink` — synchronous direct-write to `%TEMP%\{AppName}-crash.log`; never throws
+- `UnhandledExceptionWatcher` — wires `AppDomain.CurrentDomain.UnhandledException` to CrashSink
+- `shared\WindowsAppCore.Tests\` — 23 unit tests, all pass; tests use explicit log-dir injection (internal ctor via InternalsVisibleTo)
+
+**Committed:** TBD
+
+**Next:** Migrate NetProfileSwitcher — add `AppLog` (currently zero logging)
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -83,15 +101,15 @@ Write under `docs\conventions\` before any code extraction:
 - [x] `json-and-logging.md` — settings format, log format, rotation policy
 - [x] Commit
 
-### Phase 2 — `WindowsAppCore` skeleton + logging *(blocked on Phase 1)*
+### Phase 2 — `WindowsAppCore` skeleton + logging *(in progress)*
 
-- [ ] Create `shared\WindowsAppCore\WindowsAppCore.csproj` (net8.0-windows, no WinForms)
-- [ ] Implement `AppPaths`, `AppIdentity`
-- [ ] Implement `JsonLineWriter` (buffered channel drain)
-- [ ] Implement `AppLog` built on `JsonLineWriter`
-- [ ] Implement `CrashSink` (synchronous, direct write — separate from AppLog)
-- [ ] Implement `UnhandledExceptionWatcher`
-- [ ] Unit tests for all of the above
+- [x] Create `shared\WindowsAppCore\WindowsAppCore.csproj` (net8.0-windows, no WinForms)
+- [x] Implement `AppPaths`, `AppIdentity`
+- [x] Implement `JsonLineWriter` (buffered channel drain)
+- [x] Implement `AppLog` built on `JsonLineWriter`
+- [x] Implement `CrashSink` (synchronous, direct write — separate from AppLog)
+- [x] Implement `UnhandledExceptionWatcher`
+- [x] Unit tests for all of the above
 - [ ] Migrate NetProfileSwitcher first (add logging — currently has zero)
 - [ ] Commit per logical unit
 
