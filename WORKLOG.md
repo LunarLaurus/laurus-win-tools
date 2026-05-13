@@ -209,6 +209,19 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 ---
 
+## 2026-05-13 12:30
+
+**Did:** GitHub Actions workflow + install script + next-phase planning.
+- `.github/workflows/build.yml`: CI pipeline — runs 6 test projects, publishes all 4 apps framework-dependent, uploads artifacts; triggers on push/PR to master
+- `install.ps1`: PowerShell 5.1 install/uninstall; publishes to `%LOCALAPPDATA%\LaurusWinTools\<AppName>`; optional `-AutoRun` writes HKCU Run key; ProgramHider gets `--startup --delay=5` startup args; `-Uninstall` removes dir and registry entry
+- Brainstormed Phases 10–13: CLI args standardisation, install script hardening, release pipeline, version stamping, cleanup (TestHost retirement, single-instance audit), settings schema versioning
+
+**Committed:** f3ea969 (workflow + install script)
+
+**Next:** Phase 10 — CLI args standardisation + install script hardening
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -314,3 +327,32 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Verify each app builds and tests pass independently
 - [x] Clean root README
 - [x] Push to private GitHub remote
+
+### Phase 10 — CLI args standardisation + install script hardening
+
+- [ ] Add `StartupOptions` to `WindowsAppCore`: parse `--startup` and `--delay=N`; tests
+- [ ] Wire `StartupOptions` into all four apps' `Program.cs` (replace ad-hoc arg handling)
+- [ ] Update `install.ps1` to pass `--startup --delay=5` for all four apps under `-AutoRun`
+- [ ] Kill running app processes before overwriting install dir in `install.ps1`
+- [ ] Fix `install.ps1` runtime check: validate .NET 8 Windows Desktop Runtime, not the SDK
+- [ ] Commit per logical unit
+
+### Phase 11 — Release pipeline + version stamping
+
+- [ ] Add `AssemblyInformationalVersion` MSBuild property wired from git tag at publish time
+- [ ] Surface version in tray tooltip for each app (e.g. "AppName v1.2.3")
+- [ ] Tag-triggered GitHub Actions release workflow: builds, publishes, creates GitHub Release with zipped artifacts attached
+- [ ] Commit per logical unit
+
+### Phase 12 — Cleanup
+
+- [ ] Retire `ProgramHider.TestHost` project: delete directory, remove from `ProgramHider.sln`
+- [ ] Single-instance audit: confirm all four apps use `SingleInstanceActivation`; add any missing
+- [ ] Commit
+
+### Phase 13 — Settings schema versioning + configurable startup delay
+
+- [ ] Add `SchemaVersion` field to `WindowsAppCore` settings infrastructure
+- [ ] Version-aware migration hooks: migrations declare source/target version; store validates before loading
+- [ ] Add `StartupDelaySeconds` to each app's settings type (fallback to `--delay=N` arg, then default 5)
+- [ ] Commit per logical unit
