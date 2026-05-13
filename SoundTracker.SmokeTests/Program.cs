@@ -255,6 +255,11 @@ internal static class Program
             return _sessions;
         }
 
+        public IReadOnlyList<AudioActivityEvent> GetRecentActivities()
+        {
+            return [];
+        }
+
         public void Dispose()
         {
             DisposeCallCount++;

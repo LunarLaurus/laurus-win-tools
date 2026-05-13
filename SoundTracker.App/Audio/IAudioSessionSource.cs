@@ -7,4 +7,6 @@ internal interface IAudioSessionSource : IDisposable
     event EventHandler? SessionsChanged;
 
     IReadOnlyList<string> GetActiveSessionNames();
+
+    IReadOnlyList<AudioActivityEvent> GetRecentActivities();
 }

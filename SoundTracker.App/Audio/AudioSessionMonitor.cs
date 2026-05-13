@@ -7,9 +7,12 @@ namespace SoundTracker.App.Audio;
 
 internal sealed class AudioSessionMonitor : IAudioSessionSource
 {
+    private const int MaxBufferedActivities = 256;
+
     private readonly object _sync = new();
     private readonly BlockingCollection<Action?> _workQueue = new();
     private readonly ProcessNameResolver _processNameResolver = new();
+    private readonly List<AudioActivityEvent> _recentActivities = [];
     private readonly Dictionary<string, TrackedSession> _trackedSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly EndpointNotificationClient _endpointNotificationClient;
     private readonly AudioSessionNotificationSink _sessionNotificationSink;
@@ -64,6 +67,15 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+        }
+    }
+
+    public IReadOnlyList<AudioActivityEvent> GetRecentActivities()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return _recentActivities.ToList();
         }
     }
 
@@ -536,6 +548,15 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         if (activity is null)
         {
             return;
+        }
+
+        lock (_sync)
+        {
+            _recentActivities.Add(activity);
+            if (_recentActivities.Count > MaxBufferedActivities)
+            {
+                _recentActivities.RemoveRange(0, _recentActivities.Count - MaxBufferedActivities);
+            }
         }
 
         AppLog.Info(

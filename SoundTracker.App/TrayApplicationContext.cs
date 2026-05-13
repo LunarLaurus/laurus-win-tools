@@ -2,12 +2,14 @@ using System.Diagnostics;
 using System.Drawing;
 using SoundTracker.App.Audio;
 using SoundTracker.App.Diagnostics;
+using SoundTracker.App.History;
 
 namespace SoundTracker.App;
 
 internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly IAudioSessionSource _audioSessionSource;
+    private readonly AudioActivityTimeline _activityTimeline;
     private readonly bool _ownsAudioSessionSource;
     private readonly ToolStripMenuItem _statusItem;
     private readonly NotifyIcon _notifyIcon;
@@ -25,6 +27,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         AppLog.Info($"tray context initializing ownsAudioSessionSource={ownsAudioSessionSource} showNotifyIcon={showNotifyIcon}");
         _audioSessionSource = audioSessionSource;
+        _activityTimeline = new AudioActivityTimeline(_audioSessionSource);
         _ownsAudioSessionSource = ownsAudioSessionSource;
         _uiDispatcher = new Control();
         _ = _uiDispatcher.Handle;
@@ -89,6 +92,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         AppLog.Info("tray context exiting");
         _audioSessionSource.SessionsChanged -= HandleSessionsChanged;
+        _activityTimeline.Dispose();
         if (_ownsAudioSessionSource)
         {
             AppLog.Info("disposing owned audio session source");
