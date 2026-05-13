@@ -176,6 +176,24 @@ Resumability artifact. Read this + `NOTES.md` + `design-vision.md` to get full c
 
 ---
 
+## 2026-05-13 11:40
+
+**Did:** Phase 9 — `WindowsAppTesting` + test normalisation complete.
+- `shared/WindowsAppTesting` library created: `WindowsFactAttribute`, `WindowsTheoryAttribute`, `TempAppData`, `FakeStartupRegistration`, `SettingsCorruptionFixture`, `FakeClock`
+- `IClock` interface + `SystemClock` singleton added to `WindowsAppCore`; injected into `JsonLineWriter` and `AppLog` (optional param, backward compatible)
+- All five existing test projects: added `WindowsAppTesting` project reference and `GlobalUsings.cs`; removed local `WindowsFactAttribute.cs` copies (4 files deleted)
+- `JsonSettingsStoreTests`: migrated to `TempAppData`; removed manual env-var boilerplate
+- `SoundTrackerConfigTests`: migrated to `TempAppData`; three try/finally blocks collapsed to IDisposable
+- `JsonLineWriterTests`: new `DateRollover_WritesToNewFileAtMidnight` test using `FakeClock`
+- `EtwEnergyPowerSampler._isHealthy`: fixed race — changed default from `false` to `true` so the `ConstructedWithoutAdmin_QuicklyReportsUnhealthy` wait loop actually waits for RunSession to flip it
+- `ProgramHider.Tests`: new xUnit project replacing custom `TestHost/Program.cs` runner; all 17 unit tests migrated to `[Fact]`/`[WindowsFact]`; `FakeWindowPlatform` extracted to its own file; added to `ProgramHider.sln`
+
+**Committed:** ee7befa (WindowsAppTesting library), 1aaae3a (IClock injection), d0d607f (test project migration), 514a10a (EtwEnergy fix), b3f5b0c (ProgramHider.Tests)
+
+**Next:** Post-phases — GitHub remote prep
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -268,13 +286,13 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Add `CancellationToken` propagation to background apply workers (NPS)
 - [x] Commit
 
-### Phase 9 — `WindowsAppTesting` + test normalisation *(blocked on Phase 8)*
+### Phase 9 — `WindowsAppTesting` + test normalisation *(complete)*
 
-- [ ] Create `shared\WindowsAppTesting\WindowsAppTesting.csproj`
-- [ ] Implement `TempAppData`, `FakeStartupRegistration`, `SettingsCorruptionFixture`, `FakeClock`
-- [ ] Port `WindowsFact` / `WindowsTheory` from BatteryTray
-- [ ] Align test discipline across all apps (BatteryTray is the reference)
-- [ ] Commit
+- [x] Create `shared\WindowsAppTesting\WindowsAppTesting.csproj`
+- [x] Implement `TempAppData`, `FakeStartupRegistration`, `SettingsCorruptionFixture`, `FakeClock`
+- [x] Port `WindowsFact` / `WindowsTheory` from BatteryTray
+- [x] Align test discipline across all apps (BatteryTray is the reference)
+- [x] Commit
 
 ### Post-phases — GitHub remote prep *(blocked on Phase 9)*
 
