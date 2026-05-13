@@ -374,7 +374,23 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 - Each app now stores `_updateChecker` as a field so the menu and background poller share one instance
 - 12 new tests (4 StandardMenuItems + 8 AboutDialog Theory rows); 224/224 across all six test projects
 
-**Committed:** (pending)
+**Committed:** 42b1138
+
+**Next:** Phase 18.5 — Shell_NotifyIcon wrapper for stable tray identity
+
+---
+
+## 2026-05-13 18:45
+
+**Did:** Phase 18.5 — Shell_NotifyIcon wrapper.
+- Discovered that WinForms `NotifyIcon` exposes no Guid setter, so Windows treats every rebuild as a new tray icon and demotes it to overflow. Each user has to drag the icon out of overflow after every update.
+- Built `WindowsTrayCore.TrayIcon`: drop-in replacement using `Shell_NotifyIcon` P/Invoke directly with `NIF_GUID`. Stable per-app identity derived deterministically from app name (SHA-256, RFC-4122 v5 bits) via `AppIdGuid.For("AppName")`.
+- Bonus: TrayIcon handles the broadcast `TaskbarCreated` message and re-adds itself after explorer restarts — a long-standing gap in WinForms NotifyIcon.
+- Migrated all four apps off NotifyIcon. `StandardMenuItems.CreateCheckForUpdates` and `BatteryTray.Notifier` updated to take TrayIcon.
+- `install.ps1` hardened: `Stop-AppIfRunning` now waits for the process to actually exit (up to 10s) and then sleeps 250ms for the kernel handle close, so the install dir overwrite no longer races.
+- 14 new tests; 238/238 passing.
+
+**Committed:** 608fbcf
 
 **Next:** Phase 19 — SoundTracker settings dialog
 
@@ -563,6 +579,16 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Add the block to BatteryTray / NetProfileSwitcher / ProgramHider / SoundTracker context menus
 - [x] Tests: `AboutDialog` constructs cleanly, `StandardMenuItems` shape, version suffix-trim Theory
 - [x] Commit per logical unit
+
+### Phase 18.5 — Shell_NotifyIcon wrapper for stable tray identity *(complete)*
+
+- [x] `WindowsTrayCore.AppIdGuid`: deterministic Guid from app id (SHA-256, RFC-4122 v5)
+- [x] `WindowsTrayCore.Native.TrayNativeMethods`: Shell_NotifyIcon P/Invoke surface
+- [x] `WindowsTrayCore.TrayIcon`: NotifyIcon replacement with NIF_GUID + TaskbarCreated recovery + NOTIFYICON_VERSION_4
+- [x] Migrate BatteryTray / NetProfileSwitcher / ProgramHider / SoundTracker off NotifyIcon
+- [x] Update `Notifier` and `StandardMenuItems.CreateCheckForUpdates` to take TrayIcon
+- [x] Tests: AppIdGuid determinism + variant bits, TrayIcon construction + property round-trip
+- [x] `install.ps1` race fix: wait for process exit + handle release before deleting install dir
 
 ### Phase 19 — SoundTracker settings dialog
 
