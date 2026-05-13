@@ -48,6 +48,8 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         AppLog.Info("audio session monitor startup completed");
     }
 
+    public event EventHandler<AudioActivityEventArgs>? ActivityRecorded;
+
     public event EventHandler? SessionsChanged;
 
     public IReadOnlyList<string> GetActiveSessionNames()
@@ -178,10 +180,12 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         _sessionNotificationsRegistered = true;
 
         AppLog.Info("audio monitor registered endpoint and session notifications");
-        EnumerateAndTrackSessionsLocked();
+        EnumerateAndTrackSessionsLocked(SessionDiscoveryKind.StartupSnapshot, []);
     }
 
-    private void EnumerateAndTrackSessionsLocked()
+    private void EnumerateAndTrackSessionsLocked(
+        SessionDiscoveryKind discoveryKind,
+        List<AudioActivityEvent> recordedActivities)
     {
         IAudioSessionEnumerator? sessionEnumerator = null;
 
@@ -199,7 +203,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
                 try
                 {
                     Marshal.ThrowExceptionForHR(sessionEnumerator.GetSession(index, out sessionControl));
-                    releaseSessionControl = !TryTrackSessionLocked(sessionControl);
+                    releaseSessionControl = !TryTrackSessionLocked(sessionControl, discoveryKind, recordedActivities);
                 }
                 catch (COMException)
                 {
@@ -220,7 +224,10 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         }
     }
 
-    private bool TryTrackSessionLocked(IAudioSessionControl? sessionControl)
+    private bool TryTrackSessionLocked(
+        IAudioSessionControl? sessionControl,
+        SessionDiscoveryKind discoveryKind,
+        List<AudioActivityEvent> recordedActivities)
     {
         if (sessionControl is not IAudioSessionControl2 sessionControl2)
         {
@@ -254,15 +261,29 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
         Marshal.ThrowExceptionForHR(sessionControl.RegisterAudioSessionNotification(eventSink));
 
+        DateTimeOffset? activeSinceUtc = snapshot.State == AudioSessionState.Active
+            ? DateTimeOffset.UtcNow
+            : null;
         _trackedSessions[instanceId] = new TrackedSession(
             instanceId,
             sessionControl2,
             eventSink,
             snapshot.ProcessId,
             snapshot.DisplayName,
-            snapshot.State);
+            snapshot.State,
+            activeSinceUtc);
 
         AppLog.Info($"audio monitor tracked session instanceId={instanceId} processId={snapshot.ProcessId} state={snapshot.State} name=\"{snapshot.DisplayName}\"");
+        if (snapshot.State == AudioSessionState.Active && activeSinceUtc is not null)
+        {
+            recordedActivities.Add(CreateActivityForTrackedSession(
+                trackedSession: _trackedSessions[instanceId],
+                kind: discoveryKind == SessionDiscoveryKind.StartupSnapshot
+                    ? AudioActivityKind.ObservedActive
+                    : AudioActivityKind.Started,
+                timestampUtc: activeSinceUtc.Value,
+                duration: null));
+        }
 
         return true;
     }
@@ -314,6 +335,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         AppLog.Info("audio monitor OnSessionCreated callback");
         EnqueueWork(() =>
         {
+            List<AudioActivityEvent> recordedActivities = [];
             lock (_sync)
             {
                 if (_disposed || _sessionManager is null)
@@ -321,10 +343,11 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
                     return;
                 }
 
-                EnumerateAndTrackSessionsLocked();
+                EnumerateAndTrackSessionsLocked(SessionDiscoveryKind.CallbackEnumeration, recordedActivities);
             }
 
             AppLog.Info("audio monitor OnSessionCreated processed");
+            RaiseActivityRecorded(recordedActivities);
             RaiseSessionsChanged();
         });
     }
@@ -334,11 +357,33 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         AppLog.Info($"audio monitor session state callback instanceId={instanceId} state={newState}");
         EnqueueWork(() =>
         {
+            AudioActivityEvent? recordedActivity = null;
             lock (_sync)
             {
                 if (_disposed || !_trackedSessions.TryGetValue(instanceId, out var trackedSession))
                 {
                     return;
+                }
+
+                if (trackedSession.State == newState)
+                {
+                    return;
+                }
+
+                var changedAtUtc = DateTimeOffset.UtcNow;
+                if (newState == AudioSessionState.Active)
+                {
+                    trackedSession.ActiveSinceUtc = changedAtUtc;
+                    recordedActivity = CreateActivityForTrackedSession(
+                        trackedSession,
+                        AudioActivityKind.Started,
+                        changedAtUtc,
+                        duration: null);
+                }
+                else if (trackedSession.State == AudioSessionState.Active && newState != AudioSessionState.Active)
+                {
+                    recordedActivity = CreateStoppedActivity(trackedSession, changedAtUtc);
+                    trackedSession.ActiveSinceUtc = null;
                 }
 
                 trackedSession.State = newState;
@@ -348,6 +393,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
                 }
             }
 
+            RaiseActivityRecorded(recordedActivity);
             RaiseSessionsChanged();
         });
     }
@@ -357,6 +403,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         AppLog.Info($"audio monitor session disconnected callback instanceId={instanceId}");
         EnqueueWork(() =>
         {
+            AudioActivityEvent? recordedActivity = null;
             lock (_sync)
             {
                 if (_disposed || !_trackedSessions.TryGetValue(instanceId, out var trackedSession))
@@ -364,16 +411,23 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
                     return;
                 }
 
+                if (trackedSession.State == AudioSessionState.Active)
+                {
+                    recordedActivity = CreateStoppedActivity(trackedSession, DateTimeOffset.UtcNow);
+                    trackedSession.ActiveSinceUtc = null;
+                }
+
                 RemoveTrackedSessionLocked(instanceId, trackedSession);
             }
 
+            RaiseActivityRecorded(recordedActivity);
             RaiseSessionsChanged();
         });
     }
 
-    private void HandleDefaultEndpointChanged(EDataFlow dataFlow, ERole role)
+    private void HandleDefaultEndpointChanged(EDataFlow dataFlow, ERole role, string defaultDeviceId)
     {
-        AppLog.Info($"audio monitor default endpoint changed flow={dataFlow} role={role}");
+        AppLog.Info($"audio monitor default endpoint changed flow={dataFlow} role={role} deviceId=\"{defaultDeviceId}\"");
         if (dataFlow != EDataFlow.Render || role != ERole.Console)
         {
             return;
@@ -381,6 +435,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
         EnqueueWork(() =>
         {
+            AudioActivityEvent? recordedActivity = null;
             lock (_sync)
             {
                 if (_disposed)
@@ -390,8 +445,17 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
 
                 TeardownLocked();
                 AttachToDefaultRenderEndpointLocked();
+                recordedActivity = new AudioActivityEvent(
+                    DateTimeOffset.UtcNow,
+                    AudioActivityKind.DefaultDeviceChanged,
+                    "Default render device changed",
+                    SessionInstanceId: null,
+                    ProcessId: null,
+                    DeviceId: defaultDeviceId,
+                    Duration: null);
             }
 
+            RaiseActivityRecorded(recordedActivity);
             RaiseSessionsChanged();
         });
     }
@@ -467,6 +531,26 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         SessionsChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    private void RaiseActivityRecorded(AudioActivityEvent? activity)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        AppLog.Info(
+            $"audio monitor recorded activity kind={activity.Kind} description=\"{activity.Description}\" processId={activity.ProcessId?.ToString() ?? "n/a"} sessionId=\"{activity.SessionInstanceId ?? string.Empty}\" durationMs={(activity.Duration?.TotalMilliseconds.ToString("F0") ?? "n/a")}");
+        ActivityRecorded?.Invoke(this, new AudioActivityEventArgs(activity));
+    }
+
+    private void RaiseActivityRecorded(IEnumerable<AudioActivityEvent> activities)
+    {
+        foreach (var activity in activities)
+        {
+            RaiseActivityRecorded(activity);
+        }
+    }
+
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -499,6 +583,37 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
             Type.GetTypeFromCLSID(CoreAudioInterop.MMDeviceEnumeratorClsid)!)!;
     }
 
+    private static AudioActivityEvent CreateActivityForTrackedSession(
+        TrackedSession trackedSession,
+        AudioActivityKind kind,
+        DateTimeOffset timestampUtc,
+        TimeSpan? duration)
+    {
+        return new AudioActivityEvent(
+            timestampUtc,
+            kind,
+            trackedSession.DisplayName,
+            trackedSession.InstanceId,
+            trackedSession.ProcessId,
+            DeviceId: null,
+            duration);
+    }
+
+    private static AudioActivityEvent CreateStoppedActivity(
+        TrackedSession trackedSession,
+        DateTimeOffset timestampUtc)
+    {
+        TimeSpan? duration = trackedSession.ActiveSinceUtc is null
+            ? null
+            : timestampUtc - trackedSession.ActiveSinceUtc.Value;
+
+        return CreateActivityForTrackedSession(
+            trackedSession,
+            AudioActivityKind.Stopped,
+            timestampUtc,
+            duration);
+    }
+
     [DllImport("ole32.dll")]
     private static extern int CoInitializeEx(IntPtr reserved, uint coInit);
 
@@ -528,7 +643,8 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
             AudioSessionEventsSink eventSink,
             uint processId,
             string displayName,
-            AudioSessionState state)
+            AudioSessionState state,
+            DateTimeOffset? activeSinceUtc)
         {
             InstanceId = instanceId;
             Control = control;
@@ -536,6 +652,7 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
             ProcessId = processId;
             DisplayName = displayName;
             State = state;
+            ActiveSinceUtc = activeSinceUtc;
         }
 
         public string InstanceId { get; }
@@ -549,22 +666,24 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
         public string DisplayName { get; }
 
         public AudioSessionState State { get; set; }
+
+        public DateTimeOffset? ActiveSinceUtc { get; set; }
     }
 
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
     private sealed class EndpointNotificationClient : IMMNotificationClient
     {
-        private readonly Action<EDataFlow, ERole> _defaultEndpointChanged;
+        private readonly Action<EDataFlow, ERole, string> _defaultEndpointChanged;
 
-        public EndpointNotificationClient(Action<EDataFlow, ERole> defaultEndpointChanged)
+        public EndpointNotificationClient(Action<EDataFlow, ERole, string> defaultEndpointChanged)
         {
             _defaultEndpointChanged = defaultEndpointChanged;
         }
 
         public int OnDefaultDeviceChanged(EDataFlow flow, ERole role, string defaultDeviceId)
         {
-            _defaultEndpointChanged(flow, role);
+            _defaultEndpointChanged(flow, role, defaultDeviceId);
             return 0;
         }
 
@@ -634,5 +753,11 @@ internal sealed class AudioSessionMonitor : IAudioSessionSource
             _stateChanged(_instanceId, newState);
             return 0;
         }
+    }
+
+    private enum SessionDiscoveryKind
+    {
+        StartupSnapshot,
+        CallbackEnumeration,
     }
 }

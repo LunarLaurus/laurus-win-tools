@@ -237,6 +237,8 @@ internal static class Program
             _sessions = sessions;
         }
 
+        public event EventHandler<AudioActivityEventArgs>? ActivityRecorded;
+
         public event EventHandler? SessionsChanged;
 
         public int DisposeCallCount { get; private set; }
