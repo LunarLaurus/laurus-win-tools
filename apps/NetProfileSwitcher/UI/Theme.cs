@@ -1,24 +1,30 @@
 using System.Drawing;
 using System.Windows.Forms;
+using WindowsTrayCore;
 
 namespace NetProfileSwitcher.UI;
 
 public static class Theme
 {
-    public static readonly Color Bg        = Color.FromArgb(24, 24, 37);
-    public static readonly Color Surface   = Color.FromArgb(36, 36, 54);
-    public static readonly Color Surface2  = Color.FromArgb(48, 48, 68);
-    public static readonly Color Accent    = Color.FromArgb(124, 111, 247);
-    public static readonly Color AccentDim = Color.FromArgb(90, 80, 180);
-    public static readonly Color Green     = Color.FromArgb(80, 200, 120);
-    public static readonly Color Red       = Color.FromArgb(224, 85, 102);
-    public static readonly Color Text      = Color.FromArgb(224, 222, 244);
-    public static readonly Color Muted     = Color.FromArgb(110, 106, 134);
-    public static readonly Color Field     = Color.FromArgb(42, 42, 64);
-    public static readonly Font  Body      = new("Segoe UI", 9.5f);
-    public static readonly Font  BodyBold  = new("Segoe UI", 9.5f, FontStyle.Bold);
-    public static readonly Font  Header    = new("Segoe UI", 13f, FontStyle.Bold);
-    public static readonly Font  Small     = new("Segoe UI", 8f);
+    public static Color Bg       => TrayTheme.Current.Background;
+    public static Color Surface  => TrayTheme.Current.Surface;
+    public static Color Surface2 => TrayTheme.Current.IsLight
+        ? Color.FromArgb(225, 225, 240)
+        : Color.FromArgb(48, 48, 68);
+    public static Color Accent    => TrayTheme.Current.Accent;
+    public static Color AccentDim => TrayTheme.Current.IsLight
+        ? Color.FromArgb(74, 63, 178)
+        : Color.FromArgb(90, 80, 180);
+    public static Color Green => TrayTheme.Current.Success;
+    public static Color Red   => TrayTheme.Current.Error;
+    public static Color Text  => TrayTheme.Current.Text;
+    public static Color Muted => TrayTheme.Current.TextMuted;
+    public static Color Field => TrayTheme.Current.Field;
+
+    public static readonly Font Body     = new("Segoe UI", 9.5f);
+    public static readonly Font BodyBold = new("Segoe UI", 9.5f, FontStyle.Bold);
+    public static readonly Font Header   = new("Segoe UI", 13f, FontStyle.Bold);
+    public static readonly Font Small    = new("Segoe UI", 8f);
 
     public static void StyleTextBox(TextBox tb)
     {

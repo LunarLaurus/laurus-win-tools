@@ -5,6 +5,7 @@ using NetProfileSwitcher.Models;
 using NetProfileSwitcher.Services;
 using NetProfileSwitcher.UI.Controls;
 using WindowsAppCore;
+using WindowsTrayCore;
 
 namespace NetProfileSwitcher.UI;
 
@@ -71,6 +72,7 @@ public class MainForm : Form
         _chkStartup.CheckedChanged += OnStartupCheckChanged;
         _suppressInitialShow = _cfg.StartMinimized;
         InitMonitor();
+        TrayTheme.Current.Changed += OnThemeChanged;
         RefreshProfileList();
         PollSsid();
         _log.Info("app.started", new { profileCount = _cfg.Profiles.Count, adapter = _cfg.SelectedAdapter });
@@ -803,6 +805,55 @@ public class MainForm : Form
         return cut > 0 ? text[..cut] + "…" : text[..maxLen];
     }
 
+    // ── Theme ──────────────────────────────────────────────────────────────
+
+    private void OnThemeChanged(object? sender, EventArgs e) => ApplyTheme();
+
+    private void ApplyTheme()
+    {
+        BackColor = Theme.Bg;
+        ForeColor = Theme.Text;
+        foreach (Control c in Controls)
+            RecolorControl(c);
+        _trayMenu.BackColor = Theme.Surface;
+        _trayMenu.ForeColor = Theme.Text;
+        Invalidate(true);
+    }
+
+    private void RecolorControl(Control c)
+    {
+        switch (c)
+        {
+            case Panel p when p.Height == 1:
+                p.BackColor = Theme.Surface2;
+                break;
+            case Panel p:
+                p.BackColor = Theme.Surface;
+                foreach (Control child in p.Controls)
+                    RecolorControl(child);
+                break;
+            case ComboBox cb:
+                cb.BackColor = Theme.Field;
+                cb.ForeColor = Theme.Text;
+                break;
+            case ListBox lb:
+                lb.BackColor = lb == _ssidList ? Theme.Field : Theme.Surface;
+                lb.ForeColor = Theme.Text;
+                break;
+            case TextBox tb:
+                Theme.StyleTextBox(tb);
+                break;
+            case CheckBox chk:
+                chk.ForeColor = Theme.Text;
+                chk.BackColor = Theme.Bg;
+                break;
+            case RadioButton rb:
+                rb.ForeColor = Theme.Text;
+                rb.BackColor = Theme.Surface;
+                break;
+        }
+    }
+
     // ── Window chrome ──────────────────────────────────────────────────────
 
     protected override void SetVisibleCore(bool value)
@@ -837,6 +888,12 @@ public class MainForm : Form
             _tray.Visible = false;
         }
         base.OnFormClosing(e);
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        TrayTheme.Current.Changed -= OnThemeChanged;
+        base.OnFormClosed(e);
     }
 
     protected override void OnResize(EventArgs e)
