@@ -118,30 +118,59 @@ function Assert-DesktopRuntime {
     }
 }
 
+function Wait-ForProcessExit([string]$ProcName, [int]$TimeoutSeconds) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Process -Name $ProcName -ErrorAction SilentlyContinue) -and ((Get-Date) -lt $deadline)) {
+        Start-Sleep -Milliseconds 200
+    }
+    return -not (Get-Process -Name $ProcName -ErrorAction SilentlyContinue)
+}
+
 function Stop-AppIfRunning([string]$ExeName) {
     $procName = [System.IO.Path]::GetFileNameWithoutExtension($ExeName)
     $procs = Get-Process -Name $procName -ErrorAction SilentlyContinue
-    if (-not $procs) { return }
+    if (-not $procs) { return $true }
 
+    # First attempt: normal Stop-Process. Works for any process the current
+    # user can kill (same integrity level). Fails silently when the target
+    # runs elevated and the installer doesn't.
     $procs | Stop-Process -Force -ErrorAction SilentlyContinue
-    Write-Info "Stopped running instance of $procName"
 
-    # Stop-Process returns immediately but Windows holds the .exe / .dll file
-    # handles for a short tail after the process exits. Wait until they're
-    # all gone before letting the caller delete the install dir.
-    $deadline = (Get-Date).AddSeconds(10)
-    while ((Get-Process -Name $procName -ErrorAction SilentlyContinue) -and ((Get-Date) -lt $deadline)) {
-        Start-Sleep -Milliseconds 200
+    if (Wait-ForProcessExit $procName -TimeoutSeconds 5) {
+        Write-Info "Stopped running instance of $procName"
+        # Even after the PID is gone, the kernel may briefly hold the .exe /
+        # .dll file handles. A 250ms pause clears the common cases without
+        # slowing the happy path.
+        Start-Sleep -Milliseconds 250
+        return $true
     }
-    if (Get-Process -Name $procName -ErrorAction SilentlyContinue) {
-        Write-Info "Process $procName did not exit within 10s -- it may be elevated. Skipping install for this app."
+
+    # Still running -- the target is elevated and we are not. Spawn an
+    # elevated taskkill via UAC. Cancelling the prompt throws and we skip
+    # this app rather than corrupting the install dir.
+    Write-Info "$procName is still running (likely elevated). Requesting elevation to terminate..."
+    try {
+        $killer = Start-Process -FilePath "taskkill.exe" `
+                                 -ArgumentList "/F", "/IM", $ExeName, "/T" `
+                                 -Verb RunAs `
+                                 -WindowStyle Hidden `
+                                 -PassThru `
+                                 -ErrorAction Stop
+        $killer.WaitForExit(10000) | Out-Null
+    }
+    catch {
+        Write-Err "Elevation denied or failed for $procName : $($_.Exception.Message)"
         return $false
     }
 
-    # Even after the PID is gone, the kernel may briefly hold the file handle.
-    # A 250ms pause clears the common cases without slowing the happy path.
-    Start-Sleep -Milliseconds 250
-    return $true
+    if (Wait-ForProcessExit $procName -TimeoutSeconds 5) {
+        Write-Info "Stopped elevated instance of $procName via UAC"
+        Start-Sleep -Milliseconds 250
+        return $true
+    }
+
+    Write-Err "$procName remained running after elevated taskkill -- aborting install for this app."
+    return $false
 }
 
 # ---------------------------------------------------------------------------
