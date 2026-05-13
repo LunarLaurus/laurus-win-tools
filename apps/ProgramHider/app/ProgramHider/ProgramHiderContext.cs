@@ -41,6 +41,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private readonly bool _isElevated;
     private bool _safeModeEnabled;
     private bool _disposed;
+    private readonly CancellationTokenSource _updateCts = new();
+    private readonly HttpClient _updateHttpClient = new();
 
     public ProgramHiderContext(StartupOptions startupOptions, SingleInstanceActivation activation)
     {
@@ -135,6 +137,12 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
         if (_startupOptions.PendingHideHandle != 0)
             _ui.Post(TryHidePendingStartupWindow);
+
+        var updater = new UpdateChecker(_updateHttpClient, Application.ProductVersion, "LunarLaurus", "laurus-win-tools");
+        updater.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
+            _ui.Post(() => _notifyIcon.ShowBalloonTip(5000, "ProgramHider update available",
+                $"Version {r.LatestVersion} is available — visit GitHub to download.", ToolTipIcon.Info)),
+            _updateCts.Token);
     }
 
     protected override void ExitThreadCore()
@@ -898,6 +906,9 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
         _logger.Write("app.stopped", new { remainingHiddenWindows = _hiddenWindows.Count });
 
+        _updateCts.Cancel();
+        _updateCts.Dispose();
+        _updateHttpClient.Dispose();
         _activation.Dispose();
         _messageWindow.Dispose();
         _notifyIcon.Visible = false;

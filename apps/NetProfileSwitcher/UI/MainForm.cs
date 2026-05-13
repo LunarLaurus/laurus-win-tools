@@ -52,6 +52,9 @@ public class MainForm : Form
     private readonly UiDispatcher _ui;
     private readonly CancellationTokenSource _applyCts = new();
 
+    private readonly CancellationTokenSource _updateCts = new();
+    private readonly HttpClient _updateHttpClient = new();
+
     // Tray state
     private System.Windows.Forms.Timer? _switchingTimer;
     private int _applyInFlight;
@@ -81,6 +84,12 @@ public class MainForm : Form
         RefreshProfileList();
         PollSsid();
         _log.Info("app.started", new { profileCount = _cfg.Profiles.Count, adapter = _cfg.SelectedAdapter });
+
+        var updater = new UpdateChecker(_updateHttpClient, Application.ProductVersion, "LunarLaurus", "laurus-win-tools");
+        updater.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
+            _ui.Post(() => _tray.ShowBalloonTip(5000, "NetProfileSwitcher update available",
+                $"Version {r.LatestVersion} is available — visit GitHub to download.", ToolTipIcon.Info)),
+            _updateCts.Token);
     }
 
     // ── Form setup ─────────────────────────────────────────────────────────
@@ -899,6 +908,9 @@ public class MainForm : Form
         TrayTheme.Current.Changed -= OnThemeChanged;
         _applyCts.Cancel();
         _applyCts.Dispose();
+        _updateCts.Cancel();
+        _updateCts.Dispose();
+        _updateHttpClient.Dispose();
         _ui.Dispose();
         base.OnFormClosed(e);
     }

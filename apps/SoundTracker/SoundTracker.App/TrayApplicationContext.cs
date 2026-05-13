@@ -29,6 +29,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly RunKeyStartupRegistration _startup;
     private Icon? _currentTrayIcon;
     private bool _shuttingDown;
+    private readonly CancellationTokenSource _updateCts = new();
+    private readonly HttpClient _updateHttpClient = new();
 
     public TrayApplicationContext(SingleInstanceActivation? activation = null)
         : this(
@@ -159,6 +161,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         RefreshSessions();
         AppLog.Info("tray context initialized");
+
+        var updater = new WindowsAppCore.UpdateChecker(_updateHttpClient, Application.ProductVersion, "LunarLaurus", "laurus-win-tools");
+        updater.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
+            _ui.Post(() =>
+            {
+                if (!_shuttingDown)
+                    _notifyIcon.ShowBalloonTip(5000, "SoundTracker update available",
+                        $"Version {r.LatestVersion} is available — visit GitHub to download.", ToolTipIcon.Info);
+            }),
+            _updateCts.Token);
     }
 
     internal string CurrentTooltipText => _notifyIcon.Text;
@@ -197,6 +209,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _recentActivityForm.Close();
         _recentActivityForm.Dispose();
         _shuttingDown = true;
+        _updateCts.Cancel();
+        _updateCts.Dispose();
+        _updateHttpClient.Dispose();
         _ui.Dispose();
 
         _notifyIcon.Visible = false;

@@ -34,6 +34,9 @@ public sealed class BatteryTrayContext : ApplicationContext
 
     private BatteryRenderKey? _lastRenderKey;
 
+    private readonly CancellationTokenSource _updateCts = new();
+    private readonly HttpClient _updateHttpClient = new();
+
     private enum PowerLineStatusSource { Unknown, Ac, Battery }
 
     public BatteryTrayContext(AppSettings settings, SingleInstanceActivation activation, ScheduledTaskStartupRegistration startup)
@@ -93,6 +96,12 @@ public sealed class BatteryTrayContext : ApplicationContext
 
         Refresh();
         ShowFirstRunWelcomeIfNeeded();
+
+        var updater = new UpdateChecker(_updateHttpClient, Application.ProductVersion, "LunarLaurus", "laurus-win-tools");
+        updater.StartPeriodicChecks(TimeSpan.FromHours(24), r =>
+            _ui.Post(() => _notifyIcon.ShowBalloonTip(5000, "BatteryTray update available",
+                $"Version {r.LatestVersion} is available — visit GitHub to download.", ToolTipIcon.Info)),
+            _updateCts.Token);
     }
 
     private void OnSafetyTick()
@@ -368,6 +377,9 @@ public sealed class BatteryTrayContext : ApplicationContext
             _safetyTimer.Dispose();
             _powerListener.Dispose();
             _powerCoordinator.Dispose();
+            _updateCts.Cancel();
+            _updateCts.Dispose();
+            _updateHttpClient.Dispose();
             _notifier.Dispose();
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
