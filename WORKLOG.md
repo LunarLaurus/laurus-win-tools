@@ -313,15 +313,18 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ## 2026-05-13 16:30
 
-**Did:** Phase 17 — Public beta preparation.
+**Did:** Phase 17 — Public beta launched.
 - Repository visibility flipped to public on GitHub
 - Public REST API (`api.github.com/repos/LunarLaurus/laurus-win-tools`) reachable without auth — UpdateChecker endpoint confirmed
 - Moved private-tooling exclusion patterns from `.gitignore` (public) to `.git/info/exclude` (local-only, never committed) so public `.gitignore` shows only generic build/IDE/OS patterns
-- Tagging `v1.0.0` to trigger the release workflow
+- README rewritten for public framing: Install section pointing at GitHub Releases, .NET 8 Desktop Runtime prerequisite, install.ps1 helper, auto-update behaviour
+- Added `LICENSE` under PolyForm Noncommercial 1.0.0 — free for personal/hobby/academic/charitable/government use; commercial use requires a separate licence
+- Tagged `v1.0.0`; GitHub Actions release workflow completed in 2.7 min with all four app zips published: BatteryTray (10.49 MB), NetProfileSwitcher (6.27 MB), ProgramHider (6.48 MB), SoundTracker (6.28 MB)
 
-**Committed:** (pending)
+**Committed:** 358b82b (tidy), 8836a45 (README + LICENSE)
+**Release:** https://github.com/LunarLaurus/laurus-win-tools/releases/tag/v1.0.0
 
-**Next:** Verify release workflow output
+**Next:** Open development — gather first-beta feedback
 
 ---
 
@@ -487,11 +490,12 @@ Write under `docs\conventions\` before any code extraction:
 - [x] Delete archived sub-project and obsolete planning docs that contained prohibited references
 - [x] Rewrite git history to purge prohibited references from all prior commits
 
-### Phase 17 — Publish + auto-update wire-up *(in progress)*
+### Phase 17 — Publish + auto-update wire-up *(complete)*
 
 - [x] Make GitHub repository public
 - [x] Confirm `UpdateChecker` can reach `api.github.com/repos/LunarLaurus/laurus-win-tools` without auth (public API)
 - [x] Move private-tooling exclusion patterns to `.git/info/exclude` so public `.gitignore` is clean
-- [ ] Tag and push `v1.0.0` to trigger first public release
-- [ ] Verify GitHub Actions release workflow fires cleanly on first public tag
-- [ ] Verify all four app zips appear in GitHub Release
+- [x] Update README for public framing; add `LICENSE` (PolyForm Noncommercial 1.0.0)
+- [x] Tag and push `v1.0.0` to trigger first public release
+- [x] Verify GitHub Actions release workflow fires cleanly on first public tag (2.7 min, success)
+- [x] Verify all four app zips appear in GitHub Release
