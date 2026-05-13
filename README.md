@@ -1,6 +1,6 @@
 # windows-apps
 
-Private monorepo for Windows tray utilities.
+Monorepo for a small fleet of Windows tray utilities.
 
 ## Apps
 
@@ -19,7 +19,18 @@ Private monorepo for Windows tray utilities.
 | `shared/WindowsTrayCore` | Tray icon management, theme detection, `UiDispatcher` |
 | `shared/WindowsAppTesting` | xUnit test helpers: `TempAppData`, `FakeClock`, `WindowsFactAttribute`, fakes |
 
-## Build
+## Install
+
+Pre-built framework-dependent binaries are attached to each GitHub Release at
+[Releases](https://github.com/LunarLaurus/laurus-win-tools/releases). The .NET 8
+Windows Desktop Runtime is required to run them — install it from
+[dot.net/download](https://dot.net/download) if it's not already present.
+
+`install.ps1` at the repo root automates publish + install to
+`%LOCALAPPDATA%\LaurusWinTools\<AppName>` from a source checkout; pass `-AutoRun`
+to register the apps under HKCU `Run` so they launch at logon.
+
+## Build from source
 
 Requires .NET 8 SDK and Windows.
 
@@ -32,3 +43,14 @@ dotnet test  apps/<AppName>.Tests   (or apps/<AppName>/tests/<AppName>.Tests)
 ## Conventions
 
 See `docs/conventions/` for authoritative decisions on app data paths, startup registration, tray shell ownership, and JSON / logging format.
+
+## Auto-update
+
+Each app polls the GitHub releases API at startup and every 24 hours; a tray
+balloon notification surfaces when a newer release is available.
+
+## License
+
+[PolyForm Noncommercial License 1.0.0](LICENSE) — free for noncommercial use
+(personal, hobby, academic, charitable, government). Commercial use requires
+a separate commercial license; open a GitHub issue if you want to discuss one.
