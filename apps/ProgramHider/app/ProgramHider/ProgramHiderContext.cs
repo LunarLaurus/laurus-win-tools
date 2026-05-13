@@ -1,8 +1,10 @@
 using Microsoft.Win32;
 using System.ComponentModel;
 using System.Drawing;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Windows.Forms;
+using WindowsAppCore;
 
 namespace ProgramHider;
 
@@ -16,7 +18,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _hideWindowMenu;
     private readonly HotkeyMessageWindow _messageWindow;
-    private readonly SettingsStore _settingsStore;
+    private readonly JsonSettingsStore<AppSettings> _settingsStore;
     private readonly SynchronizationContext _uiContext;
     private readonly NativeMethods.WinEventProc _minimizeEventCallback;
     private readonly NativeMethods.WinEventProc _foregroundEventCallback;
@@ -42,12 +44,17 @@ internal sealed class ProgramHiderContext : ApplicationContext
     {
         _startupOptions = startupOptions;
         _logger = new AppLogger();
-        _settingsStore = new SettingsStore();
+        _settingsStore = new JsonSettingsStore<AppSettings>(
+            "ProgramHider",
+            normalize: s => { s.Normalize(); return s; },
+            options: new System.Text.Json.JsonSerializerOptions
+            {
+                Converters = { new JsonStringEnumConverter() }
+            });
         _windowPlatform = new Win32WindowPlatform();
         _windowHideService = new WindowHideService(_windowPlatform);
         _activeWindowTracker = new ActiveWindowTracker(_windowPlatform);
         _settings = _settingsStore.Load();
-        _settings.Normalize();
         _isElevated = ElevationService.IsCurrentProcessElevated();
         _safeModeEnabled = startupOptions.SafeMode;
 

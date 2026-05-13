@@ -14,6 +14,13 @@
     <FileVersion>0.1.5.0</FileVersion>
     <Product>Program Hider</Product>
     <ApplicationIcon>..\..\assets\ProgramHider.ico</ApplicationIcon>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\shared\WindowsAppCore\WindowsAppCore.csproj" />
+  </ItemGroup>
 
 </Project>

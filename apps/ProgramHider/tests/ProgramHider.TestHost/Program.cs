@@ -2,6 +2,7 @@ using ProgramHider;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using WindowsAppCore;
 
 return await TestHostProgram.RunAsync(args);
 
@@ -325,17 +326,18 @@ internal static class TestHostProgram
 
     private static void SettingsStoreHonorsEnvironmentOverridePath()
     {
-        var original = Environment.GetEnvironmentVariable("PROGRAM_HIDER_SETTINGS_PATH");
-        var expectedPath = Path.Combine(Path.GetTempPath(), "program-hider-test-settings.json");
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"ph-store-test-{Guid.NewGuid():N}");
+        var original = Environment.GetEnvironmentVariable("PROGRAMHIDER_DATA");
         try
         {
-            Environment.SetEnvironmentVariable("PROGRAM_HIDER_SETTINGS_PATH", expectedPath);
-            var store = new SettingsStore();
-            TestAssert.Equal(Path.GetFullPath(expectedPath), store.SettingsPath, "Expected the override settings path to be honored.");
+            Environment.SetEnvironmentVariable("PROGRAMHIDER_DATA", tempRoot);
+            var store = new JsonSettingsStore<AppSettings>("ProgramHider");
+            var expectedPath = Path.Combine(tempRoot, "settings.json");
+            TestAssert.Equal(expectedPath, store.SettingsPath, "Expected the PROGRAMHIDER_DATA override to redirect SettingsPath.");
         }
         finally
         {
-            Environment.SetEnvironmentVariable("PROGRAM_HIDER_SETTINGS_PATH", original);
+            Environment.SetEnvironmentVariable("PROGRAMHIDER_DATA", original);
         }
     }
 
