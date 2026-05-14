@@ -429,6 +429,20 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-14
+
+**Did:** Phase 27 design — configurable power-button and lid-close actions for BatteryTray.
+- Decisions locked: Power button + Lid close only; apply-to-all-plans on Save (no runtime enforcement); single AC value by default with "Use different action on battery" advanced toggle; UAC-on-Save via one elevated `cmd.exe` chaining every powercfg write; new "Hardware actions" tab in `SettingsForm` (existing "Power" tab renamed to "Power plans").
+- Implementation approach: powercfg shell-out, matching the existing `PowerPlanController` idiom. No P/Invoke, no new shared library.
+- Settings schema v3 → v4: `AppSettings.HardwareActions` (nullable `HardwareActionPolicy`); functional-no-op `AppSettingsMigrationV3ToV4`.
+- Design spec written to `docs/specs/2026-05-14-power-button-lid-actions.md`. Implementation plan and handoff brief queued next.
+
+**Committed:** (this commit)
+
+**Next:** Write implementation plan and handoff brief; execution deferred to a fresh session with elevated permissions
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
