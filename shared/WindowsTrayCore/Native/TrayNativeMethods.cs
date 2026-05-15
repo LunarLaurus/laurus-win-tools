@@ -86,4 +86,10 @@ internal static class TrayNativeMethods
 
     [DllImport("dwmapi.dll", PreserveSig = true)]
     public static extern int DwmGetColorizationColor(out uint pcrColorization, out bool pfOpaqueBlend);
+
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
+
+    public const int DWMWA_USE_IMMERSIVE_DARK_MODE_PRE_20H1 = 19;
+    public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 }

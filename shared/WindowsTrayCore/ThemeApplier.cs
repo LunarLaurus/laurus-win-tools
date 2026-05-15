@@ -17,6 +17,34 @@ public static class ThemeApplier
         ApplyToControls(form.Controls, theme);
     }
 
+    /// <summary>
+    /// Applies (or removes) the Windows 10 dark title-bar tint for a form via
+    /// DwmSetWindowAttribute. Tries attribute 20 (DWMWA_USE_IMMERSIVE_DARK_MODE,
+    /// official since Win10 1903) first, falls back to attribute 19 (the
+    /// undocumented predecessor for 1809-1902). No-op on older builds and on
+    /// any HRESULT failure; the title bar stays default-themed.
+    /// </summary>
+    public static void ApplyTitleBar(Form form, bool dark)
+    {
+        if (form is null || !form.IsHandleCreated) return;
+
+        int useDark = dark ? 1 : 0;
+        var hr = Native.TrayNativeMethods.DwmSetWindowAttribute(
+            form.Handle,
+            Native.TrayNativeMethods.DWMWA_USE_IMMERSIVE_DARK_MODE,
+            ref useDark,
+            sizeof(int));
+
+        if (hr != 0)
+        {
+            Native.TrayNativeMethods.DwmSetWindowAttribute(
+                form.Handle,
+                Native.TrayNativeMethods.DWMWA_USE_IMMERSIVE_DARK_MODE_PRE_20H1,
+                ref useDark,
+                sizeof(int));
+        }
+    }
+
     private static void ApplyToControls(Control.ControlCollection controls, TrayTheme theme)
     {
         foreach (Control c in controls)
