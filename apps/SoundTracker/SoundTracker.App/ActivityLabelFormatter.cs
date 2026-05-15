@@ -2,34 +2,8 @@ namespace SoundTracker.App;
 
 using SoundTracker.App.Audio;
 
-internal static class TooltipFormatter
+internal static class ActivityLabelFormatter
 {
-    private const int NotifyIconTextLimit = 63;
-
-    public static string BuildMultiline(
-        EndpointVolumeSnapshot volumeSnapshot,
-        IReadOnlyList<string> activeSessions,
-        IReadOnlyList<AudioActivityEvent> recentActivities)
-    {
-        var lines = new List<string> { AppMetadata.TooltipPrefix };
-        lines.Add(BuildVolumeSummary(volumeSnapshot));
-
-        if (activeSessions.Count > 0)
-        {
-            lines.Add(BuildActiveTooltipSummary(activeSessions));
-        }
-        else
-        {
-            var recentSummary = BuildRecentTooltipSummary(recentActivities, DateTimeOffset.UtcNow);
-            if (recentSummary is not null)
-            {
-                lines.Add(recentSummary);
-            }
-        }
-
-        return Truncate(string.Join(Environment.NewLine, lines));
-    }
-
     public static string BuildActiveMenuLabel(IReadOnlyList<string> activeSessions)
     {
         if (activeSessions.Count > 0)
@@ -136,49 +110,6 @@ internal static class TooltipFormatter
             .FirstOrDefault();
     }
 
-    private static string BuildActiveTooltipSummary(IReadOnlyList<string> activeSessions)
-    {
-        if (activeSessions.Count == 1)
-        {
-            return $"Active: {CompactSource(activeSessions[0])}";
-        }
-
-        return $"Active: {activeSessions.Count} apps";
-    }
-
-    private static string BuildVolumeSummary(EndpointVolumeSnapshot snapshot)
-    {
-        if (!snapshot.IsAvailable)
-        {
-            return "Volume unavailable";
-        }
-
-        return snapshot.IsMuted
-            ? $"Muted {snapshot.Percent}%"
-            : $"Volume {snapshot.Percent}%";
-    }
-
-    private static string? BuildRecentTooltipSummary(IReadOnlyList<AudioActivityEvent> recentActivities, DateTimeOffset nowUtc)
-    {
-        var latestActivity = GetLatestActivity(recentActivities);
-        if (latestActivity is null)
-        {
-            return null;
-        }
-
-        var age = BuildCompactAge(latestActivity.TimestampUtc, nowUtc);
-        var source = CompactSource(latestActivity.Description);
-
-        return latestActivity.Kind switch
-        {
-            AudioActivityKind.ObservedActive => $"Recent: heard {source} {age}",
-            AudioActivityKind.Started => $"Recent: start {source} {age}",
-            AudioActivityKind.Stopped => $"Recent: stop {source} {age}",
-            AudioActivityKind.DefaultDeviceChanged => $"Recent: device {age}",
-            _ => $"Recent: {source} {age}",
-        };
-    }
-
     private static string? BuildRecentMenuSummary(IReadOnlyList<AudioActivityEvent> recentActivities, DateTimeOffset nowUtc)
     {
         var latestActivity = GetLatestActivity(recentActivities);
@@ -188,48 +119,6 @@ internal static class TooltipFormatter
         }
 
         return BuildHistorySummary(latestActivity, nowUtc);
-    }
-
-    private static string CompactSource(string description)
-    {
-        var value = description.Trim();
-        if (value.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-        {
-            value = value[..^4];
-        }
-
-        if (value.Length <= 16)
-        {
-            return value;
-        }
-
-        return value[..13] + "...";
-    }
-
-    private static string BuildCompactAge(DateTimeOffset timestampUtc, DateTimeOffset nowUtc)
-    {
-        var age = nowUtc - timestampUtc;
-        if (age < TimeSpan.Zero)
-        {
-            age = TimeSpan.Zero;
-        }
-
-        if (age < TimeSpan.FromMinutes(1))
-        {
-            return $"{Math.Max(0, (int)age.TotalSeconds)}s";
-        }
-
-        if (age < TimeSpan.FromHours(1))
-        {
-            return $"{(int)age.TotalMinutes}m";
-        }
-
-        if (age < TimeSpan.FromDays(1))
-        {
-            return $"{(int)age.TotalHours}h";
-        }
-
-        return $"{(int)age.TotalDays}d";
     }
 
     private static string BuildHistorySummary(AudioActivityEvent activity, DateTimeOffset nowUtc)
@@ -245,13 +134,4 @@ internal static class TooltipFormatter
         };
     }
 
-    private static string Truncate(string value)
-    {
-        if (value.Length <= NotifyIconTextLimit)
-        {
-            return value;
-        }
-
-        return $"{value[..(NotifyIconTextLimit - 3)]}...";
-    }
 }

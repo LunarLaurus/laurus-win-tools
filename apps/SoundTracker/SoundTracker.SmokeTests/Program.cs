@@ -1,5 +1,6 @@
 using SoundTracker.App;
 using SoundTracker.App.Audio;
+using WindowsTrayCore;
 using SoundTracker.App.History;
 using SoundTracker.App.Processes;
 using System.Diagnostics;
@@ -27,7 +28,7 @@ internal static class Program
             ("ProcessNameResolver current process", ProcessNameResolver_CurrentProcess),
             ("AudioSessionMonitor lifecycle", AudioSessionMonitor_Lifecycle),
             ("AudioSessionMonitor endpoint volume snapshot", AudioSessionMonitor_EndpointVolumeSnapshot),
-            ("TooltipFormatter multiline tooltip", TooltipFormatter_MultilineTooltip),
+            ("ActivityLabelFormatter / inline tooltip composition", InlineTooltip_Multiline),
             ("AudioSessionMonitor disposed guard", AudioSessionMonitor_DisposedGuard),
             ("AudioSessionMonitor live playback callbacks", AudioSessionMonitor_LivePlaybackCallbacks),
             ("AudioActivityTimeline persists live playback history", AudioActivityTimeline_PersistsLivePlaybackHistory),
@@ -156,15 +157,26 @@ internal static class Program
         Assert.True(snapshot.Percent >= 0 && snapshot.Percent <= 100, "Endpoint volume percent should be within 0-100.");
     }
 
-    private static void TooltipFormatter_MultilineTooltip()
+    private static void InlineTooltip_Multiline()
     {
-        var text = TooltipFormatter.BuildMultiline(
-            new EndpointVolumeSnapshot(42, IsMuted: false, IsAvailable: true),
-            new[] { "firefox.exe" },
-            Array.Empty<AudioActivityEvent>());
+        var volumeSnapshot = new EndpointVolumeSnapshot(IsAvailable: true, IsMuted: false, Percent: 47);
+        IReadOnlyList<string> sessions = new[] { "music.exe" };
+        IReadOnlyList<AudioActivityEvent> recents = Array.Empty<AudioActivityEvent>();
 
-        Assert.True(text.Contains(Environment.NewLine), "Tray tooltip should use multiple lines.");
-        Assert.True(text.StartsWith("SoundTracker 0.4.1"), "Tooltip should include the current version.");
+        var tb = new TrayTooltipBuilder()
+            .AddRequired(AppMetadata.TooltipPrefix)
+            .AddRequired($"Volume {volumeSnapshot.Percent}%");
+        if (sessions.Count > 0)
+            tb.AddOptional($"Active: {sessions[0].Replace(".exe", "")}");
+
+        var text = tb.Build();
+
+        if (!text.Contains(AppMetadata.TooltipPrefix))
+            throw new Exception($"Tooltip missing app prefix: {text}");
+        if (!text.Contains("Volume 47%"))
+            throw new Exception($"Tooltip missing volume info: {text}");
+        if (!text.Contains("\n"))
+            throw new Exception($"Tooltip is not multi-line: {text}");
     }
 
     private static void AudioSessionMonitor_LivePlaybackCallbacks()
@@ -226,10 +238,10 @@ internal static class Program
         var capture = GetPlaybackCapture();
 
         Assert.True(
-            capture.TooltipText.StartsWith("SoundTracker 0.4.1", StringComparison.Ordinal),
+            capture.TooltipText.StartsWith(AppMetadata.TooltipPrefix, StringComparison.Ordinal),
             "Tray tooltip should include the current application version.");
         Assert.True(
-            capture.TooltipText.Contains(Environment.NewLine),
+            capture.TooltipText.Contains("\n"),
             "Tray tooltip should be multiline.");
         Assert.True(
             capture.TooltipText.Contains("Volume", StringComparison.OrdinalIgnoreCase) ||

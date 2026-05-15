@@ -151,10 +151,10 @@ internal sealed class RecentActivityForm : Form
             foreach (var activity in activities.OrderByDescending(activity => activity.TimestampUtc))
             {
                 var item = new ListViewItem(activity.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
-                item.SubItems.Add(TooltipFormatter.BuildRelativeAge(activity.TimestampUtc, nowUtc));
-                item.SubItems.Add(TooltipFormatter.BuildHistoryRow(activity));
+                item.SubItems.Add(ActivityLabelFormatter.BuildRelativeAge(activity.TimestampUtc, nowUtc));
+                item.SubItems.Add(ActivityLabelFormatter.BuildHistoryRow(activity));
                 item.SubItems.Add(activity.Description);
-                item.SubItems.Add(TooltipFormatter.BuildDuration(activity.Duration));
+                item.SubItems.Add(ActivityLabelFormatter.BuildDuration(activity.Duration));
                 item.SubItems.Add(activity.DeviceId ?? string.Empty);
                 _activityListView.Items.Add(item);
             }

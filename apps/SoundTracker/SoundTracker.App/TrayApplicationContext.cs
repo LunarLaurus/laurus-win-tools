@@ -143,7 +143,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _notifyIcon = TrayIcon.ForApp("SoundTracker");
         _notifyIcon.Icon = SystemIcons.Information;
-        _notifyIcon.Text = $"{AppMetadata.TooltipPrefix}: starting";
+        _notifyIcon.TooltipText = $"{AppMetadata.TooltipPrefix}: starting";
         _notifyIcon.Visible = showNotifyIcon;
 
         _iconProvider = new AudioIconProvider();
@@ -350,17 +350,29 @@ internal sealed class TrayApplicationContext : ApplicationContext
             var sessions = _audioSessionSource.GetActiveSessionNames();
             var recentActivities = _activityTimeline.GetRecentEvents(100);
             UpdateTrayIcon(volumeSnapshot);
-            _notifyIcon.Text = TooltipFormatter.BuildMultiline(volumeSnapshot, sessions, recentActivities);
-            _volumeStatusItem.Text = TooltipFormatter.BuildVolumeMenuLabel(volumeSnapshot);
-            _activeStatusItem.Text = TooltipFormatter.BuildActiveMenuLabel(sessions);
-            _recentStatusItem.Text = TooltipFormatter.BuildRecentMenuLabel(recentActivities);
+            var tb = new TrayTooltipBuilder()
+                .AddRequired(AppMetadata.TooltipPrefix)
+                .AddRequired(BuildVolumeSummaryInline(volumeSnapshot));
+            if (sessions.Count > 0)
+            {
+                tb.AddOptional(BuildActiveTooltipSummaryInline(sessions));
+            }
+            else
+            {
+                var recent = BuildRecentTooltipSummaryInline(recentActivities, DateTimeOffset.UtcNow);
+                if (recent is not null) tb.AddOptional(recent);
+            }
+            _notifyIcon.Tooltip = tb;
+            _volumeStatusItem.Text = ActivityLabelFormatter.BuildVolumeMenuLabel(volumeSnapshot);
+            _activeStatusItem.Text = ActivityLabelFormatter.BuildActiveMenuLabel(sessions);
+            _recentStatusItem.Text = ActivityLabelFormatter.BuildRecentMenuLabel(recentActivities);
             _recentActivityForm.RefreshEntries(sessions, recentActivities);
             AppLog.Info($"refresh sessions success volume={volumeSnapshot.Percent} muted={volumeSnapshot.IsMuted} count={sessions.Count} historyCount={recentActivities.Count} tooltip=\"{_notifyIcon.Text}\" elapsedMs={started.ElapsedMilliseconds}");
         }
         catch (Exception ex)
         {
             Debug.WriteLine(ex);
-            _notifyIcon.Text = "Sound Tracker: unavailable";
+            _notifyIcon.TooltipText = "Sound Tracker: unavailable";
             _volumeStatusItem.Text = "Volume: unavailable";
             _activeStatusItem.Text = "Audio session query failed";
             _recentStatusItem.Text = "Recent activity unavailable";
@@ -402,6 +414,64 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             AppLog.Error("failed to launch volume mixer", ex);
         }
+    }
+
+    private static string BuildVolumeSummaryInline(EndpointVolumeSnapshot snapshot)
+    {
+        if (!snapshot.IsAvailable) return "Volume unavailable";
+        return snapshot.IsMuted
+            ? $"Muted {snapshot.Percent}%"
+            : $"Volume {snapshot.Percent}%";
+    }
+
+    private static string BuildActiveTooltipSummaryInline(IReadOnlyList<string> activeSessions)
+    {
+        if (activeSessions.Count == 1)
+        {
+            return $"Active: {CompactSourceInline(activeSessions[0])}";
+        }
+        return $"Active: {activeSessions.Count} apps";
+    }
+
+    private static string? BuildRecentTooltipSummaryInline(
+        IReadOnlyList<AudioActivityEvent> recentActivities,
+        DateTimeOffset nowUtc)
+    {
+        var latest = recentActivities
+            .OrderByDescending(a => a.TimestampUtc)
+            .FirstOrDefault();
+        if (latest is null) return null;
+
+        var age = BuildCompactAgeInline(latest.TimestampUtc, nowUtc);
+        var source = CompactSourceInline(latest.Description);
+
+        return latest.Kind switch
+        {
+            AudioActivityKind.ObservedActive       => $"Recent: heard {source} {age}",
+            AudioActivityKind.Started              => $"Recent: start {source} {age}",
+            AudioActivityKind.Stopped              => $"Recent: stop {source} {age}",
+            AudioActivityKind.DefaultDeviceChanged => $"Recent: device {age}",
+            _                                      => $"Recent: {source} {age}",
+        };
+    }
+
+    private static string CompactSourceInline(string description)
+    {
+        var value = description.Trim();
+        if (value.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            value = value[..^4];
+        if (value.Length <= 16) return value;
+        return value[..13] + "...";
+    }
+
+    private static string BuildCompactAgeInline(DateTimeOffset timestampUtc, DateTimeOffset nowUtc)
+    {
+        var age = nowUtc - timestampUtc;
+        if (age < TimeSpan.Zero) age = TimeSpan.Zero;
+        if (age < TimeSpan.FromMinutes(1)) return $"{Math.Max(0, (int)age.TotalSeconds)}s";
+        if (age < TimeSpan.FromHours(1))   return $"{(int)age.TotalMinutes}m";
+        if (age < TimeSpan.FromDays(1))    return $"{(int)age.TotalHours}h";
+        return $"{(int)age.TotalDays}d";
     }
 
     private void UpdateTrayIcon(EndpointVolumeSnapshot volumeSnapshot)
