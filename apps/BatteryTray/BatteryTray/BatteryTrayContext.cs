@@ -57,6 +57,8 @@ public sealed class BatteryTrayContext : ApplicationContext
         _iconManager = new TrayIconManager(_notifyIcon, _iconProvider, TrayTheme.Current);
         _notifyIcon.DoubleClick += (_, _) => OpenSettings();
 
+        TrayTheme.Current.SetOverride((ThemePreference)(int)_settings.Theme);
+
         _notifier = new Notifier(_notifyIcon);
 
         _powerListener = new PowerEventListener();

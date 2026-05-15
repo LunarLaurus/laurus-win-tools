@@ -1,4 +1,5 @@
 using System.Windows.Forms;
+using WindowsTrayCore;
 
 namespace BatteryTray;
 
@@ -178,6 +179,8 @@ public sealed class SettingsForm : Form
 
         _themeCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
         _themeCombo.Items.AddRange(new object[] { "Auto (follow Windows)", "Light", "Dark" });
+        _themeCombo.SelectedIndexChanged += (_, _) =>
+            TrayTheme.Current.SetOverride((ThemePreference)_themeCombo.SelectedIndex);
 
         AddRow(grid, "Icon style:", _styleCombo);
         AddRow(grid, "Theme:",      _themeCombo);
