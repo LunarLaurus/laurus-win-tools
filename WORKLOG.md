@@ -482,6 +482,21 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-15
+
+**Did:** Phase 28.1 polish: tooltip version-suffix strip + SoundTracker Recent/Active reformat.
+- Extracted `WindowsTrayCore.VersionFormatter.TrimSemverSuffix` (was a private `AboutDialog` helper). AboutDialog now delegates. All four app tooltip composers wrap version strings in the helper so `+abc1234` build-metadata suffixes no longer eat tooltip budget. Log records and update-comparison code keep the full version string.
+- SoundTracker Recent strings now read as natural English with past-tense verbs and an explicit `ago` anchor (e.g. `"Recent: Chrome started 12m ago"`; previously `"Recent: start Chrome 12m"`). Age formatting delegated to `ActivityLabelFormatter.BuildRelativeAge` so tooltip and menu use the same `"{n}m ago"` form.
+- SoundTracker Active line lists up to two names with `"+N more"` overflow tail; previously `"Active: 3 apps"` lost every name to a count.
+
+**Tests:** 9 new `VersionFormatterTests` (5 strip cases + 3 null/empty + 1 no-suffix). All 297 unit tests still green; SoundTracker smoke 10/10.
+
+**Committed:** 198c670 (VersionFormatter), 4992151 (four-app strip), 0958374 (SoundTracker phrasing), this commit (WORKLOG).
+
+**Next:** Phase 29 (tbd)
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
