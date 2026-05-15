@@ -47,7 +47,10 @@ public static class Theme
             if (e.Index < 0) return;
             bool sel = (e.State & DrawItemState.Selected) != 0;
             using var bg = new SolidBrush(sel ? Accent : Surface);
-            using var fg = new SolidBrush(sel ? Color.White : Text);
+            // Selected-row foreground tracks the accent's luminance so a
+            // light user accent (yellow, mint, etc) gets black text and a
+            // dark accent gets white. Unselected rows use the normal text.
+            using var fg = new SolidBrush(sel ? TrayTheme.Current.AccentOn : Text);
             e.Graphics.FillRectangle(bg, e.Bounds);
             e.Graphics.DrawString(lb.Items[e.Index]?.ToString(), Body, fg,
                                   e.Bounds.X + 10, e.Bounds.Y + 5);
