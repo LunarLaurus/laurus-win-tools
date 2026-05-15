@@ -17,6 +17,21 @@
     <ProjectReference Include="..\..\..\shared\WindowsTrayCore\WindowsTrayCore.csproj" />
   </ItemGroup>
 
+  <!--
+    Generate app.ico from tools/IconGen at build time. Incremental via
+    Inputs/Outputs: only re-runs when the generator source is newer than
+    the produced .ico. Runs before any IDE/MSBuild step that might read
+    the icon (ApplicationIcon, resource compile, publish).
+  -->
+  <Target Name="GenerateAppIcon"
+          BeforeTargets="PrepareForBuild"
+          Inputs="..\..\..\tools\IconGen\Program.cs;..\..\..\tools\IconGen\IconGen.csproj"
+          Outputs="app.ico">
+    <Message Importance="high" Text="ClipTray: regenerating app.ico from tools/IconGen..." />
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\..\..\tools\IconGen\IconGen.csproj&quot; --configuration Release -- --glyph clipboard &quot;$(MSBuildThisFileDirectory)app.ico&quot;"
+          ConsoleToMsBuild="true" />
+  </Target>
+
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>ClipTray.Tests</_Parameter1>
