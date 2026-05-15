@@ -14,6 +14,14 @@ namespace WindowsTrayCore;
 /// clones the bits into a managed-owned Icon and immediately destroys the
 /// source handle, so callers get away with plain <c>using</c> blocks.
 /// </para>
+/// <para>
+/// This helper is the runtime-drawing path for <b>stateful</b> tray icons
+/// (battery %, mute, count badges). <b>Static brand glyphs</b> belong in a
+/// build-time .ico produced by <c>tools/IconGen</c> rather than here; see
+/// <c>docs/conventions/tray-icons.md</c> for the static-vs-stateful rule
+/// and why every app needs a static .ico regardless of whether it also
+/// does runtime drawing.
+/// </para>
 /// </summary>
 public static class IconBuilder
 {
