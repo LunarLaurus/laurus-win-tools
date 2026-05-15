@@ -82,4 +82,90 @@ public class TrayThemeTests
         theme.SimulatePreferenceChanged(isLight: false);
         fired.Should().BeFalse();
     }
+
+    // ── New Fluent token tests ─────────────────────────────────────────────
+
+    [Fact]
+    public void Surface_LightTheme_IsCanonicalLight()
+    {
+        new TrayTheme(isLight: true).Surface.Should().Be(Color.FromArgb(0xF4, 0xF4, 0xF8));
+    }
+
+    [Fact]
+    public void Surface_DarkTheme_IsCanonicalDark()
+    {
+        new TrayTheme(isLight: false).Surface.Should().Be(Color.FromArgb(0x18, 0x18, 0x2D));
+    }
+
+    [Fact]
+    public void SurfaceAlt_LightTheme_IsWhite()
+    {
+        new TrayTheme(isLight: true).SurfaceAlt.Should().Be(Color.FromArgb(0xFF, 0xFF, 0xFF));
+    }
+
+    [Fact]
+    public void SurfaceStroke_LightTheme_IsNeutralBorder()
+    {
+        new TrayTheme(isLight: true).SurfaceStroke.Should().Be(Color.FromArgb(0xD8, 0xD8, 0xE0));
+    }
+
+    [Fact]
+    public void Foreground_LightTheme_IsCanonicalText()
+    {
+        new TrayTheme(isLight: true).Foreground.Should().Be(Color.FromArgb(0x1A, 0x1A, 0x2E));
+    }
+
+    [Fact]
+    public void ForegroundAlt_DarkTheme_HasHigherContrastThanOldTextMuted()
+    {
+        new TrayTheme(isLight: false).ForegroundAlt.Should().Be(Color.FromArgb(0x9A, 0x95, 0xB0));
+    }
+
+    [Fact]
+    public void ForegroundDim_LightTheme_IsCanonicalPlaceholder()
+    {
+        new TrayTheme(isLight: true).ForegroundDim.Should().Be(Color.FromArgb(0x90, 0x90, 0xA4));
+    }
+
+    [Fact]
+    public void Warning_LightTheme_IsAmber()
+    {
+        new TrayTheme(isLight: true).Warning.Should().Be(Color.FromArgb(0xB4, 0x53, 0x09));
+    }
+
+    [Fact]
+    public void AccentOn_DependsOnAccentLuminance()
+    {
+        var darkAccent = Color.FromArgb(0, 0x78, 0xD4);
+        var lightAccent = Color.FromArgb(0xFB, 0xBF, 0x24);
+
+        var darkTheme = new TrayTheme(isLight: false, accent: darkAccent, isHighContrast: false);
+        var lightTheme = new TrayTheme(isLight: false, accent: lightAccent, isHighContrast: false);
+
+        darkTheme.AccentOn.Should().Be(Color.FromArgb(0xFF, 0xFF, 0xFF));
+        lightTheme.AccentOn.Should().Be(Color.FromArgb(0, 0, 0));
+    }
+
+    [Fact]
+    public void AccentSubtle_IsAccentBlendedOverSurface()
+    {
+        var accent = Color.FromArgb(0xFF, 0, 0);
+        var theme = new TrayTheme(isLight: true, accent: accent, isHighContrast: false);
+
+        theme.AccentSubtle.G.Should().BeLessThan(theme.Surface.G);
+    }
+
+    [Fact]
+    public void LegacyAlias_Background_ForwardsToSurface()
+    {
+        var theme = new TrayTheme(isLight: true);
+        theme.Background.Should().Be(theme.Surface);
+    }
+
+    [Fact]
+    public void LegacyAlias_Field_ForwardsToSurfaceAlt()
+    {
+        var theme = new TrayTheme(isLight: true);
+        theme.Field.Should().Be(theme.SurfaceAlt);
+    }
 }
