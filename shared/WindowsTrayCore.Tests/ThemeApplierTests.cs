@@ -11,8 +11,8 @@ public class ThemeApplierTests
         using var form = new Form();
         var theme = new TrayTheme(isLight: false);
         ThemeApplier.ApplyTo(form, theme);
-        form.BackColor.Should().Be(theme.Background);
-        form.ForeColor.Should().Be(theme.Text);
+        form.BackColor.Should().Be(theme.Surface);
+        form.ForeColor.Should().Be(theme.Foreground);
     }
 
     [WindowsFact]
@@ -27,8 +27,8 @@ public class ThemeApplierTests
         var theme = new TrayTheme(isLight: false);
         ThemeApplier.ApplyTo(form, theme);
 
-        inner.ForeColor.Should().Be(theme.Text);
-        inner.BackColor.Should().Be(theme.Background);
+        inner.ForeColor.Should().Be(theme.Foreground);
+        inner.BackColor.Should().Be(theme.Surface);
     }
 
     [WindowsFact]
@@ -39,7 +39,7 @@ public class ThemeApplierTests
         form.Controls.Add(tb);
         var theme = new TrayTheme(isLight: true);
         ThemeApplier.ApplyTo(form, theme);
-        tb.BackColor.Should().Be(theme.Field);
+        tb.BackColor.Should().Be(theme.SurfaceAlt);
         tb.BorderStyle.Should().Be(BorderStyle.FixedSingle);
     }
 

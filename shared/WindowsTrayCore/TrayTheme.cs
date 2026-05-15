@@ -127,14 +127,6 @@ public sealed class TrayTheme : IDisposable
         ? Color.FromArgb(0x2D, 0x8A, 0x4E)
         : Color.FromArgb(0x50, 0xC8, 0x78);
 
-    // ── Legacy token aliases (deleted in Task 14) ──────────────────────────
-    // Kept transiently so apps build during the migration commits.
-
-    public Color Background => Surface;
-    public Color Text => Foreground;
-    public Color TextMuted => ForegroundAlt;
-    public Color Field => SurfaceAlt;
-
     // ── Testing hooks ──────────────────────────────────────────────────────
 
     internal void SimulatePreferenceChanged(bool isLight)

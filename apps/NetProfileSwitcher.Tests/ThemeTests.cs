@@ -14,7 +14,7 @@ public class ThemeTests : IDisposable
     public void Bg_DelegatesToTrayThemeCurrent()
     {
         TrayTheme.Current.SimulatePreferenceChanged(isLight: false);
-        Theme.Bg.Should().Be(TrayTheme.Current.Background);
+        Theme.Bg.Should().Be(TrayTheme.Current.Surface);
     }
 
     [WindowsFact]

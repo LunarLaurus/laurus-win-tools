@@ -497,6 +497,26 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-15
+
+**Did:** Phase 29 implementation: Fluent-style theme tokens, system accent following, dark title bar, live system reaction.
+- `WindowsTrayCore.ThemePreference` enum + `WindowsTrayCore.AccentColors` static helper (DwmGetColorizationColor + registry fallback + WCAG-luminance-based AccentOn derivation + 24% subtle blend).
+- `WindowsTrayCore.TrayTheme` rewritten with 12 Fluent semantic tokens: Surface, SurfaceAlt, SurfaceStroke, Foreground, ForegroundAlt, ForegroundDim, Accent, AccentOn, AccentSubtle, Warning, Error, Success. Old eight-property surface (Background, Surface, Text, TextMuted, Field, plus Accent/Success/Error which kept names) replaced; legacy aliases survived four migration commits then deleted in the final commit.
+- Live system reaction via hidden NativeWindow handling WM_SETTINGCHANGE (light/dark + high-contrast) and WM_DWMCOLORIZATIONCOLORCHANGED (accent). Replaces the prior SystemEvents.UserPreferenceChanged subscription.
+- `TrayTheme.SetOverride(ThemePreference)` per-app override. BatteryTray's existing `_themeCombo` (previously unwired since Phase 22) now actually applies; the persisted IconTheme value is restored on launch via a startup SetOverride call in BatteryTrayContext.
+- `WindowsTrayCore.ThemeApplier.ApplyTitleBar` via `DwmSetWindowAttribute` (attribute 20 with attribute 19 fallback for Win10 1809-1902). Auto-invoked by `ApplyTo(Form, theme)` before the control-tree walk.
+- All five token consumer surfaces migrated: shared AboutDialog + ThemeApplier internals, NetProfileSwitcher's local `Theme.cs` alias class, plus BatteryTray's combo wiring. ProgramHider and SoundTracker's TrayApplicationContext delegate entirely through `ThemeApplier.ApplyTo`, so they required zero token-reference changes; SoundTracker's SettingsForm and RecentActivityForm did need direct migrations.
+
+**Tests:** 338 unit tests green across the six suites (WindowsTrayCore 139 [+32 over Phase 28.1 from TrayThemeTests + AccentColorsTests + ThemePreferenceTests], WindowsAppCore 85, BatteryTray 83, NetProfileSwitcher 6, SoundTracker 8, ProgramHider 17).
+
+**Execution model:** hybrid (same as Phase 28). Tasks 1-9 inline sequential (infrastructure + ThemeApplier integration + shared-lib internal migration). Tasks 10-13 parallel general-purpose subagents (per-app migrations); two of the four reported zero-diff because the apps delegate through `ThemeApplier.ApplyTo` for theming. NetProfileSwitcher subagent surfaced a plan inaccuracy (target file was `Theme.cs` alias class, not `MainForm.cs`); inline correction landed at ca88b3a. Task 14 inline breaking commit removes legacy aliases.
+
+**Committed:** 3584997 (ThemePreference), 2d6f2b7 (AccentColors pure), c75a9d7 (AccentColors.Read), 33200a1 (TrayTheme 12 tokens), 0d55910 (message window), 0a20cb1 (SetOverride), e654015 (ApplyTitleBar), 0f98c5d (ApplyTo integrates title-bar), 0122f5d (AboutDialog + ThemeApplier internals), 4a8483e (BatteryTray combo wiring), ca88b3a (NetProfileSwitcher Theme.cs), 0456464 (SoundTracker), this commit (alias removal + WORKLOG).
+
+**Next:** Phase 30 (ClipTray, per Commander's stated direction).
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*

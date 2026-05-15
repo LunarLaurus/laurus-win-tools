@@ -19,31 +19,20 @@ public class TrayThemeTests
     }
 
     [Fact]
-    public void DarkPalette_BackgroundMatchesSpec()
+    public void DarkPalette_AllTokensNonDefault()
     {
         var theme = new TrayTheme(isLight: false);
-        theme.Background.Should().Be(Color.FromArgb(0x18, 0x18, 0x2d));
-    }
-
-    [Fact]
-    public void LightPalette_BackgroundMatchesSpec()
-    {
-        var theme = new TrayTheme(isLight: true);
-        theme.Background.Should().Be(Color.FromArgb(0xf4, 0xf4, 0xf8));
-    }
-
-    [Fact]
-    public void DarkPalette_AllColorsNonDefault()
-    {
-        var theme = new TrayTheme(isLight: false);
-        theme.Background.Should().NotBe(Color.Empty);
         theme.Surface.Should().NotBe(Color.Empty);
-        theme.Text.Should().NotBe(Color.Empty);
-        theme.TextMuted.Should().NotBe(Color.Empty);
+        theme.SurfaceAlt.Should().NotBe(Color.Empty);
+        theme.SurfaceStroke.Should().NotBe(Color.Empty);
+        theme.Foreground.Should().NotBe(Color.Empty);
+        theme.ForegroundAlt.Should().NotBe(Color.Empty);
+        theme.ForegroundDim.Should().NotBe(Color.Empty);
         theme.Accent.Should().NotBe(Color.Empty);
-        theme.Success.Should().NotBe(Color.Empty);
+        theme.AccentOn.Should().NotBe(Color.Empty);
+        theme.Warning.Should().NotBe(Color.Empty);
         theme.Error.Should().NotBe(Color.Empty);
-        theme.Field.Should().NotBe(Color.Empty);
+        theme.Success.Should().NotBe(Color.Empty);
     }
 
     [Fact]
@@ -51,9 +40,9 @@ public class TrayThemeTests
     {
         var dark  = new TrayTheme(isLight: false);
         var light = new TrayTheme(isLight: true);
-        dark.Background.Should().NotBe(light.Background);
         dark.Surface.Should().NotBe(light.Surface);
-        dark.Text.Should().NotBe(light.Text);
+        dark.SurfaceAlt.Should().NotBe(light.SurfaceAlt);
+        dark.Foreground.Should().NotBe(light.Foreground);
     }
 
     [Fact]
@@ -153,20 +142,6 @@ public class TrayThemeTests
         var theme = new TrayTheme(isLight: true, accent: accent, isHighContrast: false);
 
         theme.AccentSubtle.G.Should().BeLessThan(theme.Surface.G);
-    }
-
-    [Fact]
-    public void LegacyAlias_Background_ForwardsToSurface()
-    {
-        var theme = new TrayTheme(isLight: true);
-        theme.Background.Should().Be(theme.Surface);
-    }
-
-    [Fact]
-    public void LegacyAlias_Field_ForwardsToSurfaceAlt()
-    {
-        var theme = new TrayTheme(isLight: true);
-        theme.Field.Should().Be(theme.SurfaceAlt);
     }
 
     // ── Live change simulation tests ───────────────────────────────────────
