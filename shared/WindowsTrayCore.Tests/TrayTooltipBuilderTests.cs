@@ -147,4 +147,71 @@ public class TrayTooltipBuilderTests
         // r1, o1, r2 in their original positions, o2 gone.
         result.Should().Be(r1 + "\n" + o1 + "\n" + r2);
     }
+
+    [Fact]
+    public void Build_RequiredOverflowsByItself_WordTruncatesLast()
+    {
+        const string text = "BatteryTray version 1.0.0 status charging at 47 percent with 3 hours 22 minutes remaining and Battery Saver active running on Asus ZenBook laptop";
+        text.Length.Should().BeGreaterThan(127); // sanity
+
+        var result = new TrayTooltipBuilder()
+            .AddRequired(text)
+            .Build();
+
+        result.Length.Should().BeLessOrEqualTo(127);
+        result.Should().EndWith(TrayTooltipBuilder.Ellipsis);
+        var beforeEllipsis = result[..^TrayTooltipBuilder.Ellipsis.Length];
+        beforeEllipsis.Should().NotEndWith(" ");
+    }
+
+    [Fact]
+    public void Build_MultipleRequiredOverflow_TruncatesOnlyLast()
+    {
+        var r1 = new string('A', 40);
+        var r2 = new string('B', 40);
+        var r3 = "word " + new string('C', 75);
+
+        var result = new TrayTooltipBuilder()
+            .AddRequired(r1)
+            .AddRequired(r2)
+            .AddRequired(r3)
+            .Build();
+
+        result.Length.Should().BeLessOrEqualTo(127);
+        result.Should().StartWith(r1 + "\n" + r2 + "\n");
+        result.Should().EndWith(TrayTooltipBuilder.Ellipsis);
+    }
+
+    [Fact]
+    public void Build_RequiredOverflow_KeepsWordBoundaryWhenAboveHalfBudget()
+    {
+        var parts = System.Linq.Enumerable.Range(0, 10)
+            .Select(i => $"word{i:D2}xx{new string('y', 12)}");
+        var text = string.Join(' ', parts);
+        text.Length.Should().BeGreaterThan(127);
+
+        var result = new TrayTooltipBuilder()
+            .AddRequired(text)
+            .Build();
+
+        result.Should().EndWith(TrayTooltipBuilder.Ellipsis);
+        var beforeEllipsis = result[..^TrayTooltipBuilder.Ellipsis.Length];
+        beforeEllipsis.Should().NotEndWith(" ");
+        beforeEllipsis.TrimEnd().Length.Should().Be(beforeEllipsis.Length);
+    }
+
+    [Fact]
+    public void Build_RequiredOverflow_NoUsefulWordBoundary_HardCuts()
+    {
+        var text = new string('x', 200);
+
+        var result = new TrayTooltipBuilder()
+            .AddRequired(text)
+            .Build();
+
+        result.Length.Should().BeLessOrEqualTo(127);
+        result.Should().EndWith(TrayTooltipBuilder.Ellipsis);
+        var beforeEllipsis = result[..^TrayTooltipBuilder.Ellipsis.Length];
+        beforeEllipsis.All(c => c == 'x').Should().BeTrue();
+    }
 }

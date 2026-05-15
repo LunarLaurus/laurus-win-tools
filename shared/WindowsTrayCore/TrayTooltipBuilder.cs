@@ -53,11 +53,60 @@ public sealed class TrayTooltipBuilder
         if (TotalLength(working) <= MaxLength)
             return JoinLines(working);
 
-        // Required-line overflow falls through to Task 4's truncation logic.
-        // For now, return the partial join so the over-budget tests in Task 3
-        // observe correct optional-drop behaviour. The required-overflow
-        // tests are added in Task 4.
-        return JoinLines(working);
+        // Required lines alone exceed budget. Keep all but the last intact;
+        // truncate the last with an ellipsis at a word boundary when possible.
+        return TruncateLastRequired(working);
+    }
+
+    private static string TruncateLastRequired(List<Line> required)
+    {
+        // Compose the prefix (all lines before the last) intact.
+        // If a single required line overflows, prefix is empty.
+        var prefix = required.Count > 1
+            ? string.Join(LineSeparator, EnumerateExceptLast(required))
+            : string.Empty;
+
+        int prefixCost = prefix.Length + (required.Count > 1 ? 1 : 0);
+        int lastBudget = MaxLength - prefixCost - Ellipsis.Length;
+
+        if (lastBudget <= 0)
+        {
+            // Earlier required lines alone are at or past budget. Hard-cut
+            // the whole join. Degenerate case for any realistic tooltip; the
+            // contract is "fit at any cost, do not exceed".
+            var combined = string.Join(LineSeparator, EnumerateAllText(required));
+            return combined.Length <= MaxLength ? combined : combined[..MaxLength];
+        }
+
+        var last = required[required.Count - 1].Text;
+        var truncated = WordBoundaryTruncate(last, lastBudget);
+        return prefix.Length > 0
+            ? prefix + LineSeparator + truncated + Ellipsis
+            : truncated + Ellipsis;
+    }
+
+    private static IEnumerable<string> EnumerateExceptLast(List<Line> lines)
+    {
+        for (int i = 0; i < lines.Count - 1; i++) yield return lines[i].Text;
+    }
+
+    private static IEnumerable<string> EnumerateAllText(List<Line> lines)
+    {
+        foreach (var line in lines) yield return line.Text;
+    }
+
+    private static string WordBoundaryTruncate(string text, int budget)
+    {
+        if (text.Length <= budget) return text;
+
+        // Look for the last ASCII space within the budget window.
+        int lastSpace = text.LastIndexOf(' ', budget - 1, budget);
+        if (lastSpace >= budget / 2)
+        {
+            return text[..lastSpace].TrimEnd();
+        }
+
+        return text[..budget].TrimEnd();
     }
 
     private static int TotalLength(List<Line> lines)
