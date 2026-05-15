@@ -410,7 +410,7 @@ public class MainForm : Form
         _trayMenu.Opening += (_, _) => RebuildTrayMenu();
 
         _tray = TrayIcon.ForApp("NetProfileSwitcher");
-        _tray.Text = $"NetProfileSwitcher {Application.ProductVersion}";
+        _tray.TooltipText = $"NetProfileSwitcher v{Application.ProductVersion}";
         _tray.Icon = Icons.GetTrayIcon(TrayState.Idle);
         _tray.ContextMenuStrip = _trayMenu;
         _tray.Visible = true;
@@ -519,7 +519,7 @@ public class MainForm : Form
         if (ssid == _lastSsid) return;
 
         _lastSsid = ssid;
-        _tray.Text = BuildTrayTooltip();
+        _tray.Tooltip = BuildTrayTooltip();
 
         if (!string.IsNullOrEmpty(ssid) && _cfg.MonitorEnabled)
         {
@@ -806,24 +806,20 @@ public class MainForm : Form
     private void SetStatus(string msg)
     {
         _statusLabel.Text = msg;
-        _tray.Text = BuildTrayTooltip();
+        _tray.Tooltip = BuildTrayTooltip();
     }
 
-    private string BuildTrayTooltip()
+    private TrayTooltipBuilder BuildTrayTooltip()
     {
-        string ssid = string.IsNullOrEmpty(_lastSsid) ? "not connected" : _lastSsid;
         var matched = _cfg.Profiles.FirstOrDefault(p =>
             p.LinkedSsids.Any(s => s.Equals(_lastSsid, StringComparison.OrdinalIgnoreCase)));
-        string summary = matched != null
-            ? $"{matched.Name} · {ssid}"
-            : $"No profile · {ssid}";
-        return summary.Length <= 63 ? summary : TruncateAtWord(summary, 63);
-    }
-
-    private static string TruncateAtWord(string text, int maxLen)
-    {
-        int cut = text.LastIndexOf(' ', maxLen - 1);
-        return cut > 0 ? text[..cut] + "…" : text[..maxLen];
+        string profileLine = matched != null ? $"Profile: {matched.Name}" : "Profile: (none)";
+        var tb = new TrayTooltipBuilder()
+            .AddRequired($"NetProfileSwitcher v{Application.ProductVersion}")
+            .AddRequired(profileLine);
+        if (!string.IsNullOrEmpty(_lastSsid))
+            tb.AddOptional($"SSID: {_lastSsid}");
+        return tb;
     }
 
     // ── Theme ──────────────────────────────────────────────────────────────
