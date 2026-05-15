@@ -73,6 +73,32 @@ public sealed class SettingsForm : Form
 
         BuildLayout();
         LoadValues();
+
+        ThemeApplier.ApplyTo(this, TrayTheme.Current);
+        TrayTheme.Current.Changed += OnThemeChanged;
+        Disposed += (_, _) => TrayTheme.Current.Changed -= OnThemeChanged;
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        ThemeApplier.ApplyTo(this, TrayTheme.Current);
+        ApplyHintColors();
+    }
+
+    private void ApplyHintColors()
+    {
+        var dim = TrayTheme.Current.ForegroundDim;
+        foreach (Control c in Controls)
+            ApplyHintColorsToTree(c, dim);
+        _hwDriftHint.ForeColor = TrayTheme.Current.Warning;
+    }
+
+    private static void ApplyHintColorsToTree(Control root, System.Drawing.Color dim)
+    {
+        if (root.Tag is string tag && tag == "hint")
+            root.ForeColor = dim;
+        foreach (Control child in root.Controls)
+            ApplyHintColorsToTree(child, dim);
     }
 
     private void BuildLayout()
@@ -115,8 +141,9 @@ public sealed class SettingsForm : Form
             Text = "Updates are event-driven; this interval is a safety net for when\n"
                  + "Windows doesn't fire change events. Higher values = lower CPU.",
             AutoSize = true,
-            ForeColor = System.Drawing.SystemColors.GrayText,
+            ForeColor = TrayTheme.Current.ForegroundDim,
             Margin = new Padding(0, 8, 0, 0),
+            Tag = "hint",
         };
         grid.RowCount += 1;
         grid.Controls.Add(hint, 0, grid.RowCount - 1);
@@ -237,8 +264,9 @@ public sealed class SettingsForm : Form
         var planHint = new Label
         {
             AutoSize = true,
-            ForeColor = System.Drawing.SystemColors.GrayText,
+            ForeColor = TrayTheme.Current.ForegroundDim,
             Margin = new Padding(0, 16, 0, 0),
+            Tag = "hint",
             Text = _powerPlans.Count == 0
                 ? "No power plans detected. On Windows 11, run\n"
                   + "  powercfg -duplicatescheme 381b4222-f694-41f0-9685-ff5bb260df2e\n"
@@ -253,16 +281,18 @@ public sealed class SettingsForm : Form
         {
             Text = "BATTERY SAVER",
             AutoSize = true,
-            ForeColor = System.Drawing.SystemColors.GrayText,
+            ForeColor = TrayTheme.Current.ForegroundDim,
             Font = new System.Drawing.Font(SystemFonts.DefaultFont.FontFamily, 8.5f, System.Drawing.FontStyle.Bold),
             Margin = new Padding(0, 24, 0, 4),
+            Tag = "hint",
         };
 
         var saverHint = new Label
         {
             AutoSize = true,
-            ForeColor = System.Drawing.SystemColors.GrayText,
+            ForeColor = TrayTheme.Current.ForegroundDim,
             Margin = new Padding(0, 0, 0, 8),
+            Tag = "hint",
             Text = "Windows controls Battery Saver activation directly. BatteryTray\n"
                  + "observes its state (to suppress redundant alerts and show the leaf\n"
                  + "indicator) but cannot enable or disable it — that's by design.",
@@ -346,7 +376,7 @@ public sealed class SettingsForm : Form
             AutoSize = true,
             Anchor = AnchorStyles.Left,
             Visible = false,
-            ForeColor = System.Drawing.SystemColors.GrayText,
+            ForeColor = TrayTheme.Current.Warning,
         };
         panel.Controls.Add(_hwDriftHint, 0, 6);
         panel.SetColumnSpan(_hwDriftHint, 2);
@@ -401,8 +431,9 @@ public sealed class SettingsForm : Form
                  + "Windows will prompt for UAC consent once when you save. After that,\n"
                  + "BatteryTray launches silently and elevated at every login.",
             AutoSize = true,
-            ForeColor = System.Drawing.SystemColors.GrayText,
+            ForeColor = TrayTheme.Current.ForegroundDim,
             Margin = new Padding(20, 4, 0, 12),
+            Tag = "hint",
         };
 
         var crashLogLink = new LinkLabel
