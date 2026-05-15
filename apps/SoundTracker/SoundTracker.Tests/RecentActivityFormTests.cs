@@ -9,19 +9,19 @@ public class RecentActivityFormTests : IDisposable
     public void Dispose() => TrayTheme.Current.SimulatePreferenceChanged(isLight: false);
 
     [WindowsFact]
-    public void BackColor_DarkMode_MatchesTrayThemeBackground()
+    public void BackColor_DarkMode_MatchesTrayThemeSurface()
     {
         TrayTheme.Current.SimulatePreferenceChanged(isLight: false);
         using var form = new SoundTracker.App.RecentActivityForm();
-        form.BackColor.Should().Be(TrayTheme.Current.Background);
+        form.BackColor.Should().Be(TrayTheme.Current.Surface);
     }
 
     [WindowsFact]
-    public void BackColor_LightMode_MatchesTrayThemeBackground()
+    public void BackColor_LightMode_MatchesTrayThemeSurface()
     {
         TrayTheme.Current.SimulatePreferenceChanged(isLight: true);
         using var form = new SoundTracker.App.RecentActivityForm();
-        form.BackColor.Should().Be(TrayTheme.Current.Background);
+        form.BackColor.Should().Be(TrayTheme.Current.Surface);
     }
 
     [WindowsFact]
@@ -34,6 +34,6 @@ public class RecentActivityFormTests : IDisposable
         TrayTheme.Current.SimulatePreferenceChanged(isLight: true);
 
         form.BackColor.Should().NotBe(darkBg);
-        form.BackColor.Should().Be(TrayTheme.Current.Background);
+        form.BackColor.Should().Be(TrayTheme.Current.Surface);
     }
 }

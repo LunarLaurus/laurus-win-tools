@@ -26,8 +26,8 @@ internal sealed class SettingsForm : Form
         MinimizeBox = false;
         MaximizeBox = false;
         ShowInTaskbar = false;
-        BackColor = theme.Background;
-        ForeColor = theme.Text;
+        BackColor = theme.Surface;
+        ForeColor = theme.Foreground;
         ClientSize = new Size(440, 240);
 
         var pad = 18;
@@ -39,8 +39,8 @@ internal sealed class SettingsForm : Form
         Label MakeLabel(string text, int y) => new()
         {
             Text = text,
-            ForeColor = theme.Text,
-            BackColor = theme.Background,
+            ForeColor = theme.Foreground,
+            BackColor = theme.Surface,
             Location = new Point(pad, y + 4),
             Size = new Size(labelWidth, 22),
         };
@@ -53,8 +53,8 @@ internal sealed class SettingsForm : Form
             Checked = _startup.IsRegistered,
             Location = new Point(inputLeft, y + 2),
             AutoSize = true,
-            BackColor = theme.Background,
-            ForeColor = theme.Text,
+            BackColor = theme.Surface,
+            ForeColor = theme.Foreground,
             FlatStyle = FlatStyle.Standard,
             Text = "Launch automatically on logon",
         };
@@ -69,16 +69,16 @@ internal sealed class SettingsForm : Form
             Value = Math.Clamp(_config.StartupDelaySeconds, 0, 300),
             Location = new Point(inputLeft, y),
             Width = 80,
-            BackColor = theme.Field,
-            ForeColor = theme.Text,
+            BackColor = theme.SurfaceAlt,
+            ForeColor = theme.Foreground,
             BorderStyle = BorderStyle.FixedSingle,
         };
         Controls.Add(_startupDelay);
         var delayHint = new Label
         {
             Text = "Wait this long after logon before sampling audio.",
-            ForeColor = theme.TextMuted,
-            BackColor = theme.Background,
+            ForeColor = theme.ForegroundAlt,
+            BackColor = theme.Surface,
             Location = new Point(inputLeft + 88, y + 4),
             Size = new Size(inputWidth - 88, 22),
         };
@@ -89,8 +89,8 @@ internal sealed class SettingsForm : Form
         _settingsPathValue = new Label
         {
             Text = _config.SettingsFilePath,
-            ForeColor = theme.TextMuted,
-            BackColor = theme.Background,
+            ForeColor = theme.ForegroundAlt,
+            BackColor = theme.Surface,
             Location = new Point(inputLeft, y + 4),
             Size = new Size(inputWidth, 22),
             AutoEllipsis = true,
@@ -102,8 +102,8 @@ internal sealed class SettingsForm : Form
         {
             Text = "&Save",
             DialogResult = DialogResult.None,
-            BackColor = theme.Surface,
-            ForeColor = theme.Text,
+            BackColor = theme.SurfaceAlt,
+            ForeColor = theme.Foreground,
             FlatStyle = FlatStyle.Flat,
             AutoSize = true,
             Location = new Point(ClientSize.Width - pad - 160, ClientSize.Height - pad - 32),
@@ -116,8 +116,8 @@ internal sealed class SettingsForm : Form
         {
             Text = "&Cancel",
             DialogResult = DialogResult.Cancel,
-            BackColor = theme.Surface,
-            ForeColor = theme.Text,
+            BackColor = theme.SurfaceAlt,
+            ForeColor = theme.Foreground,
             FlatStyle = FlatStyle.Flat,
             AutoSize = true,
             Location = new Point(ClientSize.Width - pad - 80, ClientSize.Height - pad - 32),
