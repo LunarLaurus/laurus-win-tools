@@ -607,6 +607,13 @@ public sealed class SettingsForm : Form
         _hwPowerButtonDc.Visible       = differ;
         _hwOnBatteryLidLabel.Visible   = differ;
         _hwLidCloseDc.Visible          = differ;
+
+        HardwareActionsController.EmitReadEvent(new
+        {
+            liveAc = new { pb = live.PowerButtonAc, lc = live.LidCloseAc },
+            liveDc = new { pb = live.PowerButtonDc, lc = live.LidCloseDc },
+            hintShown = _hwDriftHint.Visible,
+        });
     }
 
     /// <summary>

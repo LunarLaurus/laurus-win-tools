@@ -258,6 +258,14 @@ public static class HardwareActionsController
         }
     }
 
+    /// <summary>
+    /// Forwards a "hwactions.read" Info event into the wired AppLog (or no-op
+    /// if LogSink is unset, e.g. in tests). Called from SettingsForm after the
+    /// drift-hint decision so the payload can include hintShown.
+    /// </summary>
+    internal static void EmitReadEvent(object data) =>
+        AppLogIfAvailable("hwactions.read", LogLevel.Info, data);
+
     // AppLog is created in Program.cs and not statically accessible here.
     // Program wires LogSink at startup; if unset (e.g. in tests), the call is a no-op.
     internal static Action<string, LogLevel, object?>? LogSink;
