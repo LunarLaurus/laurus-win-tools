@@ -24,11 +24,30 @@ public static class ThemeApplier
     /// official since Win10 1903) first, falls back to attribute 19 (the
     /// undocumented predecessor for 1809-1902). No-op on older builds and on
     /// any HRESULT failure; the title bar stays default-themed.
+    ///
+    /// Safe to call from form constructors: if the handle has not been created
+    /// yet, the call is deferred until <see cref="Control.HandleCreated"/> fires.
     /// </summary>
     public static void ApplyTitleBar(Form form, bool dark)
     {
-        if (form is null || !form.IsHandleCreated) return;
+        if (form is null) return;
 
+        if (!form.IsHandleCreated)
+        {
+            void OnceHandleCreated(object? sender, EventArgs e)
+            {
+                form.HandleCreated -= OnceHandleCreated;
+                SetTitleBarAttribute(form, dark);
+            }
+            form.HandleCreated += OnceHandleCreated;
+            return;
+        }
+
+        SetTitleBarAttribute(form, dark);
+    }
+
+    private static void SetTitleBarAttribute(Form form, bool dark)
+    {
         int useDark = dark ? 1 : 0;
         var hr = Native.TrayNativeMethods.DwmSetWindowAttribute(
             form.Handle,
