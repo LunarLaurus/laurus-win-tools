@@ -174,6 +174,90 @@ public static class HardwareActionsController
         }
     }
 
+    /// <summary>
+    /// Result of an <see cref="ApplyToAllPlans"/> call.
+    /// </summary>
+    public readonly record struct ApplyResult(bool Ok, string? FailureReason);
+
+    /// <summary>
+    /// Writes a HardwareActionPolicy to every installed power plan via a single
+    /// elevated cmd.exe invocation chained over powercfg. One UAC prompt per
+    /// call, regardless of plan count.
+    ///
+    /// Returns ApplyResult with Ok=true on success, or Ok=false and a human
+    /// readable FailureReason for each failure mode (elevation declined,
+    /// powercfg non-zero exit, timeout, unexpected exception, no plans).
+    /// </summary>
+    public static ApplyResult ApplyToAllPlans(HardwareActionPolicy policy)
+    {
+        var plans = PowerPlanController.List();
+        if (plans.Count == 0)
+        {
+            AppLogIfAvailable("hwactions.apply.failed", LogLevel.Warn, new { reason = "no plans" });
+            return new ApplyResult(false, "No power plans installed");
+        }
+
+        var planGuids = new Guid[plans.Count];
+        for (int i = 0; i < plans.Count; i++) planGuids[i] = plans[i].Guid;
+
+        var args = BuildCmdArgs(planGuids, policy);
+
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = args,
+                Verb = "runas",                                       // triggers UAC
+                UseShellExecute = true,                                // required for Verb
+                CreateNoWindow = true,
+                WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+            };
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            using var p = System.Diagnostics.Process.Start(psi);
+            if (p is null)
+            {
+                AppLogIfAvailable("hwactions.apply.failed", LogLevel.Warn, new { reason = "Process.Start returned null" });
+                return new ApplyResult(false, "Could not start elevated process");
+            }
+
+            if (!p.WaitForExit(30_000))
+            {
+                try { p.Kill(); } catch { /* best-effort */ }
+                AppLogIfAvailable("hwactions.apply.failed", LogLevel.Warn, new { reason = "timeout" });
+                return new ApplyResult(false, "powercfg timed out");
+            }
+
+            sw.Stop();
+            if (p.ExitCode != 0)
+            {
+                AppLogIfAvailable("hwactions.apply.failed", LogLevel.Warn, new { reason = "non-zero exit", exitCode = p.ExitCode });
+                return new ApplyResult(false, $"powercfg exited with code {p.ExitCode}");
+            }
+
+            AppLogIfAvailable("hwactions.applied", LogLevel.Info, new
+            {
+                policy,
+                planCount = plans.Count,
+                durationMs = sw.ElapsedMilliseconds,
+            });
+            return new ApplyResult(true, null);
+        }
+        catch (System.ComponentModel.Win32Exception wx) when (wx.NativeErrorCode == 1223)
+        {
+            // ERROR_CANCELLED: user clicked No on the UAC prompt.
+            AppLogIfAvailable("hwactions.apply.failed", LogLevel.Warn, new { reason = "elevation declined" });
+            return new ApplyResult(false, "Elevation declined");
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Write("hwactions.apply", ex);
+            AppLogIfAvailable("hwactions.apply.failed", LogLevel.Warn, new { reason = ex.GetType().Name });
+            return new ApplyResult(false, ex.Message);
+        }
+    }
+
     // AppLog is created in Program.cs and not statically accessible here.
     // Program wires LogSink at startup; if unset (e.g. in tests), the call is a no-op.
     internal static Action<string, LogLevel, object?>? LogSink;
