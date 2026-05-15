@@ -3,7 +3,6 @@ using System.Drawing;
 using System.Windows.Forms;
 using NetProfileSwitcher.Models;
 using NetProfileSwitcher.Services;
-using NetProfileSwitcher.UI.Controls;
 using WindowsAppCore;
 using WindowsTrayCore;
 
@@ -45,8 +44,8 @@ public class MainForm : Form
     private Label _statusLabel = null!;
 
     // Controls — action
-    private FlatButton _btnApply = null!;
-    private FlatButton _btnSnap = null!;
+    private Button _btnApply = null!;
+    private Button _btnSnap = null!;
 
     // Dispatch + cancellation
     private readonly UiDispatcher _ui;
@@ -63,6 +62,9 @@ public class MainForm : Form
     // Startup
     private bool _suppressInitialShow;
 
+    // Theme subscription — stored so we can unsubscribe on close
+    private readonly EventHandler _themeChangedHandler;
+
     public MainForm(AppLog log, SingleInstanceActivation activation)
     {
         _log = log;
@@ -74,6 +76,7 @@ public class MainForm : Form
         _cfg = ConfigStore.Load();
         _ui = new UiDispatcher();
         _updateChecker = new UpdateChecker(_updateHttpClient, Application.ProductVersion, RepoInfo.Owner, RepoInfo.Name);
+        _themeChangedHandler = (_, _) => ThemeApplier.ApplyTo(this, TrayTheme.Current);
         InitForm();
         BuildLayout();
         InitTray();
@@ -82,7 +85,7 @@ public class MainForm : Form
         _chkStartup.CheckedChanged += OnStartupCheckChanged;
         _suppressInitialShow = _cfg.StartMinimized;
         InitMonitor();
-        TrayTheme.Current.Changed += OnThemeChanged;
+        TrayTheme.Current.Changed += _themeChangedHandler;
         RefreshProfileList();
         PollSsid();
         _log.Info("app.started", new { profileCount = _cfg.Profiles.Count, adapter = _cfg.SelectedAdapter });
@@ -96,6 +99,8 @@ public class MainForm : Form
             () => { _cfg.ShownFirstRunWelcome = true; ConfigStore.Save(_cfg); },
             "NetProfileSwitcher",
             "Right-click the tray icon to switch profiles, toggle SSID monitoring, or open settings.");
+
+        ThemeApplier.ApplyTo(this, TrayTheme.Current);
     }
 
     // ── Form setup ─────────────────────────────────────────────────────────
@@ -106,8 +111,8 @@ public class MainForm : Form
         Size = new Size(640, 580);
         MinimumSize = new Size(640, 580);
         StartPosition = FormStartPosition.CenterScreen;
-        BackColor = Theme.Bg;
-        ForeColor = Theme.Text;
+        BackColor = TrayTheme.Current.Surface;
+        ForeColor = TrayTheme.Current.Foreground;
         Font = Theme.Body;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -120,19 +125,19 @@ public class MainForm : Form
     {
         int W = ClientSize.Width;
 
-        var title = MakeLabel("Network Profile Switcher", Theme.Header, Theme.Accent);
+        var title = MakeLabel("Network Profile Switcher", Theme.Header, TrayTheme.Current.Accent);
         title.SetBounds(16, 10, 400, 28);
         Controls.Add(title);
 
         // ── Adapter row
-        var lblAdapter = MakeLabel("Adapter:", Theme.Body, Theme.Muted);
+        var lblAdapter = MakeLabel("Adapter:", Theme.Body, TrayTheme.Current.ForegroundAlt);
         lblAdapter.SetBounds(16, 46, 56, 20);
         Controls.Add(lblAdapter);
 
         _adapterCombo = new ComboBox
         {
             DropDownStyle = ComboBoxStyle.DropDownList,
-            BackColor = Theme.Field, ForeColor = Theme.Text, Font = Theme.Body,
+            BackColor = TrayTheme.Current.SurfaceAlt, ForeColor = TrayTheme.Current.Foreground, Font = Theme.Body,
             FlatStyle = FlatStyle.Flat,
         };
         _adapterCombo.SetBounds(76, 42, 190, 24);
@@ -148,16 +153,16 @@ public class MainForm : Form
         _tip.SetToolTip(_adapterCombo, "Choose which network adapter to configure.\nTypically \"Wi-Fi\" for wireless connections.");
         Controls.Add(_adapterCombo);
 
-        _ssidLabel = MakeLabel("SSID: —", Theme.Body, Theme.Muted);
+        _ssidLabel = MakeLabel("SSID: —", Theme.Body, TrayTheme.Current.ForegroundAlt);
         _ssidLabel.SetBounds(280, 46, 340, 20);
         Controls.Add(_ssidLabel);
 
-        var div = new Panel { BackColor = Theme.Surface2 };
+        var div = new Panel { BackColor = TrayTheme.Current.SurfaceStroke };
         div.SetBounds(16, 72, W - 32, 1);
         Controls.Add(div);
 
         // ── Profile list
-        var lblProfiles = MakeLabel("Profiles", Theme.BodyBold, Theme.Text);
+        var lblProfiles = MakeLabel("Profiles", Theme.BodyBold, TrayTheme.Current.Foreground);
         lblProfiles.SetBounds(16, 82, 100, 20);
         Controls.Add(lblProfiles);
 
@@ -168,13 +173,21 @@ public class MainForm : Form
         _tip.SetToolTip(_profileList, "Your saved network profiles.\nClick one to view/edit, then Apply to activate it.");
         Controls.Add(_profileList);
 
-        var btnNew = new FlatButton(Theme.Surface2, Theme.AccentDim) { Text = "+ New" };
+        var btnNew = new Button
+        {
+            Text = "+ New", FlatStyle = FlatStyle.Flat, AutoSize = false,
+            Font = Theme.BodyBold, Cursor = Cursors.Hand, Height = 32,
+        };
         btnNew.SetBounds(16, 430, 76, 30);
         btnNew.Click += OnNewProfile;
         _tip.SetToolTip(btnNew, "Create a blank profile.\nName it, configure settings, then Save.");
         Controls.Add(btnNew);
 
-        var btnDup = new FlatButton(Theme.Surface2, Theme.AccentDim) { Text = "Clone" };
+        var btnDup = new Button
+        {
+            Text = "Clone", FlatStyle = FlatStyle.Flat, AutoSize = false,
+            Font = Theme.BodyBold, Cursor = Cursors.Hand, Height = 32,
+        };
         btnDup.SetBounds(98, 430, 78, 30);
         btnDup.Click += OnCloneProfile;
         _tip.SetToolTip(btnDup, "Duplicate the selected profile.\nUseful for creating a variant of existing settings.");
@@ -184,7 +197,7 @@ public class MainForm : Form
         int ex = 192;
         int ew = W - ex - 16;
 
-        var editorBg = new Panel { BackColor = Theme.Surface };
+        var editorBg = new Panel { BackColor = TrayTheme.Current.SurfaceAlt };
         editorBg.SetBounds(ex, 80, ew, 382);
         Controls.Add(editorBg);
 
@@ -200,7 +213,7 @@ public class MainForm : Form
         _rbStatic = new RadioButton
         {
             Text = "Static IP", AutoSize = true,
-            ForeColor = Theme.Text, BackColor = Theme.Surface, Font = Theme.Body,
+            ForeColor = TrayTheme.Current.Foreground, BackColor = TrayTheme.Current.SurfaceAlt, Font = Theme.Body,
         };
         _rbStatic.SetBounds(fx, row - 2, 100, 22);
         _rbStatic.CheckedChanged += (_, _) => ToggleStaticFields();
@@ -210,13 +223,17 @@ public class MainForm : Form
         _rbDhcp = new RadioButton
         {
             Text = "DHCP", AutoSize = true,
-            ForeColor = Theme.Text, BackColor = Theme.Surface, Font = Theme.Body,
+            ForeColor = TrayTheme.Current.Foreground, BackColor = TrayTheme.Current.SurfaceAlt, Font = Theme.Body,
         };
         _rbDhcp.SetBounds(fx + 110, row - 2, 80, 22);
         _tip.SetToolTip(_rbDhcp, "Get an IP address automatically from the router.\nYou can still set custom DNS servers below.");
         editorBg.Controls.Add(_rbDhcp);
 
-        _btnSnap = new FlatButton(Theme.Surface2, Theme.AccentDim) { Text = "↓ Snap" };
+        _btnSnap = new Button
+        {
+            Text = "↓ Snap", FlatStyle = FlatStyle.Flat, AutoSize = false,
+            Font = Theme.BodyBold, Cursor = Cursors.Hand, Height = 32,
+        };
         _btnSnap.SetBounds(fx + 200, row - 3, 76, 24);
         _btnSnap.Click += OnSnapFromAdapter;
         _tip.SetToolTip(_btnSnap,
@@ -245,7 +262,7 @@ public class MainForm : Form
         editorBg.Controls.Add(_gatewayBox);
         row += 34;
 
-        var dnsHeader = MakeLabel("DNS Servers", Theme.BodyBold, Theme.Accent);
+        var dnsHeader = MakeLabel("DNS Servers", Theme.BodyBold, TrayTheme.Current.Accent);
         dnsHeader.SetBounds(lx, row, 150, 18);
         editorBg.Controls.Add(dnsHeader);
         row += 22;
@@ -262,11 +279,11 @@ public class MainForm : Form
         editorBg.Controls.Add(_dns2Box);
         row += 36;
 
-        var ssidHeader = MakeLabel("Auto-Switch SSIDs", Theme.BodyBold, Theme.Accent);
+        var ssidHeader = MakeLabel("Auto-Switch SSIDs", Theme.BodyBold, TrayTheme.Current.Accent);
         ssidHeader.SetBounds(lx, row, 200, 18);
         editorBg.Controls.Add(ssidHeader);
 
-        var ssidHelp = MakeLabel("?", Theme.BodyBold, Theme.Muted);
+        var ssidHelp = MakeLabel("?", Theme.BodyBold, TrayTheme.Current.ForegroundAlt);
         ssidHelp.SetBounds(lx + 148, row, 16, 18);
         ssidHelp.Cursor = Cursors.Help;
         _tip.SetToolTip(ssidHelp,
@@ -278,7 +295,7 @@ public class MainForm : Form
 
         _ssidList = new ListBox
         {
-            BackColor = Theme.Field, ForeColor = Theme.Text,
+            BackColor = TrayTheme.Current.SurfaceAlt, ForeColor = TrayTheme.Current.Foreground,
             Font = Theme.Small, BorderStyle = BorderStyle.None,
         };
         _ssidList.SetBounds(lx, row, 200, 52);
@@ -296,13 +313,21 @@ public class MainForm : Form
         _ssidBox.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { AddSsidFromBox(); e.SuppressKeyPress = true; } };
         editorBg.Controls.Add(_ssidBox);
 
-        var btnAddSsid = new FlatButton(Theme.AccentDim, Theme.Accent) { Text = "+" };
+        var btnAddSsid = new Button
+        {
+            Text = "+", FlatStyle = FlatStyle.Flat, AutoSize = false,
+            Font = Theme.BodyBold, Cursor = Cursors.Hand, Height = 32,
+        };
         btnAddSsid.SetBounds(324, row, 30, 24);
         btnAddSsid.Click += (_, _) => AddSsidFromBox();
         _tip.SetToolTip(btnAddSsid, "Add the typed SSID to the list.");
         editorBg.Controls.Add(btnAddSsid);
 
-        var btnCurSsid = new FlatButton(Theme.Surface2, Theme.AccentDim) { Text = "Current" };
+        var btnCurSsid = new Button
+        {
+            Text = "Current", FlatStyle = FlatStyle.Flat, AutoSize = false,
+            Font = Theme.BodyBold, Cursor = Cursors.Hand, Height = 32,
+        };
         btnCurSsid.SetBounds(220, row + 28, 80, 24);
         btnCurSsid.Click += (_, _) =>
         {
@@ -314,33 +339,45 @@ public class MainForm : Form
         editorBg.Controls.Add(btnCurSsid);
 
         // ── Action buttons
-        var btnSave = new FlatButton(Theme.Accent, Theme.AccentDim) { Text = "&Save" };
+        var btnSave = new Button
+        {
+            Text = "&Save", FlatStyle = FlatStyle.Flat, AutoSize = false,
+            Font = Theme.BodyBold, Cursor = Cursors.Hand, Height = 32,
+        };
         btnSave.SetBounds(ex, 466, 90, 32);
         btnSave.Click += OnSaveProfile;
         _tip.SetToolTip(btnSave, "Save changes to this profile (settings + SSID links).");
         Controls.Add(btnSave);
 
-        var btnDelete = new FlatButton(Theme.Red, Color.FromArgb(180, 60, 70)) { Text = "Delete" };
+        var btnDelete = new Button
+        {
+            Text = "Delete", FlatStyle = FlatStyle.Flat, AutoSize = false,
+            Font = Theme.BodyBold, Cursor = Cursors.Hand, Height = 32,
+        };
         btnDelete.SetBounds(ex + 96, 466, 80, 32);
         btnDelete.Click += OnDeleteProfile;
         _tip.SetToolTip(btnDelete, "Permanently remove this profile.");
         Controls.Add(btnDelete);
 
-        _btnApply = new FlatButton(Theme.Green, Color.FromArgb(60, 170, 100)) { Text = "▶  Apply Now" };
+        _btnApply = new Button
+        {
+            Text = "▶  Apply Now", FlatStyle = FlatStyle.Flat, AutoSize = false,
+            Font = Theme.BodyBold, Cursor = Cursors.Hand, Height = 32,
+        };
         _btnApply.SetBounds(W - 148, 466, 132, 32);
         _btnApply.Click += OnApplyProfile;
         _tip.SetToolTip(_btnApply, "Immediately apply this profile's settings to the\nselected adapter using netsh.");
         Controls.Add(_btnApply);
 
         // ── Bottom bar
-        var div2 = new Panel { BackColor = Theme.Surface2 };
+        var div2 = new Panel { BackColor = TrayTheme.Current.SurfaceStroke };
         div2.SetBounds(16, 506, W - 32, 1);
         Controls.Add(div2);
 
         _chkMonitor = new CheckBox
         {
             Text = "Monitor SSID changes", Checked = _cfg.MonitorEnabled,
-            ForeColor = Theme.Text, BackColor = Theme.Bg, Font = Theme.Body, AutoSize = true,
+            ForeColor = TrayTheme.Current.Foreground, BackColor = TrayTheme.Current.Surface, Font = Theme.Body, AutoSize = true,
         };
         _chkMonitor.SetBounds(16, 512, 200, 22);
         _chkMonitor.CheckedChanged += (_, _) => { _cfg.MonitorEnabled = _chkMonitor.Checked; ConfigStore.Save(_cfg); SyncTrayState(); };
@@ -350,7 +387,7 @@ public class MainForm : Form
         _chkTray = new CheckBox
         {
             Text = "Minimize to tray", Checked = _cfg.MinimizeToTray,
-            ForeColor = Theme.Text, BackColor = Theme.Bg, Font = Theme.Body, AutoSize = true,
+            ForeColor = TrayTheme.Current.Foreground, BackColor = TrayTheme.Current.Surface, Font = Theme.Body, AutoSize = true,
         };
         _chkTray.SetBounds(196, 512, 140, 22);
         _chkTray.CheckedChanged += (_, _) => { _cfg.MinimizeToTray = _chkTray.Checked; ConfigStore.Save(_cfg); };
@@ -360,14 +397,14 @@ public class MainForm : Form
         _chkStartup = new CheckBox
         {
             Text = "Run on startup", Checked = false,
-            ForeColor = Theme.Text, BackColor = Theme.Bg, Font = Theme.Body, AutoSize = true,
+            ForeColor = TrayTheme.Current.Foreground, BackColor = TrayTheme.Current.Surface, Font = Theme.Body, AutoSize = true,
         };
         _chkStartup.SetBounds(356, 512, 140, 22);
         // Handler wired in constructor after InitTray, so _tray exists when SetStatus runs
         _tip.SetToolTip(_chkStartup, "Register a Windows Task Scheduler logon task so the app\nstarts automatically at login with administrator privileges.");
         Controls.Add(_chkStartup);
 
-        _statusLabel = MakeLabel("Ready", Theme.Small, Theme.Muted);
+        _statusLabel = MakeLabel("Ready", Theme.Small, TrayTheme.Current.ForegroundAlt);
         _statusLabel.SetBounds(16, 540, W - 32, 18);
         _statusLabel.AutoSize = false;
         _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
@@ -383,8 +420,8 @@ public class MainForm : Form
     {
         var lbl = new Label
         {
-            Text = text, Font = Theme.Body, ForeColor = Theme.Muted,
-            BackColor = Theme.Surface, TextAlign = ContentAlignment.MiddleRight,
+            Text = text, Font = Theme.Body, ForeColor = TrayTheme.Current.ForegroundAlt,
+            BackColor = TrayTheme.Current.SurfaceAlt, TextAlign = ContentAlignment.MiddleRight,
         };
         lbl.SetBounds(x, y, 90, 20);
         return lbl;
@@ -404,8 +441,8 @@ public class MainForm : Form
     {
         _trayMenu = new ContextMenuStrip
         {
-            BackColor = Theme.Surface,
-            ForeColor = Theme.Text,
+            BackColor = TrayTheme.Current.SurfaceAlt,
+            ForeColor = TrayTheme.Current.Foreground,
         };
         _trayMenu.Opening += (_, _) => RebuildTrayMenu();
 
@@ -615,9 +652,9 @@ public class MainForm : Form
         _subnetBox.Enabled = isStatic;
         _gatewayBox.Enabled = isStatic;
 
-        _ipBox.BackColor = isStatic ? Theme.Field : Theme.Surface;
-        _subnetBox.BackColor = isStatic ? Theme.Field : Theme.Surface;
-        _gatewayBox.BackColor = isStatic ? Theme.Field : Theme.Surface;
+        _ipBox.BackColor = isStatic ? TrayTheme.Current.SurfaceAlt : TrayTheme.Current.Surface;
+        _subnetBox.BackColor = isStatic ? TrayTheme.Current.SurfaceAlt : TrayTheme.Current.Surface;
+        _gatewayBox.BackColor = isStatic ? TrayTheme.Current.SurfaceAlt : TrayTheme.Current.Surface;
     }
 
     private void AddSsidFromBox()
@@ -822,56 +859,6 @@ public class MainForm : Form
         return tb;
     }
 
-    // ── Theme ──────────────────────────────────────────────────────────────
-
-    private void OnThemeChanged(object? sender, EventArgs e) => ApplyTheme();
-
-    private void ApplyTheme()
-    {
-        ThemeApplier.ApplyTitleBar(this, !TrayTheme.Current.IsLight);
-        BackColor = Theme.Bg;
-        ForeColor = Theme.Text;
-        foreach (Control c in Controls)
-            RecolorControl(c);
-        _trayMenu.BackColor = Theme.Surface;
-        _trayMenu.ForeColor = Theme.Text;
-        Invalidate(true);
-    }
-
-    private void RecolorControl(Control c)
-    {
-        switch (c)
-        {
-            case Panel p when p.Height == 1:
-                p.BackColor = Theme.Surface2;
-                break;
-            case Panel p:
-                p.BackColor = Theme.Surface;
-                foreach (Control child in p.Controls)
-                    RecolorControl(child);
-                break;
-            case ComboBox cb:
-                cb.BackColor = Theme.Field;
-                cb.ForeColor = Theme.Text;
-                break;
-            case ListBox lb:
-                lb.BackColor = lb == _ssidList ? Theme.Field : Theme.Surface;
-                lb.ForeColor = Theme.Text;
-                break;
-            case TextBox tb:
-                Theme.StyleTextBox(tb);
-                break;
-            case CheckBox chk:
-                chk.ForeColor = Theme.Text;
-                chk.BackColor = Theme.Bg;
-                break;
-            case RadioButton rb:
-                rb.ForeColor = Theme.Text;
-                rb.BackColor = Theme.Surface;
-                break;
-        }
-    }
-
     // ── Window chrome ──────────────────────────────────────────────────────
 
     protected override void SetVisibleCore(bool value)
@@ -910,7 +897,7 @@ public class MainForm : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
-        TrayTheme.Current.Changed -= OnThemeChanged;
+        TrayTheme.Current.Changed -= _themeChangedHandler;
         _applyCts.Cancel();
         _applyCts.Dispose();
         _updateCts.Cancel();

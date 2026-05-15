@@ -26,9 +26,9 @@ public static class Icons
         using var bmp = new Bitmap(size, size);
         using var g = Graphics.FromImage(bmp);
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.Clear(Theme.Bg);
+        g.Clear(TrayTheme.Current.Surface);
 
-        using var barBrush = new SolidBrush(Theme.Accent);
+        using var barBrush = new SolidBrush(TrayTheme.Current.Accent);
         g.FillRectangle(barBrush, 5,  22, 6, 6);
         g.FillRectangle(barBrush, 13, 16, 6, 12);
         g.FillRectangle(barBrush, 21, 9,  6, 19);
@@ -54,16 +54,16 @@ public static class Icons
         using var g = Graphics.FromImage(bmp);
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        g.Clear(Theme.Bg);
+        g.Clear(TrayTheme.Current.Surface);
         g.ScaleTransform(scale, scale);
 
         Color barColor = state switch
         {
-            TrayState.Idle           => Theme.Muted,
-            TrayState.MatchedProfile => Theme.Accent,
-            TrayState.Switching      => Theme.Green,
-            TrayState.Error          => Theme.Red,
-            _                        => Theme.Muted,
+            TrayState.Idle           => TrayTheme.Current.ForegroundAlt,
+            TrayState.MatchedProfile => TrayTheme.Current.Accent,
+            TrayState.Switching      => TrayTheme.Current.Success,
+            TrayState.Error          => TrayTheme.Current.Error,
+            _                        => TrayTheme.Current.ForegroundAlt,
         };
 
         using var barBrush = new SolidBrush(barColor);

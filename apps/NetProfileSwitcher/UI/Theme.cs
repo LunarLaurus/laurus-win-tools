@@ -6,21 +6,6 @@ namespace NetProfileSwitcher.UI;
 
 public static class Theme
 {
-    public static Color Bg       => TrayTheme.Current.Surface;
-    public static Color Surface  => TrayTheme.Current.SurfaceAlt;
-    public static Color Surface2 => TrayTheme.Current.IsLight
-        ? Color.FromArgb(225, 225, 240)
-        : Color.FromArgb(48, 48, 68);
-    public static Color Accent    => TrayTheme.Current.Accent;
-    public static Color AccentDim => TrayTheme.Current.IsLight
-        ? Color.FromArgb(74, 63, 178)
-        : Color.FromArgb(90, 80, 180);
-    public static Color Green => TrayTheme.Current.Success;
-    public static Color Red   => TrayTheme.Current.Error;
-    public static Color Text  => TrayTheme.Current.Foreground;
-    public static Color Muted => TrayTheme.Current.ForegroundAlt;
-    public static Color Field => TrayTheme.Current.SurfaceAlt;
-
     public static readonly Font Body     = new("Segoe UI", 9.5f);
     public static readonly Font BodyBold = new("Segoe UI", 9.5f, FontStyle.Bold);
     public static readonly Font Header   = new("Segoe UI", 13f, FontStyle.Bold);
@@ -28,16 +13,16 @@ public static class Theme
 
     public static void StyleTextBox(TextBox tb)
     {
-        tb.BackColor = Field;
-        tb.ForeColor = Text;
+        tb.BackColor = TrayTheme.Current.SurfaceAlt;
+        tb.ForeColor = TrayTheme.Current.Foreground;
         tb.Font = Body;
         tb.BorderStyle = BorderStyle.FixedSingle;
     }
 
     public static void StyleListBox(ListBox lb)
     {
-        lb.BackColor = Surface;
-        lb.ForeColor = Text;
+        lb.BackColor = TrayTheme.Current.SurfaceAlt;
+        lb.ForeColor = TrayTheme.Current.Foreground;
         lb.Font = Body;
         lb.BorderStyle = BorderStyle.None;
         lb.DrawMode = DrawMode.OwnerDrawFixed;
@@ -46,11 +31,8 @@ public static class Theme
         {
             if (e.Index < 0) return;
             bool sel = (e.State & DrawItemState.Selected) != 0;
-            using var bg = new SolidBrush(sel ? Accent : Surface);
-            // Selected-row foreground tracks the accent's luminance so a
-            // light user accent (yellow, mint, etc) gets black text and a
-            // dark accent gets white. Unselected rows use the normal text.
-            using var fg = new SolidBrush(sel ? TrayTheme.Current.AccentOn : Text);
+            using var bg = new SolidBrush(sel ? TrayTheme.Current.Accent : TrayTheme.Current.SurfaceAlt);
+            using var fg = new SolidBrush(sel ? TrayTheme.Current.AccentOn : TrayTheme.Current.Foreground);
             e.Graphics.FillRectangle(bg, e.Bounds);
             e.Graphics.DrawString(lb.Items[e.Index]?.ToString(), Body, fg,
                                   e.Bounds.X + 10, e.Bounds.Y + 5);
