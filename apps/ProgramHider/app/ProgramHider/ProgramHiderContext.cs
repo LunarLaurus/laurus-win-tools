@@ -74,7 +74,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _hideWindowMenu = new ToolStripMenuItem("Hide window");
 
         _notifyIcon = TrayIcon.ForApp("ProgramHider");
-        _notifyIcon.Text = BuildTrayText();
+        _notifyIcon.TooltipText = BuildTrayText();
         _notifyIcon.Icon = _appIcon;
         _notifyIcon.ContextMenuStrip = _menu;
         _notifyIcon.Visible = true;
@@ -631,7 +631,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private void ToggleSafeMode()
     {
         _safeModeEnabled = !_safeModeEnabled;
-        _notifyIcon.Text = BuildTrayText();
+        _notifyIcon.TooltipText = BuildTrayText();
         ShowStatusBalloon(
             _safeModeEnabled ? "Safe mode enabled" : "Safe mode disabled",
             _safeModeEnabled
@@ -643,7 +643,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private void PersistSettings()
     {
         _settingsStore.Save(_settings);
-        _notifyIcon.Text = BuildTrayText();
+        _notifyIcon.TooltipText = BuildTrayText();
     }
 
     private bool EnsureRestoreAuthorized(string actionDescription, bool requirePinForSelection, bool isBulkRestore = false)
