@@ -291,4 +291,65 @@ public class TrayTooltipBuilderTests
         result.Length.Should().BeLessOrEqualTo(127);
         result.Should().EndWith(TrayTooltipBuilder.Ellipsis);
     }
+
+    [Fact]
+    public void AddRequired_Null_Throws()
+    {
+        var act = () => new TrayTooltipBuilder().AddRequired(null!);
+        act.Should().Throw<System.ArgumentNullException>();
+    }
+
+    [Fact]
+    public void AddOptional_Null_Throws()
+    {
+        var act = () => new TrayTooltipBuilder().AddOptional(null!);
+        act.Should().Throw<System.ArgumentNullException>();
+    }
+
+    [Fact]
+    public void Build_IsIdempotent()
+    {
+        var b = new TrayTooltipBuilder()
+            .AddRequired(new string('A', 80))
+            .AddOptional(new string('B', 80))
+            .AddOptional(new string('C', 80));
+
+        var first = b.Build();
+        var second = b.Build();
+
+        first.Should().Be(second);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("short")]
+    [InlineData("exactly one hundred and twenty seven characters of content packed in here for budget testing purpos1234567")]
+    [InlineData("this is a string longer than the limit and should be truncated word-boundary because there are spaces here to find boundaries at")]
+    [InlineData("nospaceshereatallnospaceshereatallnospaceshereatallnospaceshereatallnospaceshereatallnospaceshereatallnospaceshereatallnospacesHERE")]
+    public void Build_SingleRequired_NeverExceedsMaxLength(string text)
+    {
+        var result = new TrayTooltipBuilder()
+            .AddRequired(text)
+            .Build();
+
+        result.Length.Should().BeLessOrEqualTo(TrayTooltipBuilder.MaxLength);
+    }
+
+    [Theory]
+    [InlineData(1, 0)]
+    [InlineData(0, 1)]
+    [InlineData(3, 3)]
+    [InlineData(5, 5)]
+    public void Build_AdversarialMix_NeverExceedsMaxLength(int requiredCount, int optionalCount)
+    {
+        var b = new TrayTooltipBuilder();
+        for (int i = 0; i < requiredCount; i++)
+            b.AddRequired(new string((char)('A' + i), 40));
+        for (int i = 0; i < optionalCount; i++)
+            b.AddOptional(new string((char)('a' + i), 40));
+
+        var result = b.Build();
+
+        result.Length.Should().BeLessOrEqualTo(TrayTooltipBuilder.MaxLength);
+    }
 }
