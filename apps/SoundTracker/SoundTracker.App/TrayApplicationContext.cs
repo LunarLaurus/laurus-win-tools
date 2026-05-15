@@ -432,11 +432,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private static string BuildActiveTooltipSummaryInline(IReadOnlyList<string> activeSessions)
     {
-        if (activeSessions.Count == 1)
-        {
-            return $"Active: {CompactSourceInline(activeSessions[0])}";
-        }
-        return $"Active: {activeSessions.Count} apps";
+        // Show up to two names; collapse the tail to "+N more" when there are more.
+        var names = activeSessions.Take(2).Select(CompactSourceInline);
+        var joined = string.Join(", ", names);
+        if (activeSessions.Count > 2)
+            return $"Active: {joined} +{activeSessions.Count - 2} more";
+        return $"Active: {joined}";
     }
 
     private static string? BuildRecentTooltipSummaryInline(
@@ -448,15 +449,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
             .FirstOrDefault();
         if (latest is null) return null;
 
-        var age = BuildCompactAgeInline(latest.TimestampUtc, nowUtc);
+        // Use the same "{n}m ago" formatter the menu-label path uses, so tooltip
+        // and menu read consistently.
+        var age = ActivityLabelFormatter.BuildRelativeAge(latest.TimestampUtc, nowUtc);
         var source = CompactSourceInline(latest.Description);
 
         return latest.Kind switch
         {
-            AudioActivityKind.ObservedActive       => $"Recent: heard {source} {age}",
-            AudioActivityKind.Started              => $"Recent: start {source} {age}",
-            AudioActivityKind.Stopped              => $"Recent: stop {source} {age}",
-            AudioActivityKind.DefaultDeviceChanged => $"Recent: device {age}",
+            AudioActivityKind.ObservedActive       => $"Recent: {source} {age}",
+            AudioActivityKind.Started              => $"Recent: {source} started {age}",
+            AudioActivityKind.Stopped              => $"Recent: {source} stopped {age}",
+            AudioActivityKind.DefaultDeviceChanged => $"Recent: audio device changed {age}",
             _                                      => $"Recent: {source} {age}",
         };
     }
@@ -468,16 +471,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
             value = value[..^4];
         if (value.Length <= 16) return value;
         return value[..13] + "...";
-    }
-
-    private static string BuildCompactAgeInline(DateTimeOffset timestampUtc, DateTimeOffset nowUtc)
-    {
-        var age = nowUtc - timestampUtc;
-        if (age < TimeSpan.Zero) age = TimeSpan.Zero;
-        if (age < TimeSpan.FromMinutes(1)) return $"{Math.Max(0, (int)age.TotalSeconds)}s";
-        if (age < TimeSpan.FromHours(1))   return $"{(int)age.TotalMinutes}m";
-        if (age < TimeSpan.FromDays(1))    return $"{(int)age.TotalHours}h";
-        return $"{(int)age.TotalDays}d";
     }
 
     private void UpdateTrayIcon(EndpointVolumeSnapshot volumeSnapshot)
