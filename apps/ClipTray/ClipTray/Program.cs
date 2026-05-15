@@ -25,10 +25,9 @@ internal static class Program
 
         ApplicationConfiguration.Initialize();
         using (activation!)
+        using (var context = new ClipTrayContext(settings, activation!))
         {
-            // ClipTrayContext lands in Task 14; placeholder ApplicationContext
-            // keeps the project buildable through the foundation phases.
-            Application.Run(new ApplicationContext());
+            Application.Run(context);
         }
 
         return 0;
