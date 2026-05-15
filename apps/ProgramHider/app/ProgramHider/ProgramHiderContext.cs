@@ -18,7 +18,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private readonly TrayIcon _notifyIcon;
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _hideWindowMenu;
-    private readonly HotkeyMessageWindow _messageWindow;
+    private readonly WindowsTrayCore.HotkeyRegistration _hotkey;
     private readonly JsonSettingsStore<AppSettings> _settingsStore;
     private readonly UiDispatcher _ui;
     private readonly NativeMethods.WinEventProc _minimizeEventCallback;
@@ -83,7 +83,8 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _activation.ActivationRequested += (_, _) =>
             _ui.Post(() => ShowStatusBalloon("Program Hider", "Program Hider is already running."));
 
-        _messageWindow = new HotkeyMessageWindow(OnHotkeyPressed);
+        _hotkey = new WindowsTrayCore.HotkeyRegistration();
+        _hotkey.Pressed += (_, id) => OnHotkeyPressed(id);
         RegisterConfiguredHotkey();
         ApplyStartupRegistration(_settings.LaunchOnWindowsStartup, _settings.StartupDelaySeconds);
 
@@ -273,7 +274,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
     private IReadOnlyList<WindowSnapshot> EnumerateCandidateWindows()
     {
         return _windowPlatform.EnumerateTopLevelWindows()
-            .Where(window => window.Handle != _messageWindow.Handle)
+            .Where(window => window.Handle != _hotkey.Handle)
             .Where(window => !_hiddenWindows.ContainsKey(window.Handle))
             .Where(window => WindowCatalog.IsManageableWindow(window))
             .OrderBy(window => window.Title, StringComparer.OrdinalIgnoreCase)
@@ -295,13 +296,10 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private void RegisterConfiguredHotkey()
     {
-        NativeMethods.UnregisterHotKey(_messageWindow.Handle, HotkeyId);
+        _hotkey.Unregister(HotkeyId);
 
-        if (!NativeMethods.RegisterHotKey(
-                _messageWindow.Handle,
-                HotkeyId,
-                _settings.Hotkey.ToNativeModifiers(),
-                (uint)_settings.Hotkey.Key))
+        var modifiers = (WindowsTrayCore.HotkeyModifiers)_settings.Hotkey.ToNativeModifiers();
+        if (!_hotkey.Register(HotkeyId, modifiers, _settings.Hotkey.Key))
         {
             throw new Win32Exception("Unable to register the configured hotkey.");
         }
@@ -335,7 +333,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         }
 
         var ruleMatch = existingMatch ?? WindowRuleMatchResult.Evaluate(_settings.WindowRules, snapshot.Value);
-        if (!_windowHideService.TryHideWindow(handle, _messageWindow.Handle, _hiddenWindows, ruleMatch, out var hiddenWindow) ||
+        if (!_windowHideService.TryHideWindow(handle, _hotkey.Handle, _hiddenWindows, ruleMatch, out var hiddenWindow) ||
             hiddenWindow is null)
         {
             return false;
@@ -904,7 +902,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         SystemEvents.SessionSwitch -= OnSessionSwitch;
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         RestoreAllWindowsWithoutPrompt("app-exit");
-        NativeMethods.UnregisterHotKey(_messageWindow.Handle, HotkeyId);
+        _hotkey.Dispose();
         if (_minimizeEventHook != 0)
         {
             NativeMethods.UnhookWinEvent(_minimizeEventHook);
@@ -920,7 +918,6 @@ internal sealed class ProgramHiderContext : ApplicationContext
         _updateCts.Dispose();
         _updateHttpClient.Dispose();
         _activation.Dispose();
-        _messageWindow.Dispose();
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _menu.Dispose();
@@ -976,7 +973,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
 
     private bool CanTrackActiveWindow(NativeWindowSnapshot snapshot)
     {
-        return snapshot.Handle != _messageWindow.Handle &&
+        return snapshot.Handle != _hotkey.Handle &&
                !_hiddenWindows.ContainsKey(snapshot.Handle) &&
                WindowCatalog.IsManageableWindow(snapshot);
     }

@@ -6,11 +6,12 @@ namespace WindowsTrayCore;
 [Flags]
 public enum HotkeyModifiers
 {
-    None    = 0,
-    Alt     = 1,
-    Control = 2,
-    Shift   = 4,
-    Win     = 8,
+    None     = 0,
+    Alt      = 1,
+    Control  = 2,
+    Shift    = 4,
+    Win      = 8,
+    NoRepeat = 0x4000,
 }
 
 /// <summary>
@@ -31,6 +32,13 @@ public sealed class HotkeyRegistration : IDisposable
     }
 
     public event EventHandler<int>? Pressed;
+
+    /// <summary>
+    /// The HWND of the hidden message window owning the registration. Useful
+    /// for consumers that enumerate top-level windows and need to filter out
+    /// their own hotkey-receiver.
+    /// </summary>
+    public IntPtr Handle => _window.Handle;
 
     public bool Register(int id, HotkeyModifiers modifiers, Keys key)
     {
