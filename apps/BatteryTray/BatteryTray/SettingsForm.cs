@@ -39,6 +39,16 @@ public sealed class SettingsForm : Form
     private ComboBox _planOnAc            = null!;
     private ComboBox _planOnBattery       = null!;
 
+    // Hardware actions
+    private ComboBox _hwPowerButtonAc       = null!;
+    private ComboBox _hwLidCloseAc          = null!;
+    private CheckBox _hwDifferOnBattery     = null!;
+    private ComboBox _hwPowerButtonDc       = null!;
+    private ComboBox _hwLidCloseDc          = null!;
+    private Label    _hwOnBatteryPowerLabel = null!;
+    private Label    _hwOnBatteryLidLabel   = null!;
+    private Label    _hwDriftHint           = null!;
+
     // System
     private CheckBox _runAtStartup = null!;
 
@@ -73,16 +83,18 @@ public sealed class SettingsForm : Form
         var tabGeneral       = new TabPage("General");
         var tabNotifications = new TabPage("Notifications");
         var tabAppearance    = new TabPage("Appearance");
-        var tabPower         = new TabPage("Power");
+        var tabPower         = new TabPage("Power plans");
+        var tabHwActions     = new TabPage("Hardware actions");
         var tabSystem        = new TabPage("System");
 
         tabGeneral.Controls.Add(BuildGeneralPanel());
         tabNotifications.Controls.Add(BuildNotificationsPanel());
         tabAppearance.Controls.Add(BuildAppearancePanel());
         tabPower.Controls.Add(BuildPowerPanel());
+        tabHwActions.Controls.Add(BuildHardwareActionsPanel());
         tabSystem.Controls.Add(BuildSystemPanel());
 
-        tabs.TabPages.AddRange(new[] { tabGeneral, tabNotifications, tabAppearance, tabPower, tabSystem });
+        tabs.TabPages.AddRange(new[] { tabGeneral, tabNotifications, tabAppearance, tabPower, tabHwActions, tabSystem });
 
         Controls.Add(tabs);
         Controls.Add(BuildButtonRow());
@@ -267,6 +279,100 @@ public sealed class SettingsForm : Form
 
         return stack;
     }
+
+    private TableLayoutPanel BuildHardwareActionsPanel()
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12),
+            ColumnCount = 2,
+            RowCount = 7,
+            AutoSize = false,
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        for (int i = 0; i < 7; i++) panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var actionDataSource = BuildActionItems();
+
+        _hwPowerButtonAc = MakeActionCombo(actionDataSource);
+        _hwLidCloseAc    = MakeActionCombo(actionDataSource);
+
+        panel.Controls.Add(new Label { Text = "Power button:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+        panel.Controls.Add(_hwPowerButtonAc, 1, 0);
+
+        panel.Controls.Add(new Label { Text = "Lid close:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
+        panel.Controls.Add(_hwLidCloseAc, 1, 1);
+
+        _hwDifferOnBattery = new CheckBox
+        {
+            Text = "Use different action on battery",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+        };
+        panel.Controls.Add(_hwDifferOnBattery, 0, 2);
+        panel.SetColumnSpan(_hwDifferOnBattery, 2);
+
+        _hwOnBatteryPowerLabel = new Label { Text = "Power button on battery:", AutoSize = true, Anchor = AnchorStyles.Left, Visible = false };
+        _hwPowerButtonDc       = MakeActionCombo(actionDataSource);
+        _hwPowerButtonDc.Visible = false;
+        panel.Controls.Add(_hwOnBatteryPowerLabel, 0, 3);
+        panel.Controls.Add(_hwPowerButtonDc, 1, 3);
+
+        _hwOnBatteryLidLabel = new Label { Text = "Lid close on battery:", AutoSize = true, Anchor = AnchorStyles.Left, Visible = false };
+        _hwLidCloseDc        = MakeActionCombo(actionDataSource);
+        _hwLidCloseDc.Visible = false;
+        panel.Controls.Add(_hwOnBatteryLidLabel, 0, 4);
+        panel.Controls.Add(_hwLidCloseDc, 1, 4);
+
+        _hwDifferOnBattery.CheckedChanged += (_, _) =>
+        {
+            var on = _hwDifferOnBattery.Checked;
+            _hwOnBatteryPowerLabel.Visible = on;
+            _hwPowerButtonDc.Visible       = on;
+            _hwOnBatteryLidLabel.Visible   = on;
+            _hwLidCloseDc.Visible          = on;
+        };
+
+        _hwDriftHint = new Label
+        {
+            Text = "Windows values were changed outside BatteryTray. Saving will overwrite them.",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Visible = false,
+            ForeColor = System.Drawing.SystemColors.GrayText,
+        };
+        panel.Controls.Add(_hwDriftHint, 0, 6);
+        panel.SetColumnSpan(_hwDriftHint, 2);
+
+        return panel;
+    }
+
+    private static System.Collections.Generic.List<HardwareActionItem> BuildActionItems() => new()
+    {
+        new HardwareActionItem(HardwareAction.DoNothing,      "Do nothing"),
+        new HardwareActionItem(HardwareAction.Sleep,          "Sleep"),
+        new HardwareActionItem(HardwareAction.Hibernate,      "Hibernate"),
+        new HardwareActionItem(HardwareAction.ShutDown,       "Shut down"),
+        new HardwareActionItem(HardwareAction.TurnOffDisplay, "Turn off the display"),
+    };
+
+    private static ComboBox MakeActionCombo(System.Collections.Generic.List<HardwareActionItem> items)
+    {
+        var combo = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 220,
+            Anchor = AnchorStyles.Left,
+        };
+        combo.DataSource = new System.Collections.Generic.List<HardwareActionItem>(items);
+        combo.DisplayMember = nameof(HardwareActionItem.Display);
+        combo.ValueMember   = nameof(HardwareActionItem.Value);
+        return combo;
+    }
+
+    private sealed record HardwareActionItem(HardwareAction Value, string Display);
 
     private Control BuildSystemPanel()
     {
