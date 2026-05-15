@@ -24,7 +24,7 @@ public static class IconRenderer
             g.Clear(Color.Transparent);
 
             var bg = SelectBackgroundColor(state, settings);
-            var fg = ResolveTextColor(settings);
+            var fg = ResolveTextColor(settings, bg);
 
             if (settings.Style == IconStyle.Bar)
             {
@@ -84,8 +84,19 @@ public static class IconRenderer
         return normal;
     }
 
-    private static Color ResolveTextColor(AppSettings settings)
-        => ParseColor(settings.ColorText, Color.White);
+    private static Color ResolveTextColor(AppSettings settings, Color fill)
+    {
+        // If the user has set a non-default ColorText (anything other than
+        // white), respect their explicit choice. Otherwise derive a readable
+        // contrast color from the actual fill via WCAG luminance.
+        if (!string.IsNullOrWhiteSpace(settings.ColorText)
+            && !string.Equals(settings.ColorText.Trim(), "#FFFFFF", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(settings.ColorText.Trim(), "#FFF", StringComparison.OrdinalIgnoreCase))
+        {
+            return ParseColor(settings.ColorText, Color.White);
+        }
+        return AccentColors.DeriveOn(fill);
+    }
 
     private static void DrawRoundedFill(Graphics g, int size, Color color)
     {
