@@ -534,6 +534,25 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-15
+
+**Did:** Phase 29 polish sweep (post-install spot-check follow-ups).
+- NPS owner-drawn ListBox selected-row foreground switched from hardcoded `Color.White` to `TrayTheme.Current.AccentOn` so the text contrasts correctly with whatever system accent the user has set (was unreadable on light accents like Yellow / Mint).
+- BatteryTray SettingsForm + BatteryInfoForm gained `ThemeApplier.ApplyTo` + Changed subscription. 17 `SystemColors.*` sites tokenised; drift hint uses `Warning` (amber). The BatteryInfoForm owner-drawn chart invalidates on theme change.
+- `ThemeApplier.ApplyTitleBar` hotfix: previously early-returned when `!IsHandleCreated`, which silently no-op'd every call from a form constructor. Now hooks `HandleCreated` and applies the DWM attribute once the handle exists. Forms get dark title bars on first paint instead of after the first theme refresh.
+- NetProfileSwitcher MainForm + SoundTracker SettingsForm + RecentActivityForm gained `ApplyTitleBar` / `ApplyTo` so their title bars track the system theme.
+- BatteryTray tray-icon percent text now auto-contrasts with the icon's fill colour via `AccentColors.DeriveOn` (WCAG luminance). User-set non-default `ColorText` still wins.
+- `AccentColors` promoted from internal to public (Luminance, DeriveOn, DeriveSubtle) so tray-icon renderers in any consumer can derive readable foregrounds from arbitrary backgrounds.
+- SoundTracker SettingsForm unifies onto `ApplyTo` + Changed (matches BatteryTray / ProgramHider). Hint labels tagged with `Tag = "hint"` and re-coloured to `ForegroundDim` in a post-pass.
+
+**Tests:** 341 unit tests green across the six suites (WindowsTrayCore 139, WindowsAppCore 85, BatteryTray 83, NetProfileSwitcher 9 [+3 from Theme-helper tests], SoundTracker 8, ProgramHider 17).
+
+**Committed:** 0df45bd (NPS AccentOn), 77ae497 (BT SettingsForm), a4b1e8e (BT BatteryInfoForm), 6d9289d (ApplyTitleBar hotfix), c0e97d2 (NPS + ST title bars), ed512f7 (BT icon text + AccentColors public), 43a9828 (ST SettingsForm unification), this commit (WORKLOG).
+
+**Next:** Phase 30 (ClipTray), now that the four apps share a consistent theming foundation.
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
