@@ -39,4 +39,42 @@ internal static class AccentColors
     }
 
     private static int Clamp(int v) => v < 0 ? 0 : v > 255 ? 255 : v;
+
+    /// <summary>
+    /// Reads the current Windows accent color. Tries DwmGetColorizationColor
+    /// first (the documented API; tracks accent even when "Show accent color
+    /// on title bars" is off). Falls back to the DWM AccentColor registry
+    /// value, then to Windows' canonical blue (#0078D4) if both fail.
+    /// </summary>
+    public static Color Read()
+    {
+        try
+        {
+            if (Native.TrayNativeMethods.DwmGetColorizationColor(out uint argb, out _) == 0)
+            {
+                byte r = (byte)((argb >> 16) & 0xFF);
+                byte g = (byte)((argb >> 8) & 0xFF);
+                byte b = (byte)(argb & 0xFF);
+                return Color.FromArgb(r, g, b);
+            }
+        }
+        catch { /* swallow; fall through */ }
+
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser
+                .OpenSubKey(@"Software\Microsoft\Windows\DWM", writable: false);
+            if (key?.GetValue("AccentColor") is int accent)
+            {
+                // Registry stores as 0xAABBGGRR (BGR, not RGB).
+                byte r = (byte)(accent & 0xFF);
+                byte g = (byte)((accent >> 8) & 0xFF);
+                byte b = (byte)((accent >> 16) & 0xFF);
+                return Color.FromArgb(r, g, b);
+            }
+        }
+        catch { /* swallow */ }
+
+        return Color.FromArgb(0x00, 0x78, 0xD4);
+    }
 }

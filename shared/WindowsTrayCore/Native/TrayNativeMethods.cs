@@ -83,4 +83,7 @@ internal static class TrayNativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    public static extern int DwmGetColorizationColor(out uint pcrColorization, out bool pfOpaqueBlend);
 }

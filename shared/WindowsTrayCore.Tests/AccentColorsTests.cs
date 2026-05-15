@@ -55,4 +55,12 @@ public class AccentColorsTests
         var c = Color.FromArgb(0x80, 0x80, 0x80);
         AccentColors.DeriveSubtle(c, c).Should().Be(c);
     }
+
+    [Fact]
+    public void Read_OnRealMachine_ReturnsFullyOpaqueColor()
+    {
+        var act = () => AccentColors.Read();
+        var color = act.Should().NotThrow().Subject;
+        color.A.Should().Be(0xFF);
+    }
 }
