@@ -30,6 +30,48 @@ public class TrayIconTests
     }
 
     [WindowsFact]
+    public void Tooltip_AssignBuilder_StoresBuiltString()
+    {
+        using var icon = TrayIcon.ForApp("TooltipBuilderTest");
+
+        icon.Tooltip = new TrayTooltipBuilder()
+            .AddRequired("line one")
+            .AddRequired("line two");
+
+        icon.Text.Should().Be("line one\nline two");
+    }
+
+    [WindowsFact]
+    public void TooltipText_AssignString_StoresAsRequiredLine()
+    {
+        using var icon = TrayIcon.ForApp("TooltipTextTest");
+
+        icon.TooltipText = "single-line tooltip";
+
+        icon.Text.Should().Be("single-line tooltip");
+    }
+
+    [WindowsFact]
+    public void Tooltip_AssignNullBuilder_StoresEmpty()
+    {
+        using var icon = TrayIcon.ForApp("TooltipNullTest");
+
+        icon.Tooltip = null!;
+
+        icon.Text.Should().BeEmpty();
+    }
+
+    [WindowsFact]
+    public void TooltipText_AssignNullString_StoresEmpty()
+    {
+        using var icon = TrayIcon.ForApp("TooltipTextNullTest");
+
+        icon.TooltipText = null!;
+
+        icon.Text.Should().BeEmpty();
+    }
+
+    [WindowsFact]
     public void Visible_RoundTrips()
     {
         // Construction without setting Visible -> false. Toggle then unset.

@@ -61,6 +61,38 @@ public sealed class TrayIcon : IDisposable
         }
     }
 
+    /// <summary>
+    /// Structured multi-line tooltip. Calls Build() on assignment and routes
+    /// the result through the same path as Text. Assigning null stores an
+    /// empty tooltip.
+    /// </summary>
+    public TrayTooltipBuilder Tooltip
+    {
+        set
+        {
+            var final = value?.Build() ?? string.Empty;
+            // Build guarantees the result fits MaxLength; Text's defensive
+            // truncate is still in place as a backstop.
+            Text = final;
+        }
+    }
+
+    /// <summary>
+    /// Single-line tooltip convenience. Equivalent to wrapping the string
+    /// in a TrayTooltipBuilder with one AddRequired call. Use for apps with
+    /// a fixed one-line tooltip; for anything multi-line, use Tooltip.
+    /// </summary>
+    public string TooltipText
+    {
+        set
+        {
+            var final = value is null
+                ? string.Empty
+                : new TrayTooltipBuilder().AddRequired(value).Build();
+            Text = final;
+        }
+    }
+
     public bool Visible
     {
         get => _visible;
