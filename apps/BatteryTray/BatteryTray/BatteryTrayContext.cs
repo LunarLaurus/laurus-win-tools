@@ -49,7 +49,7 @@ public sealed class BatteryTrayContext : ApplicationContext
         _updateChecker = new UpdateChecker(_updateHttpClient, Application.ProductVersion, RepoInfo.Owner, RepoInfo.Name);
 
         _notifyIcon = TrayIcon.ForApp("BatteryTray");
-        _notifyIcon.TooltipText = $"BatteryTray {Application.ProductVersion}";
+        _notifyIcon.TooltipText = $"BatteryTray {VersionFormatter.TrimSemverSuffix(Application.ProductVersion)}";
         _notifyIcon.ContextMenuStrip = BuildMenu();
         _notifyIcon.Visible = true;
 
@@ -161,7 +161,7 @@ public sealed class BatteryTrayContext : ApplicationContext
                                   $"On battery — {state.Percent}%";
 
         var tooltip = new TrayTooltipBuilder()
-            .AddRequired($"BatteryTray v{Application.ProductVersion}")
+            .AddRequired($"BatteryTray v{VersionFormatter.TrimSemverSuffix(Application.ProductVersion)}")
             .AddRequired(statusLine);
 
         if (state.BatterySaverActive)

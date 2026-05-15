@@ -956,7 +956,7 @@ internal sealed class ProgramHiderContext : ApplicationContext
         }
 
         var suffix = suffixParts.Count == 0 ? string.Empty : $" [{string.Join(", ", suffixParts)}]";
-        return $"Program Hider v{Application.ProductVersion}{suffix}";
+        return $"Program Hider v{VersionFormatter.TrimSemverSuffix(Application.ProductVersion)}{suffix}";
     }
 
     private NativeWindowSnapshot? GetActiveWindowSnapshot()

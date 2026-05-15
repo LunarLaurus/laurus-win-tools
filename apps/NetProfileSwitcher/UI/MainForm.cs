@@ -410,7 +410,7 @@ public class MainForm : Form
         _trayMenu.Opening += (_, _) => RebuildTrayMenu();
 
         _tray = TrayIcon.ForApp("NetProfileSwitcher");
-        _tray.TooltipText = $"NetProfileSwitcher v{Application.ProductVersion}";
+        _tray.TooltipText = $"NetProfileSwitcher v{VersionFormatter.TrimSemverSuffix(Application.ProductVersion)}";
         _tray.Icon = Icons.GetTrayIcon(TrayState.Idle);
         _tray.ContextMenuStrip = _trayMenu;
         _tray.Visible = true;
@@ -815,7 +815,7 @@ public class MainForm : Form
             p.LinkedSsids.Any(s => s.Equals(_lastSsid, StringComparison.OrdinalIgnoreCase)));
         string profileLine = matched != null ? $"Profile: {matched.Name}" : "Profile: (none)";
         var tb = new TrayTooltipBuilder()
-            .AddRequired($"NetProfileSwitcher v{Application.ProductVersion}")
+            .AddRequired($"NetProfileSwitcher v{VersionFormatter.TrimSemverSuffix(Application.ProductVersion)}")
             .AddRequired(profileLine);
         if (!string.IsNullOrEmpty(_lastSsid))
             tb.AddOptional($"SSID: {_lastSsid}");
