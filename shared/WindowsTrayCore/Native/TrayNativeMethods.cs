@@ -94,10 +94,10 @@ internal static class TrayNativeMethods
     public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 
     [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+    internal static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
 
     [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+    internal static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-    public const int WM_HOTKEY = 0x0312;
+    internal const int WM_HOTKEY = 0x0312;
 }
