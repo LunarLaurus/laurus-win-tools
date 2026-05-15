@@ -34,10 +34,45 @@ public sealed class TrayTooltipBuilder
     public string Build()
     {
         if (_lines.Count == 0) return string.Empty;
-        // Joining + truncation logic added in subsequent tasks.
-        // For now, join with LF (covers the trivial single-line case).
-        var parts = new List<string>(_lines.Count);
-        foreach (var line in _lines) parts.Add(line.Text);
+
+        // Work on a copy so Build() is idempotent.
+        var working = new List<Line>(_lines);
+
+        if (TotalLength(working) <= MaxLength)
+            return JoinLines(working);
+
+        // Drop optional lines from the tail (last-added optional first).
+        for (int i = working.Count - 1; i >= 0 && TotalLength(working) > MaxLength; i--)
+        {
+            if (!working[i].IsRequired)
+            {
+                working.RemoveAt(i);
+            }
+        }
+
+        if (TotalLength(working) <= MaxLength)
+            return JoinLines(working);
+
+        // Required-line overflow falls through to Task 4's truncation logic.
+        // For now, return the partial join so the over-budget tests in Task 3
+        // observe correct optional-drop behaviour. The required-overflow
+        // tests are added in Task 4.
+        return JoinLines(working);
+    }
+
+    private static int TotalLength(List<Line> lines)
+    {
+        if (lines.Count == 0) return 0;
+        int total = lines.Count - 1; // separators
+        foreach (var line in lines) total += line.Text.Length;
+        return total;
+    }
+
+    private static string JoinLines(List<Line> lines)
+    {
+        if (lines.Count == 0) return string.Empty;
+        var parts = new string[lines.Count];
+        for (int i = 0; i < lines.Count; i++) parts[i] = lines[i].Text;
         return string.Join(LineSeparator, parts);
     }
 
