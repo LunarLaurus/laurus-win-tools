@@ -214,4 +214,81 @@ public class TrayTooltipBuilderTests
         var beforeEllipsis = result[..^TrayTooltipBuilder.Ellipsis.Length];
         beforeEllipsis.All(c => c == 'x').Should().BeTrue();
     }
+
+    [Fact]
+    public void Build_NormalisesCRLFToLF()
+    {
+        var result = new TrayTooltipBuilder()
+            .AddRequired("first\r\nsecond")
+            .Build();
+
+        result.Should().Be("first\nsecond");
+        result.Should().NotContain("\r");
+    }
+
+    [Fact]
+    public void Build_NormalisesLoneCRToLF()
+    {
+        var result = new TrayTooltipBuilder()
+            .AddRequired("first\rsecond")
+            .Build();
+
+        result.Should().Be("first\nsecond");
+    }
+
+    [Fact]
+    public void Build_PreJoinedMultilineString_BecomesMultipleLogicalLines()
+    {
+        var resultA = new TrayTooltipBuilder()
+            .AddRequired("L1\nL2\nL3")
+            .Build();
+
+        var resultB = new TrayTooltipBuilder()
+            .AddRequired("L1")
+            .AddRequired("L2")
+            .AddRequired("L3")
+            .Build();
+
+        resultA.Should().Be(resultB);
+    }
+
+    [Fact]
+    public void Build_DropsWhitespaceOnlyLines()
+    {
+        var result = new TrayTooltipBuilder()
+            .AddRequired("alpha")
+            .AddRequired("   ")
+            .AddRequired("")
+            .AddRequired("beta")
+            .Build();
+
+        result.Should().Be("alpha\nbeta");
+    }
+
+    [Fact]
+    public void Build_NeverStartsOrEndsWithNewline()
+    {
+        var result = new TrayTooltipBuilder()
+            .AddRequired("\nleading\n")
+            .AddOptional("\ntrailing\n")
+            .Build();
+
+        result.Should().NotStartWith("\n");
+        result.Should().NotEndWith("\n");
+    }
+
+    [Fact]
+    public void Build_PreJoinedRequiredOverflow_FragmentsKeepTagging()
+    {
+        // 50 + 1 + 50 + 1 + 50 = 152
+        var fragment = new string('x', 50);
+        var triple = $"{fragment}\n{fragment}\n{fragment}";
+
+        var result = new TrayTooltipBuilder()
+            .AddRequired(triple)
+            .Build();
+
+        result.Length.Should().BeLessOrEqualTo(127);
+        result.Should().EndWith(TrayTooltipBuilder.Ellipsis);
+    }
 }

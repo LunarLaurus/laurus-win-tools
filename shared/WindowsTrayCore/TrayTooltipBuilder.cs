@@ -35,13 +35,23 @@ public sealed class TrayTooltipBuilder
     {
         if (_lines.Count == 0) return string.Empty;
 
-        // Work on a copy so Build() is idempotent.
-        var working = new List<Line>(_lines);
+        // Normalise: CRLF/CR to LF; split on LF; drop whitespace-only fragments.
+        var working = new List<Line>();
+        foreach (var line in _lines)
+        {
+            var normalised = line.Text.Replace("\r\n", "\n").Replace('\r', '\n');
+            foreach (var fragment in normalised.Split('\n'))
+            {
+                if (string.IsNullOrWhiteSpace(fragment)) continue;
+                working.Add(new Line(fragment, line.IsRequired));
+            }
+        }
+
+        if (working.Count == 0) return string.Empty;
 
         if (TotalLength(working) <= MaxLength)
             return JoinLines(working);
 
-        // Drop optional lines from the tail (last-added optional first).
         for (int i = working.Count - 1; i >= 0 && TotalLength(working) > MaxLength; i--)
         {
             if (!working[i].IsRequired)
@@ -53,8 +63,6 @@ public sealed class TrayTooltipBuilder
         if (TotalLength(working) <= MaxLength)
             return JoinLines(working);
 
-        // Required lines alone exceed budget. Keep all but the last intact;
-        // truncate the last with an ellipsis at a word boundary when possible.
         return TruncateLastRequired(working);
     }
 
