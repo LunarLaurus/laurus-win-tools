@@ -55,6 +55,9 @@ jobs:
       - name: Test — BatteryTray
         run: dotnet test apps/BatteryTray/BatteryTray.Tests/BatteryTray.Tests.csproj --configuration Release --verbosity normal
 
+      - name: Test — ClipTray
+        run: dotnet test apps/ClipTray/ClipTray.Tests/ClipTray.Tests.csproj --configuration Release --verbosity normal
+
       - name: Test — SoundTracker
         run: dotnet test apps/SoundTracker/SoundTracker.Tests/SoundTracker.Tests.csproj --configuration Release --verbosity normal
 
@@ -68,6 +71,9 @@ jobs:
 
       - name: Publish — BatteryTray
         run: dotnet publish apps/BatteryTray/BatteryTray/BatteryTray.csproj --configuration Release --no-self-contained --output artifacts/BatteryTray /p:RELEASE_VERSION=${{ steps.gitversion.outputs.semVer }}
+
+      - name: Publish — ClipTray
+        run: dotnet publish apps/ClipTray/ClipTray/ClipTray.csproj --configuration Release --no-self-contained --output artifacts/ClipTray /p:RELEASE_VERSION=${{ steps.gitversion.outputs.semVer }}
 
       - name: Publish — NetProfileSwitcher
         run: dotnet publish apps/NetProfileSwitcher/NetProfileSwitcher.csproj --configuration Release --no-self-contained --output artifacts/NetProfileSwitcher /p:RELEASE_VERSION=${{ steps.gitversion.outputs.semVer }}
@@ -85,6 +91,12 @@ jobs:
         with:
           name: BatteryTray
           path: artifacts/BatteryTray
+
+      - name: Upload — ClipTray
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipTray
+          path: artifacts/ClipTray
 
       - name: Upload — NetProfileSwitcher
         uses: actions/upload-artifact@v4

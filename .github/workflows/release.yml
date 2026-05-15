@@ -54,6 +54,9 @@ jobs:
       - name: Test — BatteryTray
         run: dotnet test apps/BatteryTray/BatteryTray.Tests/BatteryTray.Tests.csproj --configuration Release --verbosity normal
 
+      - name: Test — ClipTray
+        run: dotnet test apps/ClipTray/ClipTray.Tests/ClipTray.Tests.csproj --configuration Release --verbosity normal
+
       - name: Test — SoundTracker
         run: dotnet test apps/SoundTracker/SoundTracker.Tests/SoundTracker.Tests.csproj --configuration Release --verbosity normal
 
@@ -67,6 +70,9 @@ jobs:
 
       - name: Publish — BatteryTray
         run: dotnet publish apps/BatteryTray/BatteryTray/BatteryTray.csproj --configuration Release --no-self-contained --output artifacts/BatteryTray /p:RELEASE_VERSION=${{ steps.gitversion.outputs.semVer }}
+
+      - name: Publish — ClipTray
+        run: dotnet publish apps/ClipTray/ClipTray/ClipTray.csproj --configuration Release --no-self-contained --output artifacts/ClipTray /p:RELEASE_VERSION=${{ steps.gitversion.outputs.semVer }}
 
       - name: Publish — NetProfileSwitcher
         run: dotnet publish apps/NetProfileSwitcher/NetProfileSwitcher.csproj --configuration Release --no-self-contained --output artifacts/NetProfileSwitcher /p:RELEASE_VERSION=${{ steps.gitversion.outputs.semVer }}
@@ -84,6 +90,7 @@ jobs:
         run: |
           $v = "${{ steps.gitversion.outputs.semVer }}"
           Compress-Archive -Path artifacts/BatteryTray        -DestinationPath "artifacts/BatteryTray-$v.zip"
+          Compress-Archive -Path artifacts/ClipTray           -DestinationPath "artifacts/ClipTray-$v.zip"
           Compress-Archive -Path artifacts/NetProfileSwitcher -DestinationPath "artifacts/NetProfileSwitcher-$v.zip"
           Compress-Archive -Path artifacts/ProgramHider       -DestinationPath "artifacts/ProgramHider-$v.zip"
           Compress-Archive -Path artifacts/SoundTracker       -DestinationPath "artifacts/SoundTracker-$v.zip"
@@ -99,6 +106,7 @@ jobs:
           $tag = "${{ github.ref_name }}"
           gh release create $tag `
             "artifacts/BatteryTray-$v.zip" `
+            "artifacts/ClipTray-$v.zip" `
             "artifacts/NetProfileSwitcher-$v.zip" `
             "artifacts/ProgramHider-$v.zip" `
             "artifacts/SoundTracker-$v.zip" `

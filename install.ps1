@@ -8,8 +8,8 @@
     Requires .NET 8 SDK to build. Apps run against the .NET 8 Windows Desktop Runtime
     (framework-dependent; no .NET bundled in the install).
 .PARAMETER Apps
-    One or more app names to install. Defaults to all four.
-    Valid values: BatteryTray, NetProfileSwitcher, ProgramHider, SoundTracker
+    One or more app names to install. Defaults to all five.
+    Valid values: BatteryTray, ClipTray, NetProfileSwitcher, ProgramHider, SoundTracker
 .PARAMETER AutoRun
     Register each installed app to start automatically at Windows login
     (writes to HKCU\...\Run -- no elevation required).
@@ -36,8 +36,8 @@
 param(
     [Parameter(ParameterSetName = 'Install')]
     [Parameter(ParameterSetName = 'Uninstall')]
-    [ValidateSet('BatteryTray', 'NetProfileSwitcher', 'ProgramHider', 'SoundTracker')]
-    [string[]]$Apps = @('BatteryTray', 'NetProfileSwitcher', 'ProgramHider', 'SoundTracker'),
+    [ValidateSet('BatteryTray', 'ClipTray', 'NetProfileSwitcher', 'ProgramHider', 'SoundTracker')]
+    [string[]]$Apps = @('BatteryTray', 'ClipTray', 'NetProfileSwitcher', 'ProgramHider', 'SoundTracker'),
 
     [Parameter(ParameterSetName = 'Install')]
     [switch]$AutoRun,
@@ -66,6 +66,11 @@ $AppDefs = @{
     BatteryTray = @{
         Project     = 'apps\BatteryTray\BatteryTray\BatteryTray.csproj'
         ExeName     = 'BatteryTray.exe'
+        StartupArgs = '--startup --delay=5'
+    }
+    ClipTray = @{
+        Project     = 'apps\ClipTray\ClipTray\ClipTray.csproj'
+        ExeName     = 'ClipTray.exe'
         StartupArgs = '--startup --delay=5'
     }
     NetProfileSwitcher = @{

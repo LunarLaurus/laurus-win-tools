@@ -553,6 +553,30 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-15
+
+**Did:** Phase 30 — ClipTray (fifth tray app: clipboard history with hotkey picker).
+- Spec + plan locked: text + image capture, persistent caps (50 text / 10 image), Ctrl+Shift+V default hotkey, maximum-privacy 5-layer filter, lift `HotkeyRegistration` to shared with ProgramHider migration in the same phase.
+- `WindowsTrayCore.HotkeyRegistration`: shared `RegisterHotKey` / `UnregisterHotKey` wrapper with `HotkeyModifiers` flags enum (includes `NoRepeat = 0x4000`), hidden `NativeWindow` WM_HOTKEY pump, `Pressed` event, and a `Handle` property exposed for callers that need to self-filter window enumeration.
+- ProgramHider migrated off its local `HotkeyMessageWindow` onto the shared API; `_hotkey.Handle` replaces the prior self-filter HWND.
+- ClipTray scaffolded as `apps\ClipTray\ClipTray\` (asInvoker manifest, copied app icon). Schema v1 settings via `JsonSettingsStore`, Ctrl+Shift+V default, blocklist seeded with keepass / 1password / bitwarden / lastpass / dashlane.
+- Privacy filter components: `PasswordHeuristic` (length + mixed character classes), `SessionLockMonitor` (WTS notifications), `ForegroundProcessProbe`, plus the `CapturePipeline` orchestrator that enforces Pause → SessionLock → SkipSync markers (`CanIncludeInClipboardHistory` byte 0, `ExcludeClipboardContentFromMonitorProcessing`) → ForegroundBlocklist before extracting content.
+- Storage: SHA-256 dedup (move-to-front + refresh timestamp), per-kind FIFO eviction respecting `IsPinned`, atomic temp-rename JSON persistence with corruption quarantine; image sidecars hash-keyed via `ImageStore` (`Write`/`Exists`/`Delete`/`TotalBytes`/`SweepOrphans`).
+- `PickerForm`: borderless TopMost popup, owner-draw `ListBox` with thumbnail caching, search box, sensitive items rendered as bullets with inline reveal prompt; `SettingsForm` tabbed (General / Privacy / Blocklist / System) with a nested `HotkeyCaptureBox` for live capture.
+- `ClipTrayContext` integrates listener → capture → history → writer, marshals every cross-thread event through `UiDispatcher`, registers HOTKEY_ID_PICKER=1 / HOTKEY_ID_PAUSE=2, and re-applies hotkey + startup on settings-save.
+- E2E test project: STA-marshalled clipboard round-trips (xUnit's default test thread is MTA but `Clipboard.SetText` / `Clipboard.SetImage` require STA) — small `RunOnSta` helper spawns a dedicated STA thread per test and joins synchronously. HotkeyRegistration round-trip test runs directly.
+- xUnit parallelism race fixed: `TempAppData` writes a process-wide `{APPNAME}_DATA` env var, and parallel test classes were clobbering each other's redirects mid-test. Added `xunit.runner.json` with `parallelizeTestCollections: false` to serialise the ClipTray.Tests assembly.
+- `install.ps1` extended to include ClipTray (fifth app in defaults + `-AutoRun` startup args).
+- CI: ClipTray.Tests added to both `build.yml` and `release.yml`; publish step + upload artifact (build) + zip + release asset (release) added.
+
+**Tests:** ClipTray.Tests 35/35 (unit) verified flake-free across three serial runs. ClipTray.E2ETests 3/3 (live clipboard + live hotkey). All prior suites still green.
+
+**Committed:** 3881f28 (HotkeyRegistration shared), 88ebf04 (ProgramHider migration), 9bcddf3 (scaffolding + AppSettings), 8980c5d (PasswordHeuristic), a92beb0 (ImageStore), 8e3a922 (HistoryItem + ClipboardHistory + persistence), 0773c48 (Win32 wrappers), b41b0e8 (CapturePipeline), 6422f8a (PickerForm), c11eeb9 (SettingsForm), d728529 (ClipTrayContext), 250f6c3 (E2E + tray native methods), this commit (install.ps1 + CI + test-parallelism fix + WORKLOG).
+
+**Next:** Push, run `install.ps1 -Run`, smoke-test ClipTray live alongside the other four apps.
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
@@ -791,6 +815,24 @@ ProgramHider already had a 703-line SettingsForm with tabs for General, Rules, S
 - [x] `AcceptButton` / `CancelButton` wired on every dialog (existing pattern; verified intact post-mnemonic edit)
 - [x] High-DPI: every app already declares PerMonitorV2 awareness via `app.manifest` (Phase 0 baseline)
 - [x] Commit
+
+### Phase 30 — ClipTray (clipboard history with hotkey picker) *(complete)*
+
+- [x] Lift `HotkeyRegistration` to `WindowsTrayCore`; expose `Handle` for self-filtering callers
+- [x] Migrate ProgramHider off local `HotkeyMessageWindow`
+- [x] ClipTray scaffolding (project, manifest asInvoker, icon, sln, Program.cs, AppSettings)
+- [x] `PasswordHeuristic` (length + mixed character classes, pure function, TDD)
+- [x] `ImageStore` (PNG sidecar manager with hash-keyed files + orphan sweep)
+- [x] `HistoryItem` record + `ClipboardHistory` (in-memory + JSON persistence with quarantine)
+- [x] `ClipboardListener`, `SessionLockMonitor`, `ForegroundProcessProbe`, `ClipboardWriter` (Win32 wrappers)
+- [x] `CapturePipeline` orchestrator (Pause → SessionLock → SkipSync markers → ForegroundBlocklist → SHA-256 + heuristic → history.Add + Save)
+- [x] `PickerForm` (borderless TopMost popup, search, owner-draw rows with thumbnails, sensitive-mask reveal)
+- [x] `SettingsForm` (tabbed General / Privacy / Blocklist / System with nested HotkeyCaptureBox)
+- [x] `ClipTrayContext` integration (UiDispatcher marshalling, HOTKEY_ID_PICKER/PAUSE, settings-save re-registration)
+- [x] E2E test project (STA-marshalled clipboard, live hotkey round-trip)
+- [x] xUnit parallelism fix: `xunit.runner.json` to serialise CLIPTRAY_DATA env-var contention
+- [x] `install.ps1` includes ClipTray as fifth default app
+- [x] CI: ClipTray.Tests + publish + artifact upload (build.yml) + zip + release asset (release.yml)
 
 ### Phase 24 — GDI+ icon handling consolidation *(complete)*
 

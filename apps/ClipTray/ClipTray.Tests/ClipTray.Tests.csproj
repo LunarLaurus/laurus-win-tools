@@ -20,6 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ClipTray\ClipTray.csproj" />
     <ProjectReference Include="..\..\..\shared\WindowsAppTesting\WindowsAppTesting.csproj" />
   </ItemGroup>
