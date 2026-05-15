@@ -517,6 +517,23 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-15
+
+**Did:** Phase 29.1 consistency pass: NetProfileSwitcher unified onto ThemeApplier.ApplyTo.
+- Deleted `UI\Controls\FlatButton.cs` (custom colored-button subclass). All 8 instantiation sites converted to plain `new Button { FlatStyle = FlatStyle.Flat }` with `Cursor = Cursors.Hand` and `Font = Theme.BodyBold` preserved. The Save/Apply/Delete color hierarchy (green/red/accent) removed per direction; all buttons are now uniform themed buttons.
+- `_btnApply` and `_btnSnap` field types changed from `FlatButton` to `Button`.
+- `MainForm.OnThemeChanged`, `ApplyTheme`, and `RecolorControl` deleted. Replaced with a stored `_themeChangedHandler` field wired to `TrayTheme.Current.Changed`; handler calls `ThemeApplier.ApplyTo(this, TrayTheme.Current)`. `ApplyTo` also called at end of constructor.
+- All `Theme.X` color aliases in `MainForm.cs` migrated to `TrayTheme.Current.*` tokens directly.
+- `Theme.cs` stripped to Fonts (Body, BodyBold, Header, Small) plus `StyleTextBox` and `StyleListBox` helpers; all color alias properties deleted.
+- `Icons.cs`: 8 `Theme.*` color references migrated to `TrayTheme.Current.*` directly. Tray icon semantic state coloring preserved.
+- `ThemeTests.cs`: old alias-delegation tests deleted; replaced with 9 tests covering Font fields, StyleTextBox behaviour, and StyleListBox configuration.
+
+**Committed:** 5366d26
+
+**Next:** Phase 30 (ClipTray, per Commander's stated direction).
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
