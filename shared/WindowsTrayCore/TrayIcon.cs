@@ -48,32 +48,17 @@ public sealed class TrayIcon : IDisposable
         }
     }
 
-    public string Text
-    {
-        get => _text;
-        set
-        {
-            // NOTIFYICONDATA.szTip is 128 wide chars including the terminator.
-            var v = value ?? string.Empty;
-            if (v.Length > 127) v = v[..127];
-            _text = v;
-            UpdateAddOrModify();
-        }
-    }
-
     /// <summary>
-    /// Structured multi-line tooltip. Calls Build() on assignment and routes
-    /// the result through the same path as Text. Assigning null stores an
-    /// empty tooltip.
+    /// Structured multi-line tooltip. Calls Build() on assignment; the result
+    /// is guaranteed to fit MaxLength (127 wide chars). Assigning null stores
+    /// an empty tooltip.
     /// </summary>
     public TrayTooltipBuilder Tooltip
     {
         set
         {
-            var final = value?.Build() ?? string.Empty;
-            // Build guarantees the result fits MaxLength; Text's defensive
-            // truncate is still in place as a backstop.
-            Text = final;
+            _text = value?.Build() ?? string.Empty;
+            UpdateAddOrModify();
         }
     }
 
@@ -86,12 +71,18 @@ public sealed class TrayIcon : IDisposable
     {
         set
         {
-            var final = value is null
+            _text = value is null
                 ? string.Empty
                 : new TrayTooltipBuilder().AddRequired(value).Build();
-            Text = final;
+            UpdateAddOrModify();
         }
     }
+
+    /// <summary>
+    /// Test-only accessor for the current szTip backing string. Gated by
+    /// InternalsVisibleTo on WindowsTrayCore.Tests.
+    /// </summary>
+    internal string GetTipForTesting() => _text;
 
     public bool Visible
     {

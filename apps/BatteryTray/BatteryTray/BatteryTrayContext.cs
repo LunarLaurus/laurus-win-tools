@@ -49,7 +49,7 @@ public sealed class BatteryTrayContext : ApplicationContext
         _updateChecker = new UpdateChecker(_updateHttpClient, Application.ProductVersion, RepoInfo.Owner, RepoInfo.Name);
 
         _notifyIcon = TrayIcon.ForApp("BatteryTray");
-        _notifyIcon.Text = $"BatteryTray {Application.ProductVersion}";
+        _notifyIcon.TooltipText = $"BatteryTray {Application.ProductVersion}";
         _notifyIcon.ContextMenuStrip = BuildMenu();
         _notifyIcon.Visible = true;
 

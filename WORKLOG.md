@@ -463,6 +463,25 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-15
+
+**Did:** Phase 28 implementation: `TrayTooltipBuilder` for multi-line tray tooltips.
+- `WindowsTrayCore.TrayTooltipBuilder`: composes multi-line tooltips under the Win32 szTip[128] budget (127 wide chars). `AddRequired` / `AddOptional` tagging; optionals drop from the tail first; word-boundary truncation with U+2026 ellipsis on the last required line when required lines alone overflow. Input normalisation handles CRLF, lone CR, embedded LFs, and whitespace-only lines.
+- `WindowsTrayCore.TrayIcon`: `Text` property removed. New `Tooltip` (builder) and `TooltipText` (single-line convenience) setters. Internal `GetTipForTesting()` accessor added for test introspection (gated by `InternalsVisibleTo`).
+- `WindowsTrayCore.TrayTooltip` static class deleted (stale 63-char `MaxLength`; superseded).
+- BatteryTray, NetProfileSwitcher, ProgramHider, SoundTracker all migrated. NetProfileSwitcher loses its `TruncateAtWord` helper; SoundTracker renames `TooltipFormatter.cs` to `ActivityLabelFormatter.cs` and deletes the tooltip-only methods. SoundTracker also gains a `_currentTooltipText` cache so the test accessor `CurrentTooltipText` can survive `TrayIcon.Text` removal.
+- A stale `"SoundTracker 0.4.1"` literal in `TrayApplicationContext_ReflectsRecentHistory` was an exposed pre-existing bug; fixed to `AppMetadata.TooltipPrefix`.
+
+**Tests:** all 297 unit tests green across the six suites (WindowsTrayCore 98 [+32 from `TrayTooltipBuilderTests` + 5 new `TrayIconTests` minus 5 deleted `TrayTooltipTests`], WindowsAppCore 85, BatteryTray 83, NetProfileSwitcher 6, SoundTracker 8, ProgramHider 17). SoundTracker SmokeTests 10/10. BatteryTray E2E 13/13.
+
+**Execution model:** hybrid. Tasks 1-7 (TrayTooltipBuilder TDD slices + TrayIcon additive setters) executed inline. Tasks 8-11 (four app migrations) fanned out to parallel general-purpose subagents. Task 12 (the breaking removal + WORKLOG) executed inline.
+
+**Committed:** feaaf9d (plan), eafcec6 (skeleton), 5f5ebc2 (joining tests), 4c9c508 (optional drop), c06d49e (word truncate), b114a60 (normalisation), 544f39c (edge cases), 80c81eb (TrayIcon setters), d04b547 (ProgramHider), 3fad0d6 (NetProfileSwitcher), 21e0a93 (BatteryTray), f96cc74 (SoundTracker + rename), this commit (TrayIcon.Text removal + WORKLOG).
+
+**Next:** Phase 29 (tbd)
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*

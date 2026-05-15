@@ -143,7 +143,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _notifyIcon = TrayIcon.ForApp("SoundTracker");
         _notifyIcon.Icon = SystemIcons.Information;
-        _notifyIcon.TooltipText = $"{AppMetadata.TooltipPrefix}: starting";
+        _currentTooltipText = $"{AppMetadata.TooltipPrefix}: starting";
+        _notifyIcon.TooltipText = _currentTooltipText;
         _notifyIcon.Visible = showNotifyIcon;
 
         _iconProvider = new AudioIconProvider();
@@ -194,7 +195,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
             "Right-click the tray icon to open settings, view recent activity, or toggle startup.");
     }
 
-    internal string CurrentTooltipText => _notifyIcon.Text;
+    private string _currentTooltipText = string.Empty;
+
+    internal string CurrentTooltipText => _currentTooltipText;
 
     internal string CurrentVolumeStatusText => _volumeStatusItem.Text ?? string.Empty;
 
@@ -362,17 +365,20 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 var recent = BuildRecentTooltipSummaryInline(recentActivities, DateTimeOffset.UtcNow);
                 if (recent is not null) tb.AddOptional(recent);
             }
+            var tipText = tb.Build();
+            _currentTooltipText = tipText;
             _notifyIcon.Tooltip = tb;
             _volumeStatusItem.Text = ActivityLabelFormatter.BuildVolumeMenuLabel(volumeSnapshot);
             _activeStatusItem.Text = ActivityLabelFormatter.BuildActiveMenuLabel(sessions);
             _recentStatusItem.Text = ActivityLabelFormatter.BuildRecentMenuLabel(recentActivities);
             _recentActivityForm.RefreshEntries(sessions, recentActivities);
-            AppLog.Info($"refresh sessions success volume={volumeSnapshot.Percent} muted={volumeSnapshot.IsMuted} count={sessions.Count} historyCount={recentActivities.Count} tooltip=\"{_notifyIcon.Text}\" elapsedMs={started.ElapsedMilliseconds}");
+            AppLog.Info($"refresh sessions success volume={volumeSnapshot.Percent} muted={volumeSnapshot.IsMuted} count={sessions.Count} historyCount={recentActivities.Count} tooltip=\"{tipText}\" elapsedMs={started.ElapsedMilliseconds}");
         }
         catch (Exception ex)
         {
             Debug.WriteLine(ex);
-            _notifyIcon.TooltipText = "Sound Tracker: unavailable";
+            _currentTooltipText = "Sound Tracker: unavailable";
+            _notifyIcon.TooltipText = _currentTooltipText;
             _volumeStatusItem.Text = "Volume: unavailable";
             _activeStatusItem.Text = "Audio session query failed";
             _recentStatusItem.Text = "Recent activity unavailable";

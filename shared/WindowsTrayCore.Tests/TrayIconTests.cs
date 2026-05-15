@@ -22,14 +22,6 @@ public class TrayIconTests
     }
 
     [WindowsFact]
-    public void Text_TruncatesPast127Chars()
-    {
-        using var icon = TrayIcon.ForApp("TruncTest");
-        icon.Text = new string('A', 200);
-        icon.Text.Length.Should().Be(127);
-    }
-
-    [WindowsFact]
     public void Tooltip_AssignBuilder_StoresBuiltString()
     {
         using var icon = TrayIcon.ForApp("TooltipBuilderTest");
@@ -38,7 +30,7 @@ public class TrayIconTests
             .AddRequired("line one")
             .AddRequired("line two");
 
-        icon.Text.Should().Be("line one\nline two");
+        icon.GetTipForTesting().Should().Be("line one\nline two");
     }
 
     [WindowsFact]
@@ -48,7 +40,7 @@ public class TrayIconTests
 
         icon.TooltipText = "single-line tooltip";
 
-        icon.Text.Should().Be("single-line tooltip");
+        icon.GetTipForTesting().Should().Be("single-line tooltip");
     }
 
     [WindowsFact]
@@ -58,7 +50,7 @@ public class TrayIconTests
 
         icon.Tooltip = null!;
 
-        icon.Text.Should().BeEmpty();
+        icon.GetTipForTesting().Should().BeEmpty();
     }
 
     [WindowsFact]
@@ -68,7 +60,18 @@ public class TrayIconTests
 
         icon.TooltipText = null!;
 
-        icon.Text.Should().BeEmpty();
+        icon.GetTipForTesting().Should().BeEmpty();
+    }
+
+    [WindowsFact]
+    public void Tooltip_AdversarialLongInput_NeverExceedsBudget()
+    {
+        using var icon = TrayIcon.ForApp("TooltipBudgetTest");
+
+        icon.Tooltip = new TrayTooltipBuilder()
+            .AddRequired(new string('A', 200));
+
+        icon.GetTipForTesting().Length.Should().BeLessOrEqualTo(TrayTooltipBuilder.MaxLength);
     }
 
     [WindowsFact]
