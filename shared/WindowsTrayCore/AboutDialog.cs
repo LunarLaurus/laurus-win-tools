@@ -229,12 +229,8 @@ public sealed class AboutDialog : Form
         }
     }
 
-    internal static string TrimSemverSuffix(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return "unknown";
-        var idx = raw.IndexOfAny(['+', '-']);
-        return idx < 0 ? raw : raw[..idx];
-    }
+    internal static string TrimSemverSuffix(string? raw) =>
+        VersionFormatter.TrimSemverSuffix(raw);
 
     private static void OpenUrl(string url)
     {
