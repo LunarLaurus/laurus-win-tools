@@ -443,6 +443,26 @@ Phase 13 — Settings schema versioning + configurable startup delay:
 
 ---
 
+## 2026-05-15
+
+**Did:** Phase 27 implementation — configurable power-button and lid-close actions for BatteryTray.
+- `HardwareAction` enum (matches powercfg integer indices), `HardwareActionsSnapshot` record struct, `HardwareActionPolicy` persistence class.
+- `HardwareActionsController`: `BuildCmdArgs` (pure args builder, `&&`-chained for fail-fast semantics), `ParseSubButtonsQuery` (powercfg /q parser with whitespace-normalisation), `ReadCurrent` (unelevated read), `ApplyToAllPlans` (elevated write via single cmd.exe runas chaining every required powercfg call). Failure modes (declined UAC via Win32 1223, non-zero exit, 30s timeout, parser failure, no plans, unexpected exception) all surface as `ApplyResult.Ok=false` with a human-readable reason.
+- `AppSettings` schema bump v3 -> v4. `AppSettingsMigrationV3ToV4` no-op preserves all v3 fields and lands HardwareActions=null (sentinel for "user has never configured this").
+- `SettingsForm`: Power tab renamed to "Power plans"; new "Hardware actions" tab with two AC dropdowns, "Use different action on battery" checkbox revealing two DC dropdowns, and a drift-hint Label that surfaces when the live Windows state disagrees with the persisted policy. Save flow short-circuits if no change is needed; otherwise triggers UAC, applies, and aborts the whole dialog save on apply failure.
+- `Program.cs` wires `HardwareActionsController.LogSink` into the existing `AppLog` so `hwactions.applied` / `hwactions.apply.failed` / `hwactions.parse.failed` events land in the JSONL log alongside the rest of the lifecycle.
+- One UAC prompt per Save regardless of plan count, as per spec.
+
+**Tests:** all 265 unit tests green across the six suites (BatteryTray 83, WindowsAppCore 85, WindowsTrayCore 66, NetProfileSwitcher 6, SoundTracker 8, ProgramHider 17). 13 BatteryTray E2E tests pass on the unelevated dev box; the elevated round-trip and unelevated negative tests self-skip cleanly when the gate doesn't match the session. ReadCurrent E2E softened: probes for lid+power-button GUIDs and only asserts a populated snapshot on hardware that surfaces them (desktop-class hosts get the documented null-on-absent-hardware path instead).
+
+**Committed:** 65ebcb8 (foundation types), 1177252 (HardwareActionPolicy), 12728d6 (V3->V4 migration), bea3d52 (AppSettings v4), 4897ebc (BuildCmdArgs), 2ce6718 (parser + fixture), 21263a9 (ReadCurrent + E2E), c256fb3 (ApplyToAllPlans + E2E), c9e4dbd (SettingsForm structure), d341b9f (SettingsForm load/save + Program LogSink), this commit (WORKLOG).
+
+**Manual smoke pending:** UAC round-trip on real hardware. Commander to exercise from an elevated shell with a laptop (lid + power button) attached.
+
+**Next:** Phase 28 (tbd)
+
+---
+
 ## Phase Checklist
 
 ### Phase 0 — Workspace restructure *(complete)*
