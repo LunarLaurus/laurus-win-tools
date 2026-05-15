@@ -77,10 +77,11 @@ internal sealed class SettingsForm : Form
         var delayHint = new Label
         {
             Text = "Wait this long after logon before sampling audio.",
-            ForeColor = theme.ForegroundAlt,
+            ForeColor = theme.ForegroundDim,
             BackColor = theme.Surface,
             Location = new Point(inputLeft + 88, y + 4),
             Size = new Size(inputWidth - 88, 22),
+            Tag = "hint",
         };
         Controls.Add(delayHint);
         y += rowHeight;
@@ -89,11 +90,12 @@ internal sealed class SettingsForm : Form
         _settingsPathValue = new Label
         {
             Text = _config.SettingsFilePath,
-            ForeColor = theme.ForegroundAlt,
+            ForeColor = theme.ForegroundDim,
             BackColor = theme.Surface,
             Location = new Point(inputLeft, y + 4),
             Size = new Size(inputWidth, 22),
             AutoEllipsis = true,
+            Tag = "hint",
         };
         Controls.Add(_settingsPathValue);
         y += rowHeight + 12;
@@ -128,9 +130,30 @@ internal sealed class SettingsForm : Form
         AcceptButton = saveButton;
         CancelButton = cancelButton;
 
-        // Title bar tint follows the system theme; the rest of the form
-        // already uses tokens directly above.
-        ThemeApplier.ApplyTitleBar(this, !theme.IsLight);
+        // Canonical theming pattern: ApplyTo handles every control, then a
+        // post-pass re-applies ForegroundDim to hint labels (which ApplyTo's
+        // case table would otherwise flatten to Foreground).
+        ThemeApplier.ApplyTo(this, TrayTheme.Current);
+        ApplyHintColors();
+
+        TrayTheme.Current.Changed += OnThemeChanged;
+        Disposed += (_, _) => TrayTheme.Current.Changed -= OnThemeChanged;
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        ThemeApplier.ApplyTo(this, TrayTheme.Current);
+        ApplyHintColors();
+    }
+
+    private void ApplyHintColors()
+    {
+        var dim = TrayTheme.Current.ForegroundDim;
+        foreach (Control c in Controls)
+        {
+            if (c is Label lbl && lbl.Tag is string s && s == "hint")
+                lbl.ForeColor = dim;
+        }
     }
 
     private void SaveAndClose()
