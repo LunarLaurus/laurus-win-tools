@@ -154,24 +154,28 @@ public sealed class BatteryTrayContext : ApplicationContext
 
     private void UpdateTooltip(BatteryState state)
     {
-        string status =
+        string statusLine =
             !state.HasBattery   ? "On AC power (no battery detected)" :
              state.IsCharging   ? $"Charging — {state.Percent}%"      :
              state.IsOnAcPower  ? $"Plugged in — {state.Percent}%"    :
                                   $"On battery — {state.Percent}%";
 
-        if (state.BatterySaverActive) status += "  ·  Battery Saver";
+        var tooltip = new TrayTooltipBuilder()
+            .AddRequired($"BatteryTray v{Application.ProductVersion}")
+            .AddRequired(statusLine);
+
+        if (state.BatterySaverActive)
+            tooltip.AddOptional("Battery Saver active");
 
         if (_settings.ShowTimeRemainingInTooltip && state.HasBattery)
         {
             if (state.IsCharging && state.SecondsToFull is int toFull && toFull > 0)
-                status += $"  ·  {TimeFormat.Duration(toFull)} to full";
+                tooltip.AddOptional($"{TimeFormat.Duration(toFull)} to full");
             else if (!state.IsCharging && state.SecondsRemaining is int toEmpty)
-                status += $"  ·  {TimeFormat.Duration(toEmpty)} remaining";
+                tooltip.AddOptional($"{TimeFormat.Duration(toEmpty)} remaining");
         }
 
-        if (status.Length > 127) status = status[..127];
-        _notifyIcon.Text = status;
+        _notifyIcon.Tooltip = tooltip;
     }
 
     private void EvaluateNotifications(BatteryState state)
