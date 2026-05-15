@@ -44,14 +44,14 @@ public class ThemeApplierTests
     }
 
     [WindowsFact]
-    public void ApplyTo_Button_UsesSurfaceAndFlat()
+    public void ApplyTo_Button_UsesSurfaceAltAndFlat()
     {
         using var form = new Form();
         var btn = new Button { Text = "OK" };
         form.Controls.Add(btn);
         var theme = new TrayTheme(isLight: true);
         ThemeApplier.ApplyTo(form, theme);
-        btn.BackColor.Should().Be(theme.Surface);
+        btn.BackColor.Should().Be(theme.SurfaceAlt);
         btn.FlatStyle.Should().Be(FlatStyle.Flat);
         btn.FlatAppearance.BorderColor.Should().Be(theme.Accent);
     }

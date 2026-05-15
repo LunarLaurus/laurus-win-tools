@@ -13,8 +13,8 @@ public static class ThemeApplier
     public static void ApplyTo(Form form, TrayTheme theme)
     {
         ApplyTitleBar(form, !theme.IsLight);
-        form.BackColor = theme.Background;
-        form.ForeColor = theme.Text;
+        form.BackColor = theme.Surface;
+        form.ForeColor = theme.Foreground;
         ApplyToControls(form.Controls, theme);
     }
 
@@ -61,79 +61,79 @@ public static class ThemeApplier
         switch (c)
         {
             case Button btn:
-                btn.BackColor = theme.Surface;
-                btn.ForeColor = theme.Text;
+                btn.BackColor = theme.SurfaceAlt;
+                btn.ForeColor = theme.Foreground;
                 btn.FlatStyle = FlatStyle.Flat;
                 btn.FlatAppearance.BorderColor = theme.Accent;
                 break;
             case TextBox tb:
-                tb.BackColor = theme.Field;
-                tb.ForeColor = theme.Text;
+                tb.BackColor = theme.SurfaceAlt;
+                tb.ForeColor = theme.Foreground;
                 tb.BorderStyle = BorderStyle.FixedSingle;
                 break;
             case NumericUpDown num:
-                num.BackColor = theme.Field;
-                num.ForeColor = theme.Text;
+                num.BackColor = theme.SurfaceAlt;
+                num.ForeColor = theme.Foreground;
                 num.BorderStyle = BorderStyle.FixedSingle;
                 break;
             case ComboBox cb:
-                cb.BackColor = theme.Field;
-                cb.ForeColor = theme.Text;
+                cb.BackColor = theme.SurfaceAlt;
+                cb.ForeColor = theme.Foreground;
                 cb.FlatStyle = FlatStyle.Flat;
                 break;
             case CheckBox chk:
-                chk.BackColor = theme.Background;
-                chk.ForeColor = theme.Text;
+                chk.BackColor = theme.Surface;
+                chk.ForeColor = theme.Foreground;
                 break;
             case RadioButton rb:
-                rb.BackColor = theme.Background;
-                rb.ForeColor = theme.Text;
+                rb.BackColor = theme.Surface;
+                rb.ForeColor = theme.Foreground;
                 break;
             case ListView lv:
-                lv.BackColor = theme.Field;
-                lv.ForeColor = theme.Text;
+                lv.BackColor = theme.SurfaceAlt;
+                lv.ForeColor = theme.Foreground;
                 break;
             case ListBox lb:
-                lb.BackColor = theme.Field;
-                lb.ForeColor = theme.Text;
+                lb.BackColor = theme.SurfaceAlt;
+                lb.ForeColor = theme.Foreground;
                 break;
             case TabControl tc:
-                tc.BackColor = theme.Background;
-                tc.ForeColor = theme.Text;
+                tc.BackColor = theme.Surface;
+                tc.ForeColor = theme.Foreground;
                 break;
             case TabPage tp:
-                tp.BackColor = theme.Background;
-                tp.ForeColor = theme.Text;
+                tp.BackColor = theme.Surface;
+                tp.ForeColor = theme.Foreground;
                 break;
             case GroupBox gb:
-                gb.BackColor = theme.Background;
-                gb.ForeColor = theme.Text;
+                gb.BackColor = theme.Surface;
+                gb.ForeColor = theme.Foreground;
                 break;
             case LinkLabel lk:
-                lk.BackColor = theme.Background;
+                lk.BackColor = theme.Surface;
                 lk.LinkColor = theme.Accent;
                 lk.ActiveLinkColor = theme.Accent;
                 lk.VisitedLinkColor = theme.Accent;
                 break;
             case Label lbl:
-                lbl.BackColor = theme.Background;
-                lbl.ForeColor = theme.Text;
+                lbl.BackColor = theme.Surface;
+                lbl.ForeColor = theme.Foreground;
                 break;
             case TableLayoutPanel tlp:
-                tlp.BackColor = theme.Background;
-                tlp.ForeColor = theme.Text;
+                tlp.BackColor = theme.Surface;
+                tlp.ForeColor = theme.Foreground;
                 break;
             case FlowLayoutPanel flp:
-                flp.BackColor = theme.Background;
-                flp.ForeColor = theme.Text;
+                flp.BackColor = theme.Surface;
+                flp.ForeColor = theme.Foreground;
                 break;
             case Panel p:
-                p.BackColor = theme.Background;
-                p.ForeColor = theme.Text;
+                p.BackColor = theme.Surface;
+                p.ForeColor = theme.Foreground;
                 break;
             default:
-                c.BackColor = theme.Background;
-                c.ForeColor = theme.Text;
+                c.BackColor = theme.Surface;
+                c.ForeColor = theme.Foreground;
                 break;
         }
     }

@@ -34,8 +34,8 @@ public sealed class AboutDialog : Form
         MinimizeBox = false;
         MaximizeBox = false;
         ShowInTaskbar = false;
-        BackColor = theme.Background;
-        ForeColor = theme.Text;
+        BackColor = theme.Surface;
+        ForeColor = theme.Foreground;
         ClientSize = new Size(460, hasExtra ? 400 : 240);
 
         if (appIcon is not null)
@@ -48,7 +48,7 @@ public sealed class AboutDialog : Form
         {
             Image = (appIcon ?? SystemIcons.Application).ToBitmap(),
             SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = theme.Background,
+            BackColor = theme.Surface,
             Size = new Size(48, 48),
             Location = new Point(pad.Left, pad.Top),
         };
@@ -57,8 +57,8 @@ public sealed class AboutDialog : Form
         {
             Text = appName,
             Font = new Font(Font.FontFamily, 14, FontStyle.Bold),
-            ForeColor = theme.Text,
-            BackColor = theme.Background,
+            ForeColor = theme.Foreground,
+            BackColor = theme.Surface,
             AutoSize = true,
             Location = new Point(iconBox.Right + 12, pad.Top),
         };
@@ -66,8 +66,8 @@ public sealed class AboutDialog : Form
         var versionLabel = new Label
         {
             Text = $"Version {displayVersion}",
-            ForeColor = theme.Text,
-            BackColor = theme.Background,
+            ForeColor = theme.Foreground,
+            BackColor = theme.Surface,
             AutoSize = true,
             Location = new Point(iconBox.Right + 12, titleLabel.Bottom + 2),
         };
@@ -75,8 +75,8 @@ public sealed class AboutDialog : Form
         var licenseLabel = new Label
         {
             Text = $"License: {licenseSummary}",
-            ForeColor = theme.TextMuted,
-            BackColor = theme.Background,
+            ForeColor = theme.ForegroundAlt,
+            BackColor = theme.Surface,
             AutoSize = true,
             Location = new Point(iconBox.Right + 12, versionLabel.Bottom + 2),
         };
@@ -88,8 +88,8 @@ public sealed class AboutDialog : Form
             var diagHeader = new Label
             {
                 Text = "Diagnostics:",
-                ForeColor = theme.TextMuted,
-                BackColor = theme.Background,
+                ForeColor = theme.ForegroundAlt,
+                BackColor = theme.Surface,
                 AutoSize = true,
                 Location = new Point(pad.Left, nextTop),
             };
@@ -100,8 +100,8 @@ public sealed class AboutDialog : Form
                 Text = "&Copy",
                 AutoSize = true,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = theme.Surface,
-                ForeColor = theme.Text,
+                BackColor = theme.SurfaceAlt,
+                ForeColor = theme.Foreground,
                 TabIndex = ++tab,
                 Location = new Point(ClientSize.Width - pad.Right - 60, nextTop - 4),
             };
@@ -121,8 +121,8 @@ public sealed class AboutDialog : Form
                 Multiline = true,
                 ReadOnly = true,
                 BorderStyle = BorderStyle.FixedSingle,
-                BackColor = theme.Surface,
-                ForeColor = theme.Text,
+                BackColor = theme.SurfaceAlt,
+                ForeColor = theme.Foreground,
                 ScrollBars = ScrollBars.Vertical,
                 Location = new Point(pad.Left, nextTop),
                 Size = new Size(ClientSize.Width - pad.Horizontal, 110),
@@ -135,8 +135,8 @@ public sealed class AboutDialog : Form
         _statusLabel = new Label
         {
             Text = string.Empty,
-            ForeColor = theme.TextMuted,
-            BackColor = theme.Background,
+            ForeColor = theme.ForegroundAlt,
+            BackColor = theme.Surface,
             AutoSize = true,
             Location = new Point(pad.Left, nextTop),
         };
@@ -148,7 +148,7 @@ public sealed class AboutDialog : Form
             Text = "View source on GitHub",
             LinkColor = theme.Accent,
             ActiveLinkColor = theme.Accent,
-            BackColor = theme.Background,
+            BackColor = theme.Surface,
             AutoSize = true,
             TabIndex = ++tab,
             Location = new Point(pad.Left, nextTop),
@@ -161,7 +161,7 @@ public sealed class AboutDialog : Form
             Text = "Release notes",
             LinkColor = theme.Accent,
             ActiveLinkColor = theme.Accent,
-            BackColor = theme.Background,
+            BackColor = theme.Surface,
             AutoSize = true,
             TabIndex = ++tab,
             Location = new Point(viewSourceLink.Right + 16, nextTop),
@@ -175,8 +175,8 @@ public sealed class AboutDialog : Form
         {
             Text = "Check for &updates",
             AutoSize = true,
-            BackColor = theme.Surface,
-            ForeColor = theme.Text,
+            BackColor = theme.SurfaceAlt,
+            ForeColor = theme.Foreground,
             FlatStyle = FlatStyle.Flat,
             Enabled = _updateChecker is not null,
             TabIndex = ++tab,
@@ -191,8 +191,8 @@ public sealed class AboutDialog : Form
             Text = "&Close",
             AutoSize = true,
             DialogResult = DialogResult.OK,
-            BackColor = theme.Surface,
-            ForeColor = theme.Text,
+            BackColor = theme.SurfaceAlt,
+            ForeColor = theme.Foreground,
             FlatStyle = FlatStyle.Flat,
             TabIndex = ++tab,
         };
