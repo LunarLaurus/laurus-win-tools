@@ -128,4 +128,60 @@ public static class HardwareActionsController
             LidCloseAc:    (HardwareAction)lidAc.Value,
             LidCloseDc:    (HardwareAction)lidDc.Value);
     }
+
+    /// <summary>
+    /// Reads the current power-button and lid-close actions from the active
+    /// power scheme. Unelevated; powercfg /q works for standard users.
+    /// Returns null on any failure (timeout, non-zero exit, parser failure);
+    /// callers should treat null as "feature unavailable" and disable the UI
+    /// with a friendly message.
+    /// </summary>
+    public static HardwareActionsSnapshot? ReadCurrent()
+    {
+        var stdout = RunPowerCfg("/q SCHEME_CURRENT " + SubButtons);
+        if (stdout is null) return null;
+
+        var snapshot = ParseSubButtonsQuery(stdout);
+        if (snapshot is null)
+        {
+            AppLogIfAvailable("hwactions.parse.failed", LogLevel.Warn, new { outputLength = stdout.Length });
+        }
+        return snapshot;
+    }
+
+    private static string? RunPowerCfg(string args)
+    {
+        try
+        {
+            using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "powercfg.exe",
+                Arguments = args,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            });
+            if (p is null) return null;
+            var stdout = p.StandardOutput.ReadToEnd();
+            p.WaitForExit(5000);
+            return p.ExitCode == 0 ? stdout : null;
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Write("hwactions.read", ex);
+            return null;
+        }
+    }
+
+    // AppLog is created in Program.cs and not statically accessible here.
+    // Program wires LogSink at startup; if unset (e.g. in tests), the call is a no-op.
+    internal static Action<string, LogLevel, object?>? LogSink;
+
+    internal enum LogLevel { Info, Warn }
+
+    private static void AppLogIfAvailable(string evt, LogLevel level, object? data)
+    {
+        try { LogSink?.Invoke(evt, level, data); } catch { /* never let logging break the controller */ }
+    }
 }
