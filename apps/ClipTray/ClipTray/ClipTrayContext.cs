@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Net.Http;
 using System.Threading;
@@ -65,6 +66,7 @@ public sealed class ClipTrayContext : ApplicationContext
         RegisterHotkeys();
 
         _trayIcon = TrayIcon.ForApp("ClipTray");
+        _trayIcon.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
         _trayIcon.TooltipText = $"ClipTray v{VersionFormatter.TrimSemverSuffix(Application.ProductVersion)}";
         _trayIcon.ContextMenuStrip = BuildMenu();
         _trayIcon.Visible = true;

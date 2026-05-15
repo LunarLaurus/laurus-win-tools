@@ -564,5 +564,14 @@ internal sealed class PickerForm : Form
         e.Graphics.DrawRectangle(pen, 0, 0, ClientSize.Width - 1, ClientSize.Height - 1);
     }
 
+    protected override void OnDeactivate(EventArgs e)
+    {
+        base.OnDeactivate(e);
+        // Standard popup-picker behaviour: dismiss on focus loss so users
+        // who don't know Esc closes it aren't stuck with a floating window.
+        // Pending reveal prompts are abandoned (state is local to this lifecycle).
+        if (Visible) Close();
+    }
+
     private sealed class SeparatorRow { }
 }
