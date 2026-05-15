@@ -828,6 +828,7 @@ public class MainForm : Form
 
     private void ApplyTheme()
     {
+        ThemeApplier.ApplyTitleBar(this, !TrayTheme.Current.IsLight);
         BackColor = Theme.Bg;
         ForeColor = Theme.Text;
         foreach (Control c in Controls)

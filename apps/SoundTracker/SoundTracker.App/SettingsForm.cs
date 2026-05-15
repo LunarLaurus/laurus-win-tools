@@ -127,6 +127,10 @@ internal sealed class SettingsForm : Form
 
         AcceptButton = saveButton;
         CancelButton = cancelButton;
+
+        // Title bar tint follows the system theme; the rest of the form
+        // already uses tokens directly above.
+        ThemeApplier.ApplyTitleBar(this, !theme.IsLight);
     }
 
     private void SaveAndClose()

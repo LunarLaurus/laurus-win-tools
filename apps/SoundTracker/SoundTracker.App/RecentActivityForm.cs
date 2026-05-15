@@ -14,7 +14,7 @@ internal sealed class RecentActivityForm : Form
     public RecentActivityForm()
     {
         AutoScaleMode = AutoScaleMode.Font;
-        BackColor = TrayTheme.Current.Surface;
+        ThemeApplier.ApplyTo(this, TrayTheme.Current);
         TrayTheme.Current.Changed += OnThemeChanged;
         ClientSize = new Size(1100, 680);
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
@@ -195,7 +195,7 @@ internal sealed class RecentActivityForm : Form
     }
 
     private void OnThemeChanged(object? sender, EventArgs e) =>
-        BackColor = TrayTheme.Current.Surface;
+        ThemeApplier.ApplyTo(this, TrayTheme.Current);
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
