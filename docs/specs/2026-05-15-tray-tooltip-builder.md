@@ -33,7 +33,7 @@ Four apps, four idioms, two stale constants, one app (SoundTracker) doing genuin
 | `TrayIcon.Text` raw setter | Removed. Replaced with `TrayIcon.Tooltip` (builder) and `TrayIcon.TooltipText` (single-line convenience). |
 | Ellipsis glyph | `…` (U+2026, one char). Saves two chars per truncation against the budget; renders correctly in tray fonts on every supported Windows build. |
 | Existing `TrayTooltip` static class | Deleted (not renamed). New name `TrayTooltipBuilder` makes the API shape obvious at call sites. |
-| Per-app `TooltipFormatter` (SoundTracker) | Deleted. SoundTracker rewires through the new builder. |
+| Per-app `TooltipFormatter` (SoundTracker) | Tooltip-composition methods deleted; menu-label and activity-age methods survive and the file is renamed to `ActivityLabelFormatter.cs` so the name reflects what's left. |
 
 ## Architecture
 
@@ -91,10 +91,18 @@ private void SetTipFromString(string final) { /* existing szTip path */ }
 
 `TrayIcon.Text`'s defensive 127-truncate disappears with the property because every code path now flows through `TrayTooltipBuilder.Build()`, which is the canonical budget enforcer.
 
-### Removed types
+### Removed types and methods
 
 - `shared\WindowsTrayCore\TrayTooltip.cs` (static class with stale `MaxLength = 63` and `Truncate`). Tests in `TrayTooltipTests.cs` rewritten against the new builder.
-- `apps\SoundTracker\SoundTracker.App\TooltipFormatter.cs` (app-local multi-line composer; functionality now in the shared builder).
+- `apps\SoundTracker\SoundTracker.App\TooltipFormatter.cs` is renamed to `ActivityLabelFormatter.cs`. The following tooltip-only methods are deleted; the rest survive unchanged:
+  - `BuildMultiline` (public; the multi-line tooltip composer)
+  - `BuildVolumeSummary` (private; tooltip-only helper)
+  - `BuildActiveTooltipSummary` (private; tooltip-only)
+  - `BuildRecentTooltipSummary` (private; tooltip-only)
+  - `BuildCompactAge` (private; only used by `BuildRecentTooltipSummary`)
+  - `Truncate` (private; the legacy 63-char hard-cut, redundant with the new builder)
+  - `NotifyIconTextLimit` constant (private)
+- Survivors that move into `ActivityLabelFormatter.cs`: `BuildVolumeMenuLabel`, `BuildActiveMenuLabel`, `BuildRecentMenuLabel`, `BuildHistoryRow`, `BuildRelativeAge`, `BuildDuration`, plus the private helpers `GetLatestActivity`, `BuildHistorySummary`, `BuildRecentMenuSummary`, and `CompactSource` (the latter retained because it may be useful for future menu-label work even though no current caller needs it; if it ends up orphaned after the rename, drop it).
 
 ## Build algorithm
 
@@ -238,20 +246,25 @@ If flag suffix proliferation pushes this past 127 chars in future, the call site
 
 ### SoundTracker
 
-`apps\SoundTracker\SoundTracker.App\TooltipFormatter.cs` is deleted entirely. The composition logic moves inline into the tray-tooltip refresh path:
+The file `apps\SoundTracker\SoundTracker.App\TooltipFormatter.cs` is renamed to `ActivityLabelFormatter.cs` (class name follows). Tooltip-only methods listed above are deleted; menu-label methods stay. The tooltip composition that lived in `BuildMultiline` moves inline into `TrayApplicationContext.RefreshTooltip` (or wherever the tray text was previously set; current call site is `TrayApplicationContext.cs:353`):
 
 ```csharp
 var tb = new TrayTooltipBuilder()
-    .AddRequired($"{AppMetadata.TooltipPrefix} v{AppMetadata.DisplayVersion}")
-    .AddRequired($"{(muted ? "Muted" : $"Volume {volumePercent}%")}");
-if (!string.IsNullOrEmpty(activeAppName))
-    tb.AddOptional($"Active: {activeAppName}");
-if (recentApps.Count > 0)
-    tb.AddOptional($"Recent: {string.Join(", ", recentApps.Take(2))}");
+    .AddRequired(AppMetadata.TooltipPrefix)
+    .AddRequired(BuildVolumeSummaryInline(volumeSnapshot));
+if (activeSessions.Count > 0)
+    tb.AddOptional(BuildActiveTooltipSummaryInline(activeSessions));
+else
+{
+    var recent = BuildRecentTooltipSummaryInline(recentActivities, DateTimeOffset.UtcNow);
+    if (recent is not null) tb.AddOptional(recent);
+}
 _trayIcon.Tooltip = tb;
 ```
 
-`NotifyIconTextLimit` and the per-line ellipsis logic that lived in `TooltipFormatter` come for free from the builder; the 63-char ceiling is implicitly lifted to 127.
+The three `*Inline` helpers are private methods on `TrayApplicationContext` carrying the same logic the deleted `TooltipFormatter` private helpers did. The 63-char ceiling that `TooltipFormatter.Truncate` enforced is implicitly lifted to 127 by `TrayTooltipBuilder`. The other three caller sites (`TrayApplicationContext.cs:354-356`) keep using the now-renamed `ActivityLabelFormatter` for their menu labels; the only change at those lines is the class identifier.
+
+The `SoundTracker.SmokeTests` `TooltipFormatter_MultilineTooltip` test (Program.cs:30, Program.cs:159-161) is rewritten against the new inline composition path or the underlying `TrayTooltipBuilder` directly; the smoke check that the tooltip is multi-line and contains version/volume info is preserved.
 
 ## Testing
 
@@ -301,7 +314,13 @@ This change has no Win32-side behaviour beyond what `TrayIcon` already verifies 
 | Path | Rationale |
 |---|---|
 | `shared\WindowsTrayCore\TrayTooltip.cs` | Stale 63-char API; replaced |
-| `apps\SoundTracker\SoundTracker.App\TooltipFormatter.cs` | Logic moved into the shared builder |
+| `apps\SoundTracker\SoundTracker.App\TooltipFormatter.cs` | Renamed; see Renamed files below |
+
+### Renamed files
+
+| From | To | Rationale |
+|---|---|---|
+| `apps\SoundTracker\SoundTracker.App\TooltipFormatter.cs` | `apps\SoundTracker\SoundTracker.App\ActivityLabelFormatter.cs` | Tooltip-only methods deleted; surviving methods all build menu/activity labels |
 
 ### Modified files
 
@@ -313,8 +332,9 @@ This change has no Win32-side behaviour beyond what `TrayIcon` already verifies 
 | `apps\BatteryTray\BatteryTray\BatteryTrayContext.cs` | Builder migration |
 | `apps\NetProfileSwitcher\UI\MainForm.cs` | Builder migration; delete `TruncateAtWord` helper |
 | `apps\ProgramHider\app\ProgramHider\ProgramHiderContext.cs` | `TooltipText` shortcut migration |
-| `apps\SoundTracker\SoundTracker.App\*.cs` (tooltip caller) | Builder migration; delete TooltipFormatter usage |
-| `apps\SoundTracker\SoundTracker.SmokeTests\*.cs` | Test setup migrated |
+| `apps\SoundTracker\SoundTracker.App\TrayApplicationContext.cs` | Replace `_notifyIcon.Text = TooltipFormatter.BuildMultiline(...)` (line 353) with the inline `TrayTooltipBuilder` composition; the three subsequent menu-label assignments (lines 354-356) keep their formatter calls but reference the renamed `ActivityLabelFormatter`. The error-path lines 146 + 363 also migrate to the builder (or `TooltipText` for the single-line "starting" / "unavailable" cases). |
+| `apps\SoundTracker\SoundTracker.App\RecentActivityForm.cs:154-157` | Update `TooltipFormatter.*` references to `ActivityLabelFormatter.*`; no behavioural change |
+| `apps\SoundTracker\SoundTracker.SmokeTests\Program.cs` | Rewrite the `TooltipFormatter_MultilineTooltip` test to drive the new composition path |
 | `WORKLOG.md` | New entry on the final commit |
 
 ### Unchanged
