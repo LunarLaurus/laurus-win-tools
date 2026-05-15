@@ -12,6 +12,7 @@ public static class ThemeApplier
 
     public static void ApplyTo(Form form, TrayTheme theme)
     {
+        ApplyTitleBar(form, !theme.IsLight);
         form.BackColor = theme.Background;
         form.ForeColor = theme.Text;
         ApplyToControls(form.Controls, theme);

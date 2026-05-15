@@ -55,4 +55,23 @@ public class ThemeApplierTests
         btn.FlatStyle.Should().Be(FlatStyle.Flat);
         btn.FlatAppearance.BorderColor.Should().Be(theme.Accent);
     }
+
+    [WindowsFact]
+    public void ApplyTo_Form_DarkTheme_DoesNotThrow()
+    {
+        using var form = new Form();
+        var dark = new TrayTheme(isLight: false);
+
+        var act = () => ThemeApplier.ApplyTo(form, dark);
+        act.Should().NotThrow();
+    }
+
+    [WindowsFact]
+    public void ApplyTitleBar_NoHandle_IsSafeNoOp()
+    {
+        using var form = new Form();
+        // Handle is not yet created.
+        var act = () => ThemeApplier.ApplyTitleBar(form, dark: true);
+        act.Should().NotThrow();
+    }
 }
