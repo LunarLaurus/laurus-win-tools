@@ -3,6 +3,7 @@ using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Windows.Forms;
 using WindowsAppCore;
+using WindowsTrayCore;
 
 namespace BatteryTray;
 
@@ -73,6 +74,17 @@ public sealed class BatteryInfoForm : Form
             _refreshTimer?.Dispose();
             _refreshTimer = null;
         };
+
+        ThemeApplier.ApplyTo(this, TrayTheme.Current);
+        TrayTheme.Current.Changed += OnThemeChanged;
+        Disposed += (_, _) => TrayTheme.Current.Changed -= OnThemeChanged;
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        ThemeApplier.ApplyTo(this, TrayTheme.Current);
+        _sparkline.BackColor = TrayTheme.Current.Surface;
+        _sparkline.Invalidate();
     }
 
     private void BuildLayout()
@@ -195,7 +207,7 @@ public sealed class BatteryInfoForm : Form
         {
             Text = "",
             AutoSize = true,
-            ForeColor = SystemColors.GrayText,
+            ForeColor = TrayTheme.Current.ForegroundDim,
             Margin = new Padding(0, 4, 0, 6),
         };
         var caveat = new Label
@@ -203,7 +215,7 @@ public sealed class BatteryInfoForm : Form
             Text = "Estimates only. For authoritative per-app energy use, see Task Manager → Power usage,\n"
                  + "or run `powercfg /batteryreport` from an admin prompt.",
             AutoSize = true,
-            ForeColor = SystemColors.GrayText,
+            ForeColor = TrayTheme.Current.ForegroundDim,
             Margin = new Padding(0, 0, 0, 4),
         };
 
@@ -251,7 +263,7 @@ public sealed class BatteryInfoForm : Form
             Text = "BatteryTray tries three data sources for per-process power. The highest-tier\n"
                  + "available source is used; lower tiers act as fallbacks. Status updates live.",
             AutoSize = true,
-            ForeColor = SystemColors.GrayText,
+            ForeColor = TrayTheme.Current.ForegroundDim,
             Margin = new Padding(0, 0, 0, 6),
         };
         stack.Controls.Add(samplersHint);
@@ -493,7 +505,7 @@ public sealed class BatteryInfoForm : Form
             _processList.Items.Clear();
             if (sorted.Length == 0)
             {
-                var item = new ListViewItem("(no data yet)") { ForeColor = SystemColors.GrayText };
+                var item = new ListViewItem("(no data yet)") { ForeColor = TrayTheme.Current.ForegroundDim };
                 item.SubItems.Add("");
                 item.SubItems.Add("");
                 item.SubItems.Add("");
@@ -690,7 +702,7 @@ public sealed class BatteryInfoForm : Form
         {
             Text = text.ToUpperInvariant(),
             AutoSize = true,
-            ForeColor = SystemColors.GrayText,
+            ForeColor = TrayTheme.Current.ForegroundDim,
             Font = new Font(SystemFonts.DefaultFont.FontFamily, 8.5f, FontStyle.Bold),
             Margin = new Padding(0, 4, 0, 2),
         };
@@ -713,7 +725,7 @@ public sealed class BatteryInfoForm : Form
         {
             Text = text.ToUpperInvariant(),
             AutoSize = true,
-            ForeColor = SystemColors.GrayText,
+            ForeColor = TrayTheme.Current.ForegroundDim,
             Font = new Font(SystemFonts.DefaultFont.FontFamily, 8.5f, FontStyle.Bold),
             Margin = new Padding(0, 8, 0, 4),
         });
@@ -764,7 +776,7 @@ public sealed class BatteryInfoForm : Form
         {
             _history = history;
             DoubleBuffered = true;
-            BackColor = SystemColors.Window;
+            BackColor = TrayTheme.Current.Surface;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -774,12 +786,12 @@ public sealed class BatteryInfoForm : Form
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             var rect = new Rectangle(8, 8, ClientSize.Width - 16, ClientSize.Height - 16);
-            using (var border = new Pen(SystemColors.ControlDark)) g.DrawRectangle(border, rect);
+            using (var border = new Pen(TrayTheme.Current.SurfaceStroke)) g.DrawRectangle(border, rect);
 
             var samples = _history.Snapshot();
             if (samples.Length < 2)
             {
-                using var brush = new SolidBrush(SystemColors.GrayText);
+                using var brush = new SolidBrush(TrayTheme.Current.ForegroundDim);
                 using var f = SystemFonts.DefaultFont;
                 var msg = "Collecting data… (graph appears after a few minutes)";
                 var size = g.MeasureString(msg, f);
@@ -791,7 +803,7 @@ public sealed class BatteryInfoForm : Form
             foreach (var s in samples) maxAbs = Math.Max(maxAbs, Math.Abs(s.RateMilliwatts));
 
             var midY = rect.Top + rect.Height / 2;
-            using (var zero = new Pen(SystemColors.ControlDark) { DashStyle = DashStyle.Dot })
+            using (var zero = new Pen(TrayTheme.Current.SurfaceStroke) { DashStyle = DashStyle.Dot })
             {
                 g.DrawLine(zero, rect.Left + 1, midY, rect.Right - 1, midY);
             }
@@ -818,7 +830,7 @@ public sealed class BatteryInfoForm : Form
                 g.DrawLine(pen, xa, ya, xb, yb);
             }
 
-            using var labelBrush = new SolidBrush(SystemColors.GrayText);
+            using var labelBrush = new SolidBrush(TrayTheme.Current.ForegroundDim);
             using var labelFont  = new Font(SystemFonts.DefaultFont.FontFamily, 7.5f);
             g.DrawString($"±{maxAbs / 1000.0:F1} W", labelFont, labelBrush, rect.Left + 4, rect.Top + 2);
         }
