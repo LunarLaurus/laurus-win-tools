@@ -22,13 +22,19 @@ public sealed class TrayTheme : IDisposable
     private Color _accent;
     private bool _isHighContrast;
     private bool _disposed;
+    private readonly MessageWindow? _messageWindow;
 
-    /// <summary>Production constructor; reads system state. Live subscription wired in Task 5.</summary>
+    private const int WM_SETTINGCHANGE = 0x001A;
+    private const int WM_DWMCOLORIZATIONCOLORCHANGED = 0x0320;
+
+    /// <summary>Production constructor; subscribes to live system theme + accent broadcasts.</summary>
     public TrayTheme()
     {
         _isLight = ReadRegistryIsLight();
         _accent = AccentColors.Read();
         _isHighContrast = SystemInformation.HighContrast;
+        _messageWindow = new MessageWindow(this);
+        _messageWindow.CreateHandle(new CreateParams());
     }
 
     /// <summary>Testing constructor; no system subscription.</summary>
@@ -108,11 +114,75 @@ public sealed class TrayTheme : IDisposable
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    internal void SimulateAccentChanged(Color accent)
+    {
+        if (accent == _accent) return;
+        _accent = accent;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void SimulateHighContrastChanged(bool on)
+    {
+        if (on == _isHighContrast) return;
+        _isHighContrast = on;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        // Message-window cleanup added in Task 5.
+        _messageWindow?.DestroyHandle();
+    }
+
+    // ── Live change handling ───────────────────────────────────────────────
+
+    private sealed class MessageWindow : NativeWindow
+    {
+        private readonly TrayTheme _owner;
+        public MessageWindow(TrayTheme owner) => _owner = owner;
+
+        protected override void WndProc(ref Message m)
+        {
+            switch (m.Msg)
+            {
+                case WM_SETTINGCHANGE:
+                    _owner.OnSettingChange();
+                    break;
+                case WM_DWMCOLORIZATIONCOLORCHANGED:
+                    _owner.OnAccentChanged();
+                    break;
+            }
+            base.WndProc(ref m);
+        }
+    }
+
+    private void OnSettingChange()
+    {
+        // WM_SETTINGCHANGE broadcasts cover the AppsUseLightTheme flip
+        // ("ImmersiveColorSet" in lParam) and high-contrast toggles. We
+        // re-read both sources and fire Changed only on a real delta.
+        var hcChanged = SystemInformation.HighContrast != _isHighContrast;
+        if (hcChanged)
+        {
+            _isHighContrast = SystemInformation.HighContrast;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+
+        var newLight = ReadRegistryIsLight();
+        if (newLight != _isLight)
+        {
+            _isLight = newLight;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void OnAccentChanged()
+    {
+        var newAccent = AccentColors.Read();
+        if (newAccent == _accent) return;
+        _accent = newAccent;
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     // ── Internals ──────────────────────────────────────────────────────────

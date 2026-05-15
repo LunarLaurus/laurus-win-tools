@@ -168,4 +168,55 @@ public class TrayThemeTests
         var theme = new TrayTheme(isLight: true);
         theme.Field.Should().Be(theme.SurfaceAlt);
     }
+
+    // ── Live change simulation tests ───────────────────────────────────────
+
+    [Fact]
+    public void SimulateAccentChanged_FiresChanged_AndUpdatesAccent()
+    {
+        var theme = new TrayTheme(isLight: true, accent: Color.Red, isHighContrast: false);
+        var fired = 0;
+        theme.Changed += (_, _) => fired++;
+
+        theme.SimulateAccentChanged(Color.Blue);
+
+        fired.Should().Be(1);
+        theme.Accent.Should().Be(Color.Blue);
+    }
+
+    [Fact]
+    public void SimulateAccentChanged_SameValue_DoesNotFire()
+    {
+        var theme = new TrayTheme(isLight: true, accent: Color.Red, isHighContrast: false);
+        var fired = 0;
+        theme.Changed += (_, _) => fired++;
+
+        theme.SimulateAccentChanged(Color.Red);
+
+        fired.Should().Be(0);
+    }
+
+    [Fact]
+    public void SimulateHighContrastChanged_FiresChanged()
+    {
+        var theme = new TrayTheme(isLight: true, accent: Color.Red, isHighContrast: false);
+        var fired = 0;
+        theme.Changed += (_, _) => fired++;
+
+        theme.SimulateHighContrastChanged(true);
+
+        fired.Should().Be(1);
+        theme.IsHighContrast.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AccentSubtle_RecomputesAfterAccentChange()
+    {
+        var theme = new TrayTheme(isLight: true, accent: Color.Red, isHighContrast: false);
+        var firstSubtle = theme.AccentSubtle;
+
+        theme.SimulateAccentChanged(Color.Blue);
+
+        theme.AccentSubtle.Should().NotBe(firstSubtle);
+    }
 }
