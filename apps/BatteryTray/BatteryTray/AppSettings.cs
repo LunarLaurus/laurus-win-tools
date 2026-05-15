@@ -9,7 +9,7 @@ public enum IconTheme { Auto = 0, Light = 1, Dark = 2 }
 public sealed class AppSettings
 {
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
 
     // ---- Polling / thresholds ----
     public int UpdateIntervalSeconds { get; set; } = 30;
@@ -57,6 +57,11 @@ public sealed class AppSettings
     // user-mode (deliberately — it's user-controlled by design), so the v2 fields
     // never did anything. v3 migration drops them silently.
 
+    // ---- Hardware actions ----
+    // Null = user has never configured this; the Settings dialog shows live
+    // Windows values. Non-null = user's last saved preference.
+    public HardwareActionPolicy? HardwareActions { get; set; }
+
     // ---- Colors ----
     public string ColorCharging { get; set; } = "#1E88E5";
     public string ColorNormal   { get; set; } = "#43A047";
@@ -70,6 +75,7 @@ public sealed class AppSettings
         {
             new AppSettingsMigrationV1ToV2(),
             new AppSettingsMigrationV2ToV3(),
+            new AppSettingsMigrationV3ToV4(),
         });
 
     [JsonIgnore]
