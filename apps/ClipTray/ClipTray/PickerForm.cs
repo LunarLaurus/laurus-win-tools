@@ -9,6 +9,7 @@ internal sealed class PickerForm : Form
 {
     private const int Gap = 6;
     private const int SearchHeight = 28;
+    private const int CloseButtonWidth = 28;
     private const int RowHeight = 36;
     private const int ThumbW = 32;
     private const int ThumbH = 24;
@@ -19,6 +20,7 @@ internal sealed class PickerForm : Form
     private readonly ImageStore _images;
 
     private readonly TextBox _searchBox;
+    private readonly Button _closeButton;
     private readonly ListBox _listBox;
 
     private IntPtr _targetWindow;
@@ -48,11 +50,11 @@ internal sealed class PickerForm : Form
         {
             Left = Gap,
             Top = Gap,
-            Width = w - Gap * 2,
+            Width = w - Gap * 2 - CloseButtonWidth - Gap,
             Height = SearchHeight,
             Font = new Font("Segoe UI", 9.5f),
             BorderStyle = BorderStyle.FixedSingle,
-            PlaceholderText = "Search (/ for regex)...",
+            PlaceholderText = "Search (Esc to close)...",
         };
         _searchBox.TextChanged += (_, _) =>
         {
@@ -60,6 +62,20 @@ internal sealed class PickerForm : Form
             RebuildList();
         };
         _searchBox.KeyDown += OnKeyDown;
+
+        _closeButton = new Button
+        {
+            Left = w - Gap - CloseButtonWidth,
+            Top = Gap,
+            Width = CloseButtonWidth,
+            Height = SearchHeight,
+            Text = "✕",
+            Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+            FlatStyle = FlatStyle.Flat,
+            TabStop = false,
+        };
+        _closeButton.FlatAppearance.BorderSize = 0;
+        _closeButton.Click += (_, _) => Close();
 
         _listBox = new ListBox
         {
@@ -80,6 +96,7 @@ internal sealed class PickerForm : Form
         _listBox.MouseUp += OnListMouseUp;
 
         Controls.Add(_searchBox);
+        Controls.Add(_closeButton);
         Controls.Add(_listBox);
 
         var contextMenu = new ContextMenuStrip();
@@ -145,6 +162,12 @@ internal sealed class PickerForm : Form
         Location = new Point(x, y);
 
         Show();
+        // A borderless TopMost form does not reliably activate from Show()
+        // alone; the resulting "ghost" state means Deactivate never fires
+        // when the user clicks outside. Force activation so OnDeactivate
+        // becomes a real dismiss path.
+        Activate();
+        BringToFront();
         _searchBox.Focus();
     }
 
