@@ -55,6 +55,8 @@ public sealed class SettingsForm : Form
     private IReadOnlyList<PowerPlan> _powerPlans = Array.Empty<PowerPlan>();
     private readonly bool _currentlyRunAtStartup;
 
+    private HardwareActionsSnapshot? _hwLiveSnapshot;
+
     public SettingsForm(AppSettings settings, bool currentlyRunAtStartup)
     {
         _settings = settings;
@@ -437,7 +439,7 @@ public sealed class SettingsForm : Form
             Padding = new Padding(8),
         };
         var save = new Button { Text = "&Save", Width = 90 };
-        save.Click += (_, _) => SaveAndClose();
+        save.Click += (_, _) => SaveAndClose(save);
         var cancel = new Button { Text = "&Cancel", Width = 90 };
         cancel.Click += (_, _) => Close();
         row.Controls.Add(save);
@@ -541,6 +543,148 @@ public sealed class SettingsForm : Form
         UpdatePlanComboState();
 
         _runAtStartup.Checked = _currentlyRunAtStartup;
+
+        LoadHardwareActions();
+    }
+
+    private void LoadHardwareActions()
+    {
+        _hwLiveSnapshot = HardwareActionsController.ReadCurrent();
+
+        if (_hwLiveSnapshot is null)
+        {
+            // powercfg failed; disable the whole tab and surface the reason inline.
+            _hwPowerButtonAc.Enabled       = false;
+            _hwLidCloseAc.Enabled          = false;
+            _hwDifferOnBattery.Enabled     = false;
+            _hwPowerButtonDc.Enabled       = false;
+            _hwLidCloseDc.Enabled          = false;
+            _hwDriftHint.Text              = "Couldn't read current Windows power settings.";
+            _hwDriftHint.Visible           = true;
+            return;
+        }
+
+        var live = _hwLiveSnapshot.Value;
+        var persisted = _settings.HardwareActions;
+
+        HardwareAction acPb, acLid, dcPb, dcLid;
+        bool differ;
+
+        if (persisted is null)
+        {
+            // First-run-on-this-feature: populate from the live Windows values.
+            acPb   = live.PowerButtonAc;
+            dcPb   = live.PowerButtonDc;
+            acLid  = live.LidCloseAc;
+            dcLid  = live.LidCloseDc;
+            differ = (acPb != dcPb) || (acLid != dcLid);
+            _hwDriftHint.Visible = false;
+        }
+        else
+        {
+            // Re-opening: populate from the persisted policy.
+            acPb   = persisted.PowerButton;
+            acLid  = persisted.LidClose;
+            differ = persisted.DifferOnBattery;
+            dcPb   = persisted.DifferOnBattery ? persisted.PowerButtonOnBattery : persisted.PowerButton;
+            dcLid  = persisted.DifferOnBattery ? persisted.LidCloseOnBattery    : persisted.LidClose;
+
+            // Show drift hint iff any live value disagrees with the policy's effective value.
+            var drift =
+                live.PowerButtonAc != acPb ||
+                live.PowerButtonDc != dcPb ||
+                live.LidCloseAc    != acLid ||
+                live.LidCloseDc    != dcLid;
+            _hwDriftHint.Visible = drift;
+        }
+
+        _hwPowerButtonAc.SelectedValue = acPb;
+        _hwLidCloseAc.SelectedValue    = acLid;
+        _hwDifferOnBattery.Checked     = differ;
+        _hwPowerButtonDc.SelectedValue = dcPb;
+        _hwLidCloseDc.SelectedValue    = dcLid;
+        _hwOnBatteryPowerLabel.Visible = differ;
+        _hwPowerButtonDc.Visible       = differ;
+        _hwOnBatteryLidLabel.Visible   = differ;
+        _hwLidCloseDc.Visible          = differ;
+    }
+
+    /// <summary>
+    /// Reads the new policy from the dropdowns, decides whether a powercfg
+    /// apply is needed, and runs it if so. Returns true if the dialog should
+    /// proceed to persist _settings (either no change was needed or apply
+    /// succeeded). Returns false to abort the save (apply failed or user
+    /// declined UAC); caller must NOT call _settings.Save() in that case.
+    /// </summary>
+    private bool TryApplyHardwareActions(Button saveButton)
+    {
+        if (_hwLiveSnapshot is null)
+        {
+            // Tab was disabled because we couldn't read; leave _settings.HardwareActions
+            // untouched and let the rest of the save proceed.
+            return true;
+        }
+
+        var candidate = new HardwareActionPolicy
+        {
+            PowerButton          = (HardwareAction)_hwPowerButtonAc.SelectedValue!,
+            LidClose             = (HardwareAction)_hwLidCloseAc.SelectedValue!,
+            DifferOnBattery      = _hwDifferOnBattery.Checked,
+            PowerButtonOnBattery = (HardwareAction)_hwPowerButtonDc.SelectedValue!,
+            LidCloseOnBattery    = (HardwareAction)_hwLidCloseDc.SelectedValue!,
+        };
+
+        var live = _hwLiveSnapshot.Value;
+        var liveMatchesCandidate =
+            live.PowerButtonAc == candidate.PowerButton &&
+            live.LidCloseAc    == candidate.LidClose &&
+            live.PowerButtonDc == (candidate.DifferOnBattery ? candidate.PowerButtonOnBattery : candidate.PowerButton) &&
+            live.LidCloseDc    == (candidate.DifferOnBattery ? candidate.LidCloseOnBattery    : candidate.LidClose);
+
+        var persistedMatchesCandidate = HardwareActionPolicyEquals(_settings.HardwareActions, candidate);
+
+        if (liveMatchesCandidate && persistedMatchesCandidate)
+        {
+            return true; // nothing to do
+        }
+
+        var originalText = saveButton.Text;
+        saveButton.Enabled = false;
+        saveButton.Text = "Applying...";
+        try
+        {
+            var result = HardwareActionsController.ApplyToAllPlans(candidate);
+            if (!result.Ok)
+            {
+                MessageBox.Show(
+                    this,
+                    $"Couldn't apply hardware action settings: {result.FailureReason}. Other settings were not saved.",
+                    "BatteryTray",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return false;
+            }
+
+            _settings.HardwareActions = candidate;
+            _hwLiveSnapshot = HardwareActionsController.ReadCurrent(); // refresh for any subsequent re-open
+            _hwDriftHint.Visible = false;
+            return true;
+        }
+        finally
+        {
+            saveButton.Enabled = true;
+            saveButton.Text = originalText;
+        }
+    }
+
+    private static bool HardwareActionPolicyEquals(HardwareActionPolicy? a, HardwareActionPolicy b)
+    {
+        if (a is null) return false;
+        return a.PowerButton          == b.PowerButton
+            && a.LidClose             == b.LidClose
+            && a.DifferOnBattery      == b.DifferOnBattery
+            && a.PowerButtonOnBattery == b.PowerButtonOnBattery
+            && a.LidCloseOnBattery    == b.LidCloseOnBattery;
     }
 
     private static void SelectPlan(ComboBox combo, string? guidStr)
@@ -557,7 +701,7 @@ public sealed class SettingsForm : Form
         combo.SelectedIndex = 0;
     }
 
-    private void SaveAndClose()
+    private void SaveAndClose(Button saveButton)
     {
         if (_criticalNud.Value > _lowNud.Value)
         {
@@ -567,6 +711,11 @@ public sealed class SettingsForm : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
             return;
+        }
+
+        if (!TryApplyHardwareActions(saveButton))
+        {
+            return; // abort save entirely
         }
 
         _settings.UpdateIntervalSeconds        = (int)_intervalNud.Value;

@@ -24,6 +24,15 @@ internal static class Program
         using var log = new AppLog("BatteryTray", Application.ProductVersion);
         UnhandledExceptionWatcher.Install(log, "BatteryTray");
 
+        HardwareActionsController.LogSink = (evt, level, data) =>
+        {
+            switch (level)
+            {
+                case HardwareActionsController.LogLevel.Info: log.Info(evt, data); break;
+                case HardwareActionsController.LogLevel.Warn: log.Warn(evt, data); break;
+            }
+        };
+
         var settings = AppSettings.Load();
 
         var startupOptions = StartupOptions.Parse(args);
