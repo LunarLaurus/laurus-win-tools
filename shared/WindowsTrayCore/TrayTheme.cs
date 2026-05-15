@@ -21,6 +21,7 @@ public sealed class TrayTheme : IDisposable
     private bool _isLight;
     private Color _accent;
     private bool _isHighContrast;
+    private ThemePreference _preference = ThemePreference.Auto;
     private bool _disposed;
     private readonly MessageWindow? _messageWindow;
 
@@ -51,6 +52,35 @@ public sealed class TrayTheme : IDisposable
 
     public bool IsLight => _isLight;
     public bool IsHighContrast => _isHighContrast;
+    public ThemePreference Preference => _preference;
+
+    /// <summary>
+    /// Overrides the system theme detection. <see cref="ThemePreference.Auto"/>
+    /// restores system-follow; Light and Dark force the corresponding palette
+    /// regardless of system state. Fires <see cref="Changed"/> if the resulting
+    /// palette changes or the preference itself changed.
+    /// </summary>
+    public void SetOverride(ThemePreference preference)
+    {
+        var changed = preference != _preference;
+        _preference = preference;
+
+        bool newLight = preference switch
+        {
+            ThemePreference.Light => true,
+            ThemePreference.Dark => false,
+            _ => ReadRegistryIsLight(),
+        };
+
+        if (newLight != _isLight)
+        {
+            _isLight = newLight;
+            changed = true;
+        }
+
+        if (changed)
+            Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>Fires when the system theme or accent changes. On the message-pump thread.</summary>
     public event EventHandler? Changed;
@@ -168,6 +198,9 @@ public sealed class TrayTheme : IDisposable
             _isHighContrast = SystemInformation.HighContrast;
             Changed?.Invoke(this, EventArgs.Empty);
         }
+
+        // Light/dark flips are ignored when a non-Auto override is active.
+        if (_preference != ThemePreference.Auto) return;
 
         var newLight = ReadRegistryIsLight();
         if (newLight != _isLight)

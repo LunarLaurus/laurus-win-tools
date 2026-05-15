@@ -219,4 +219,61 @@ public class TrayThemeTests
 
         theme.AccentSubtle.Should().NotBe(firstSubtle);
     }
+
+    // ── SetOverride tests ──────────────────────────────────────────────────
+
+    [Fact]
+    public void Preference_Default_IsAuto()
+    {
+        new TrayTheme(isLight: true).Preference.Should().Be(ThemePreference.Auto);
+    }
+
+    [Fact]
+    public void SetOverride_Light_ForcesIsLightTrue()
+    {
+        var theme = new TrayTheme(isLight: false, accent: Color.Red, isHighContrast: false);
+        theme.IsLight.Should().BeFalse();
+
+        theme.SetOverride(ThemePreference.Light);
+
+        theme.IsLight.Should().BeTrue();
+        theme.Preference.Should().Be(ThemePreference.Light);
+    }
+
+    [Fact]
+    public void SetOverride_Dark_ForcesIsLightFalse()
+    {
+        var theme = new TrayTheme(isLight: true, accent: Color.Red, isHighContrast: false);
+        theme.SetOverride(ThemePreference.Dark);
+        theme.IsLight.Should().BeFalse();
+    }
+
+    [Fact]
+    public void SetOverride_FiresChanged_WhenPaletteOrPreferenceChanges()
+    {
+        var theme = new TrayTheme(isLight: true, accent: Color.Red, isHighContrast: false);
+        var fired = 0;
+        theme.Changed += (_, _) => fired++;
+
+        theme.SetOverride(ThemePreference.Dark);
+
+        fired.Should().Be(1);
+    }
+
+    [Fact]
+    public void SetOverride_Auto_RestoresSystemFollowing()
+    {
+        // Construct as dark, force Light, switch back to Auto, then
+        // simulate a system flip to dark and verify Auto picks it up.
+        var theme = new TrayTheme(isLight: false, accent: Color.Red, isHighContrast: false);
+        theme.SetOverride(ThemePreference.Light);
+        theme.IsLight.Should().BeTrue();
+
+        theme.SetOverride(ThemePreference.Auto);
+        theme.Preference.Should().Be(ThemePreference.Auto);
+
+        // After Auto, SimulatePreferenceChanged should take effect again.
+        theme.SimulatePreferenceChanged(false);
+        theme.IsLight.Should().BeFalse();
+    }
 }
