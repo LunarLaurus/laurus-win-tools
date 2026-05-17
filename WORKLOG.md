@@ -4,6 +4,27 @@ Resumability artifact. Read this to get current state before continuing.
 
 ---
 
+## 2026-05-17
+
+**Did:** Test-parallelism hardening across all test projects; live ClipTray settings recovery.
+
+Incident: ClipTray.Tests `SaveLoad_RoundTripsAllFields` writes fixture values (`PickerHotkeyKey = Keys.Q`, `TextHistoryCap = 123`, `ForegroundBlocklist.Add("custom-app")`, `PauseCapture = true`) via the production `AppSettings.Save()` path. The test wraps in `TempAppData("ClipTray")` which sets the process-wide env var `CLIPTRAY_DATA` to redirect writes. But xUnit's default collection-level parallelism means another test class's `TempAppData.Dispose()` could clear `CLIPTRAY_DATA` mid-flight, and the second class's subsequent `Save()` would silently land in the user's real `%APPDATA%\ClipTray\settings.json`. That's exactly what happened in earlier runs: the live ClipTray settings ended up with `PauseCapture: true` (first line of the capture pipeline's privacy filter), so the running tray app silently dropped every clipboard event for the past two days.
+
+Fixes:
+- Reset live `%APPDATA%\ClipTray\settings.json` to defaults: `PauseCapture: false`, `PickerHotkeyKey: 86` (V), `TextHistoryCap: 50`, blocklist back to canonical seven entries. ClipTray restarted; capture verified by Commander.
+- Added `xunit.runner.json` with `parallelizeTestCollections: false` to all 8 test projects (the 7 unit + 2 E2E projects that didn't have it; ClipTray.Tests already had one from 2026-05-15). Each csproj's `<ItemGroup>` includes `<None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />`.
+- Audited all 5 apps' live settings files for similar pollution. Only ClipTray was hit; other tests either don't call `.Save()` or use GUID-prefixed app names (`StoreTest-{Guid.NewGuid():N}`).
+- Comment added to `ClipTray.Tests.AppSettingsTests.SaveLoad_RoundTripsAllFields` documenting the env-var race and why the file lives where it does.
+- `docs/conventions/app-data.md` extended with a "Test parallelism is disabled" subsection and a "Test fixture appName discipline" subsection capturing the new convention.
+
+**Tests:** 381 unit tests green across all seven suites (WindowsAppCore 85, WindowsTrayCore 144, NetProfileSwitcher 9, SoundTracker 8, ProgramHider 17, BatteryTray 83, ClipTray 35).
+
+**Committed:** (this commit)
+
+**Next:** Watch for any recurrence; consider adding a `TempAppData` self-check that asserts the env var still points where it was set when Dispose runs.
+
+---
+
 ## 2026-05-13
 
 **Did:** Full planning and design phase completed across three review rounds.

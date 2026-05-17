@@ -26,4 +26,8 @@
     <ProjectReference Include="..\..\..\shared\WindowsAppTesting\WindowsAppTesting.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
